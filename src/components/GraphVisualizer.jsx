@@ -1,0 +1,603 @@
+import React, { useState, useRef } from 'react';
+import { 
+  ZoomIn, 
+  ZoomOut, 
+  RotateCcw, 
+  Clock, 
+  AlertTriangle, 
+  ShieldCheck, 
+  FileText, 
+  Info,
+  Layers,
+  ChevronRight
+} from 'lucide-react';
+import { GRAPH_NODES, GRAPH_EDGES, DECISIONS, POLICIES, TEAM_MEMBERS } from '../data/mockData';
+
+export default function GraphVisualizer({ 
+  asOfDate, 
+  selectedNodeId, 
+  onSelectNode, 
+  highlightNodeIds = [],
+  onOpenCitation 
+}) {
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [hoveredNode, setHoveredNode] = useState(null);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const svgRef = useRef(null);
+
+  // Compute node active states based on asOfDate
+  const processedNodes = GRAPH_NODES.map(node => {
+    let isActiveAtDate = true;
+    let isStaleAtDate = false;
+
+    if (node.type === 'clause') {
+      if (node.validFrom && asOfDate < node.validFrom) {
+        isActiveAtDate = false;
+      }
+      if (node.validTo && asOfDate > node.validTo) {
+        isActiveAtDate = false;
+      }
+    } else if (node.type === 'decision') {
+      if (node.date && asOfDate < node.date) {
+        isActiveAtDate = false;
+      }
+      if (asOfDate >= '2026-09-01' && (node.id === 'DEC-2024-001' || node.id === 'DEC-2025-019')) {
+        isStaleAtDate = true;
+      }
+    }
+
+    // Modern calm pastel colors
+    let fillColor = '#EEF2FF';
+    let strokeColor = '#6366F1';
+    let textColor = '#3730A3';
+
+    if (node.type === 'clause') {
+      fillColor = '#FEF3C7';
+      strokeColor = '#D97706';
+      textColor = '#92400E';
+    } else if (node.type === 'person') {
+      fillColor = '#E0F2FE';
+      strokeColor = '#0284C7';
+      textColor = '#0369A1';
+    }
+
+    return {
+      ...node,
+      fillColor,
+      strokeColor,
+      textColor,
+      isActiveAtDate,
+      isStaleAtDate
+    };
+  });
+
+  // Compute edges state based on asOfDate
+  const processedEdges = GRAPH_EDGES.map(edge => {
+    let status = 'active';
+    if (edge.validFrom && asOfDate < edge.validFrom) {
+      status = 'future';
+    } else if (edge.validTo && asOfDate > edge.validTo) {
+      status = 'expired';
+    } else if (edge.isConflict && asOfDate >= edge.validFrom) {
+      status = 'conflict';
+    }
+
+    return {
+      ...edge,
+      status
+    };
+  });
+
+  const activeNodeData = processedNodes.find(n => n.id === selectedNodeId) || 
+    (selectedNodeId ? { id: selectedNodeId, label: selectedNodeId, type: 'decision' } : null);
+
+  const activeDecision = activeNodeData?.type === 'decision' 
+    ? DECISIONS.find(d => d.id === activeNodeData.id) 
+    : null;
+
+  const activeClause = activeNodeData?.type === 'clause'
+    ? (() => {
+        for (const p of POLICIES) {
+          for (const v of p.versions) {
+            if (activeNodeData.id.includes(v.version) || activeNodeData.id.replace(/-/g, '.') === v.clauseId) {
+              return { policy: p, version: v };
+            }
+          }
+        }
+        return null;
+      })()
+    : null;
+
+  const activePerson = activeNodeData?.type === 'person'
+    ? TEAM_MEMBERS.find(m => m.id === activeNodeData.id)
+    : null;
+
+  const handleMouseDown = (e) => {
+    if (e.target.tagName === 'svg' || e.target.classList.contains('canvas-bg')) {
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (isDragging) {
+      setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const resetView = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  return (
+    <div className="relative w-full h-full flex flex-col paper-sheet overflow-hidden select-none bg-[#F8FAFC]">
+      {/* Top Controls Toolbar */}
+      <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
+        {/* Graph Legend */}
+        <div className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-sm text-xs text-[#0F172A]">
+          <div className="flex items-center gap-1.5 font-mono text-[11px]">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#6366F1]"></span>
+            <span>Decisions</span>
+          </div>
+          <span className="text-slate-300">|</span>
+          <div className="flex items-center gap-1.5 font-mono text-[11px]">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#D97706]"></span>
+            <span>Clauses</span>
+          </div>
+          <span className="text-slate-300">|</span>
+          <div className="flex items-center gap-1.5 font-mono text-[11px]">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#0284C7]"></span>
+            <span>People</span>
+          </div>
+          <span className="text-slate-300">|</span>
+          <div className="flex items-center gap-1.5 font-mono text-[11px] text-[#991B1B]">
+            <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+            <span>Staleness Flag</span>
+          </div>
+        </div>
+
+        {/* Filter & Zoom Controls */}
+        <div className="pointer-events-auto flex items-center gap-1.5 p-1 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-sm">
+          <button 
+            onClick={() => setZoom(z => Math.min(z + 0.15, 2))}
+            className="p-1.5 rounded hover:bg-slate-100 text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
+            title="Zoom In"
+          >
+            <ZoomIn size={14} />
+          </button>
+          <button 
+            onClick={() => setZoom(z => Math.max(z - 0.15, 0.6))}
+            className="p-1.5 rounded hover:bg-slate-100 text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
+            title="Zoom Out"
+          >
+            <ZoomOut size={14} />
+          </button>
+          <button 
+            onClick={resetView}
+            className="p-1.5 rounded hover:bg-slate-100 text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
+            title="Reset View"
+          >
+            <RotateCcw size={14} />
+          </button>
+          <div className="h-4 w-px bg-slate-200 mx-0.5"></div>
+          <button 
+            onClick={() => setInspectorOpen(!inspectorOpen)}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+              inspectorOpen ? 'bg-sky-50 text-[#0284C7] font-semibold border border-sky-200' : 'text-[#64748B] hover:bg-slate-100'
+            }`}
+          >
+            <Info size={12} />
+            <span>Inspector</span>
+          </button>
+        </div>
+      </div>
+
+      {/* SVG Canvas */}
+      <div 
+        className="w-full h-full relative cursor-grab active:cursor-grabbing overflow-hidden"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+      >
+        {/* Subtle dot pattern background */}
+        <div 
+          className="absolute inset-0 canvas-bg opacity-35 pointer-events-none"
+          style={{
+            backgroundImage: `radial-gradient(circle at 1px 1px, #CBD5E1 1px, transparent 0)`,
+            backgroundSize: '20px 20px'
+          }}
+        />
+
+        <svg 
+          ref={svgRef}
+          className="w-full h-full"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: 'center center',
+            transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+          }}
+          viewBox="0 0 850 560"
+        >
+          <defs>
+            <marker id="arrow-active-light" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 1 L 9 5 L 0 9 z" fill="#64748B" />
+            </marker>
+            <marker id="arrow-clause-light" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 1 L 9 5 L 0 9 z" fill="#D97706" />
+            </marker>
+            <marker id="arrow-conflict-light" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 1 L 9 5 L 0 9 z" fill="#E11D48" />
+            </marker>
+          </defs>
+
+          {/* Render Graph Edges */}
+          <g className="edges">
+            {processedEdges.map((edge, idx) => {
+              const sourceNode = processedNodes.find(n => n.id === edge.source);
+              const targetNode = processedNodes.find(n => n.id === edge.target);
+              if (!sourceNode || !targetNode) return null;
+
+              const isHighlighted = highlightNodeIds.includes(edge.source) && highlightNodeIds.includes(edge.target);
+              const isSelectedConnected = selectedNodeId === edge.source || selectedNodeId === edge.target;
+
+              const dx = targetNode.x - sourceNode.x;
+              const dy = targetNode.y - sourceNode.y;
+              const cx = (sourceNode.x + targetNode.x) / 2 - dy * 0.12;
+              const cy = (sourceNode.y + targetNode.y) / 2 + dx * 0.12;
+              const pathData = `M ${sourceNode.x} ${sourceNode.y} Q ${cx} ${cy} ${targetNode.x} ${targetNode.y}`;
+
+              let strokeColor = '#94A3B8';
+              let strokeWidth = 1.5;
+              let strokeDash = 'none';
+              let markerEnd = 'url(#arrow-active-light)';
+              let opacity = 0.75;
+
+              if (edge.status === 'conflict') {
+                strokeColor = '#F43F5E';
+                strokeWidth = 2.2;
+                strokeDash = '5 4';
+                markerEnd = 'url(#arrow-conflict-light)';
+                opacity = 1;
+              } else if (edge.status === 'expired') {
+                strokeColor = '#CBD5E1';
+                strokeWidth = 1.2;
+                strokeDash = '3 3';
+                opacity = 0.4;
+              } else if (edge.status === 'future') {
+                strokeColor = '#E2E8F0';
+                strokeWidth = 1;
+                opacity = 0.25;
+              } else if (edge.relation === 'SUPERSEDES') {
+                strokeColor = '#D97706';
+                markerEnd = 'url(#arrow-clause-light)';
+                strokeWidth = 2;
+              }
+
+              if (isSelectedConnected || isHighlighted) {
+                strokeWidth = Math.max(strokeWidth, 2.5);
+                strokeColor = '#0284C7';
+                opacity = 1;
+              }
+
+              return (
+                <g key={`edge-${idx}`}>
+                  <path
+                    d={pathData}
+                    fill="none"
+                    stroke={strokeColor}
+                    strokeWidth={strokeWidth}
+                    strokeDasharray={strokeDash}
+                    markerEnd={markerEnd}
+                    opacity={opacity}
+                  />
+                  <text
+                    x={cx}
+                    y={cy - 4}
+                    fill={edge.status === 'conflict' ? '#E11D48' : '#64748B'}
+                    fontSize="8.5"
+                    fontFamily="var(--font-mono)"
+                    textAnchor="middle"
+                    className="select-none pointer-events-none font-medium"
+                  >
+                    {edge.relation}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+
+          {/* Render Graph Nodes */}
+          <g className="nodes">
+            {processedNodes.map((node) => {
+              const isSelected = selectedNodeId === node.id;
+              const isHighlighted = highlightNodeIds.includes(node.id);
+              const isHovered = hoveredNode === node.id;
+              
+              const r = node.type === 'decision' ? 24 : node.type === 'clause' ? 22 : 20;
+
+              return (
+                <g 
+                  key={node.id}
+                  transform={`translate(${node.x}, ${node.y})`}
+                  className="cursor-pointer transition-all duration-150"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectNode(node.id);
+                  }}
+                  onMouseEnter={() => setHoveredNode(node.id)}
+                  onMouseLeave={() => setHoveredNode(null)}
+                >
+                  {/* Subtle ring if selected or hovered */}
+                  {(isSelected || isHighlighted || isHovered) && (
+                    <circle
+                      r={r + 6}
+                      fill="none"
+                      stroke={node.isStaleAtDate ? '#F43F5E' : '#38BDF8'}
+                      strokeWidth="2"
+                      opacity="0.8"
+                    />
+                  )}
+
+                  {/* Main Node Body */}
+                  <circle
+                    r={r}
+                    fill={node.isStaleAtDate ? '#FFF1F2' : node.fillColor}
+                    stroke={node.isStaleAtDate ? '#E11D48' : node.strokeColor}
+                    strokeWidth={isSelected ? 2.5 : 1.75}
+                    className="transition-colors"
+                  />
+
+                  {/* Icon glyph inside node */}
+                  {node.type === 'decision' && (
+                    <g transform="translate(-7, -7) scale(0.65)" fill="none" stroke="#4F46E5" strokeWidth="2">
+                      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                      <polyline points="2 17 12 22 22 17" />
+                    </g>
+                  )}
+                  {node.type === 'clause' && (
+                    <g transform="translate(-7, -7) scale(0.65)" fill="none" stroke="#D97706" strokeWidth="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                    </g>
+                  )}
+                  {node.type === 'person' && (
+                    <g transform="translate(-7, -7) scale(0.65)" fill="none" stroke="#0284C7" strokeWidth="2">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </g>
+                  )}
+
+                  {/* Gentle warning badge on conflicted node */}
+                  {node.isStaleAtDate && (
+                    <g transform="translate(10, -18)">
+                      <circle cx="6" cy="6" r="7.5" fill="#E11D48" />
+                      <text x="6" y="9.5" fill="#FFFFFF" fontSize="10" fontWeight="bold" textAnchor="middle">!</text>
+                    </g>
+                  )}
+
+                  {/* Node Multi-Line Label */}
+                  <g transform={`translate(0, ${r + 14})`}>
+                    {node.label.split('\n').map((line, lIdx) => (
+                      <text
+                        key={lIdx}
+                        x="0"
+                        y={lIdx * 11}
+                        fill={lIdx === 0 ? '#0F172A' : '#64748B'}
+                        fontSize={lIdx === 0 ? "10" : "8.5"}
+                        fontFamily="var(--font-heading)"
+                        fontWeight={lIdx === 0 ? "600" : "normal"}
+                        textAnchor="middle"
+                        className="select-none pointer-events-none"
+                      >
+                        {line}
+                      </text>
+                    ))}
+                  </g>
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+      </div>
+
+      {/* Slide-out Paper Sheet Inspector */}
+      {inspectorOpen && activeNodeData && (
+        <div className="absolute right-3 bottom-3 top-16 w-80 z-20 paper-sheet-elevated p-4 flex flex-col justify-between overflow-y-auto">
+          <div>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+              <div className="flex items-center gap-2">
+                <span 
+                  className="w-2.5 h-2.5 rounded-full" 
+                  style={{ backgroundColor: activeNodeData.strokeColor }}
+                />
+                <span className="font-mono text-xs uppercase tracking-wider text-[#0F172A] font-bold">
+                  {activeNodeData.type} Details
+                </span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-[#475569]">
+                {activeNodeData.id}
+              </span>
+            </div>
+
+            {/* Decision Inspector Content */}
+            {activeDecision && (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <h4 className="font-heading font-semibold text-sm text-[#0F172A] leading-snug">
+                    {activeDecision.title}
+                  </h4>
+                  <div className="flex items-center gap-1.5 text-[10.5px] font-mono text-[#64748B] mt-1">
+                    <Clock size={11} className="text-[#0284C7]" />
+                    <span>Decided: {activeDecision.decidedOn}</span>
+                  </div>
+                </div>
+
+                {/* Staleness Note */}
+                {activeDecision.isStaleUnderV3 && asOfDate >= '2026-09-01' && (
+                  <div className="p-2.5 rounded-lg badge-note-rose flex items-start gap-2">
+                    <Info size={14} className="text-[#991B1B] shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-[11px] font-bold uppercase font-mono">
+                        Temporal Staleness Flag
+                      </div>
+                      <p className="text-[11px] mt-0.5 leading-snug">
+                        Decision exceeds the 90-day ceiling mandated by <span className="font-mono font-bold">RET-2.1 v3</span>.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Metadata Grid */}
+                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100 font-mono text-[11px]">
+                  <div>
+                    <span className="text-[#64748B] block text-[9.5px]">OWNER</span>
+                    <span className="text-[#0F172A] font-medium">{activeDecision.owner}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#64748B] block text-[9.5px]">PROJECT</span>
+                    <span className="text-[#0F172A] font-medium">{activeDecision.project}</span>
+                  </div>
+                  <div className="col-span-2 pt-1 border-t border-slate-200">
+                    <span className="text-[#64748B] block text-[9.5px]">RELIED ON CLAUSE</span>
+                    <button 
+                      onClick={() => onOpenCitation && onOpenCitation(activeDecision.reliedOnClause)}
+                      className="citation-pill-paper mt-1"
+                    >
+                      <FileText size={10} />
+                      {activeDecision.reliedOnClause}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Rationale */}
+                <div>
+                  <span className="text-[10px] font-mono text-[#64748B] uppercase tracking-wider block mb-1">
+                    Recorded Rationale:
+                  </span>
+                  <p className="text-[11px] text-[#334155] bg-slate-50 p-2.5 rounded-lg border border-slate-100 italic leading-relaxed">
+                    "{activeDecision.rationale}"
+                  </p>
+                </div>
+
+                {/* Historical Trace Matrix */}
+                {activeDecision.historicalCompliance && (
+                  <div>
+                    <span className="text-[10px] font-mono text-[#64748B] uppercase tracking-wider block mb-1.5">
+                      Point-in-Time Trace Matrix:
+                    </span>
+                    <div className="space-y-1.5 font-mono text-[10px]">
+                      {activeDecision.historicalCompliance.map((row, idx) => (
+                        <div 
+                          key={idx} 
+                          className={`p-2 rounded-lg border ${
+                            row.compliant 
+                              ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' 
+                              : 'bg-rose-50/70 border-rose-200 text-rose-900'
+                          }`}
+                        >
+                          <div className="flex justify-between font-semibold">
+                            <span>{row.period}</span>
+                            <span className={row.compliant ? 'text-emerald-700' : 'text-rose-700'}>
+                              {row.compliant ? '✓ Compliant' : '⚠ Stale'}
+                            </span>
+                          </div>
+                          <div className="text-[9.5px] text-[#64748B] mt-0.5">{row.reason}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Clause Inspector Content */}
+            {activeClause && (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <h4 className="font-heading font-semibold text-sm text-[#D97706]">
+                    {activeClause.version.clauseName}
+                  </h4>
+                  <div className="text-[10.5px] font-mono text-[#64748B] mt-0.5">
+                    Doc: {activeClause.policy.title}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 font-mono text-[11px] space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-[#64748B]">CLAUSE ID:</span>
+                    <span className="text-[#D97706] font-bold">{activeClause.version.clauseId}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#64748B]">VALID FROM:</span>
+                    <span className="text-[#0F172A]">{activeClause.version.effectiveFrom}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#64748B]">VALID TO:</span>
+                    <span className="text-[#0F172A]">{activeClause.version.effectiveTo || 'CURRENT_ACTIVE'}</span>
+                  </div>
+                  {activeClause.version.limitDays && (
+                    <div className="flex justify-between border-t border-slate-200 pt-1">
+                      <span className="text-[#64748B]">RETENTION CEILING:</span>
+                      <span className="text-[#0284C7] font-bold">{activeClause.version.limitDays} Days</span>
+                    </div>
+                  )}
+                  {activeClause.version.limitInr && (
+                    <div className="flex justify-between border-t border-slate-200 pt-1">
+                      <span className="text-[#64748B]">SIGNING LIMIT:</span>
+                      <span className="text-[#0284C7] font-bold">₹{activeClause.version.limitInr.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-[#334155] bg-slate-50 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
+                  {activeClause.version.description}
+                </p>
+              </div>
+            )}
+
+            {/* Person Inspector Content */}
+            {activePerson && (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <h4 className="font-heading font-semibold text-sm text-[#0F172A]">
+                    {activePerson.name}
+                  </h4>
+                  <div className="text-[11px] font-mono text-[#0284C7] mt-0.5">
+                    {activePerson.role}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 font-mono text-[11px] space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-[#64748B]">MEMBER ID:</span>
+                    <span className="text-[#0F172A]">{activePerson.id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#64748B]">TENURE:</span>
+                    <span className="text-[#0F172A]">{activePerson.joined} → {activePerson.left || 'Present'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] font-mono text-[#64748B]">
+            <span className="flex items-center gap-1 text-emerald-600">
+              <ShieldCheck size={12} />
+              Bi-temporal Edge Verified
+            </span>
+            <span>Ref: {activeNodeData.id}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
