@@ -61,6 +61,19 @@ services:
       interval: 10s
       retries: 12
 
+  # Separate process: the only component that acts, and only on human-approved rows (§6.9).
+  executor:
+    build: ./backend
+    command: ["python", "-m", "app.executor"]
+    environment:
+      DATABASE_URL: postgresql://keystone_app:keystone_app_dev@postgres:5432/keystone
+      OUTBOX_DIR: /outbox
+    volumes:
+      - ./backend:/app
+      - ./outbox:/outbox
+    depends_on:
+      postgres: {condition: service_healthy}
+
 volumes:
   pgdata:
   neo4jdata:

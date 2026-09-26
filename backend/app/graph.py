@@ -3,6 +3,7 @@
 Structured facts are saved with EntityNode/EntityEdge.save() rather than add_triplet(): add_triplet runs
 LLM dedup and LLM edge invalidation, which would let the model decide validity (§6.3 forbids that).
 """
+import logging
 import uuid
 from datetime import date, datetime, time, timezone
 
@@ -16,13 +17,15 @@ from graphiti_core.nodes import EntityNode, EpisodeType, EpisodicNode
 
 from . import config
 
+# Our queries use optional properties (e.g. rejected); Neo4j warns about unseen keys on every call.
+logging.getLogger('neo4j.notifications').setLevel(logging.ERROR)
 _NS = uuid.UUID('9b1f3a52-6c0e-4d8e-9a57-4b0c2f1e7d11')
 g: Graphiti | None = None
 
 
 def uid(key: str) -> str:
     """Deterministic graph uuid from a business key, so re-ingesting a document is idempotent."""
-    return str(uuid.uuid5(_NS, key))
+    return str(uuid.uuid5(_NS, f'{config.GROUP_ID}:{key}'))
 
 
 def at(d: date) -> datetime:
@@ -94,20 +97,41 @@ async def save_episode(doc_id: str, doc_type: str, raw: str, ref: datetime, edge
     return ep.uuid
 
 
-async def read(as_of: date) -> dict:
-    """Nodes and edges valid on as_of (valid time, not ingestion time)."""
+# As-of visibility (valid time). Rejected extractions are kept for history but never read.
+def node_ok(v: str) -> str:
+    return (f'coalesce({v}.rejected, false) = false AND coalesce({v}.valid_from, "0000") <= $d '
+            f'AND ({v}.valid_to IS NULL OR {v}.valid_to > $d)')
+
+
+EDGE_OK = 'coalesce(e.rejected, false) = false AND e.valid_at <= $dt AND (e.invalid_at IS NULL OR e.invalid_at > $dt)'
+
+
+async def read(as_of: date, keys: list[str] | None = None) -> dict:
+    """Nodes and edges valid on as_of (valid time, not ingestion time); optionally only among `keys`."""
     d, dt = as_of.isoformat(), at(as_of)
-    nodes = await q(
-        'MATCH (n:Entity {group_id: $g}) '
-        'WHERE coalesce(n.valid_from, "0000") <= $d AND (n.valid_to IS NULL OR n.valid_to > $d) '
-        'RETURN properties(n) AS p', g=config.GROUP_ID, d=d)
+    only = 'AND n.key IN $keys' if keys is not None else ''
+    nodes = await q(f'MATCH (n:Entity {{group_id: $g}}) WHERE {node_ok("n")} {only} RETURN properties(n) AS p',
+                    g=config.GROUP_ID, d=d, keys=keys)
+    only = 'AND a.key IN $keys AND b.key IN $keys' if keys is not None else ''
     edges = await q(
-        'MATCH (a:Entity)-[e:RELATES_TO {group_id: $g}]->(b:Entity) '
-        'WHERE e.valid_at <= $dt AND (e.invalid_at IS NULL OR e.invalid_at > $dt) '
-        'AND coalesce(a.valid_from, "0000") <= $d AND (a.valid_to IS NULL OR a.valid_to > $d) '
-        'AND coalesce(b.valid_from, "0000") <= $d AND (b.valid_to IS NULL OR b.valid_to > $d) '
-        'RETURN properties(e) AS p', g=config.GROUP_ID, d=d, dt=dt)
+        f'MATCH (a:Entity)-[e:RELATES_TO {{group_id: $g}}]->(b:Entity) '
+        f'WHERE {EDGE_OK} AND {node_ok("a")} AND {node_ok("b")} {only} RETURN properties(e) AS p',
+        g=config.GROUP_ID, d=d, dt=dt, keys=keys)
     return {'as_of': d, 'nodes': [node_out(r['p']) for r in nodes], 'edges': [edge_out(r['p']) for r in edges]}
+
+
+async def neighbours(keys: list[str], as_of: date) -> list[str]:
+    """Keys one hop from `keys`, as of a date."""
+    rows = await q(
+        f'MATCH (a:Entity)-[e:RELATES_TO]-(b:Entity) WHERE a.key IN $keys AND {EDGE_OK} '
+        f'AND {node_ok("a")} AND {node_ok("b")} RETURN DISTINCT b.key AS k',
+        keys=keys, d=as_of.isoformat(), dt=at(as_of))
+    return [r['k'] for r in rows]
+
+
+async def set_props(kind: str, u: str, props: dict):
+    m = 'MATCH (x:Entity {uuid: $u})' if kind == 'node' else 'MATCH ()-[x:RELATES_TO {uuid: $u}]->()'
+    await q(f'{m} SET x += $props', u=u, props=props)
 
 
 PROV_KEYS = ('source_doc', 'source_start', 'source_end', 'source_quote', 'confidence',
