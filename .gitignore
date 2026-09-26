@@ -22,3 +22,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# backend
+outbox/
+.env
+__pycache__/
+.pytest_cache/
+# data volumes / snapshots, in case they are ever bind-mounted
+pgdata/
+neo4jdata/
+backups/
