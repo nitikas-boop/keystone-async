@@ -156,3 +156,26 @@ def test_extraction_review_and_not_checkable(api, clean):
     others = [r for r in rows if r['status'] == 'pending' and r['id'] != d['id']]
     if others:
         assert httpx.post(f"{api}/extractions/{others[0]['id']}/reject", headers=H).json()['status'] == 'rejected'
+
+
+def test_folder_watcher_ingests_new_file_as_system_watcher(api, clean):
+    import shutil
+    import time
+    vault = Path('/tmp/keystone-test-vault')
+    shutil.rmtree(vault, ignore_errors=True)
+    (vault / 'policies').mkdir(parents=True)
+    (vault / 'inbox').mkdir()
+    try:
+        # a dataset folder is never watched; only the inbox drop folder is
+        (vault / 'policies' / 'pol-v2.md').write_text(POLICY.format(v='v2', day='2025-01-06', n=180), encoding='utf-8')
+        (vault / 'inbox' / 'pol-v1.md').write_text(POLICY.format(v='v1', day='2024-01-15', n=365), encoding='utf-8')
+        for _ in range(30):
+            if httpx.get(f'{api}/policies').json():
+                break
+            time.sleep(1)
+        time.sleep(6)  # one more watcher tick, to be sure policies/ was ignored
+        assert [v['version'] for v in httpx.get(f'{api}/policies').json()[0]['versions']] == ['v1']
+        row = httpx.get(f'{api}/audit', params={'limit': 500}).json()[-1]
+        assert (row['actor'], row['action'], row['object_id']) == ('system:watcher', 'policy_ingested', 'T-POL-RET@v1')
+    finally:
+        shutil.rmtree(vault, ignore_errors=True)

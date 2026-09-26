@@ -202,8 +202,10 @@ async def ingest_people(people: list[dict]):
 
 async def watch(interval: float = 5):
     """Polling folder watcher (§9; deck §2 bullet 5: 'polling, not event-driven').
-    Files present at startup are the baseline (seed/restore owns them); new or changed files are ingested."""
-    root = Path(config.VAULT_DIR)
+    Watches only the vault's inbox/ drop folder, never the seeded dataset folders: the dataset is ingested
+    once by seed.py on the extraction machine, and a watcher on those folders would re-ingest it locally.
+    Files present at startup are the baseline; new or changed files are ingested."""
+    root = Path(config.VAULT_DIR) / 'inbox'
     files = lambda: {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*.md')}
     seen = files() if root.exists() else {}
     while True:
@@ -215,7 +217,7 @@ async def watch(interval: float = 5):
                 continue
             seen[p] = h
             try:
-                out = await ingest(p.read_text(encoding='utf-8'), p.relative_to(root).as_posix(), 'user:watcher')
+                out = await ingest(p.read_text(encoding='utf-8'), p.relative_to(root).as_posix(), 'system:watcher')
                 log.info('watcher ingested %s: %s', p, out['document_id'])
             except Exception:
                 log.exception('watcher failed on %s', p)

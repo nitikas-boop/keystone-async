@@ -1,0 +1,11 @@
+# Nimbus Ledger org chart (§7.1). Synthetic 7-person Bengaluru fintech + p-karthik (Vikram's successor as CTO).
+# The doc gives months only; dates below use the 1st of the month (last day for leaving).
+people:
+  - {id: p-ananya,  name: Ananya Rao,     role: CEO,             joined: 2024-01-01}
+  - {id: p-vikram,  name: Vikram Shah,    role: CTO,             joined: 2024-01-01, left: 2025-08-31}
+  - {id: p-priya,   name: Priya Menon,    role: Ops lead,        joined: 2026-05-01}
+  - {id: p-farhan,  name: Farhan Qureshi, role: Compliance lead, joined: 2024-03-01}
+  - {id: p-divya,   name: Divya Nair,     role: Engineer,        joined: 2024-02-01}
+  - {id: p-rohit,   name: Rohit Kulkarni, role: Engineer,        joined: 2024-06-01}
+  - {id: p-sneha,   name: Sneha Iyer,     role: Analyst,         joined: 2024-09-01}
+  - {id: p-karthik, name: Karthik Rao,    role: CTO,             joined: 2025-09-15}

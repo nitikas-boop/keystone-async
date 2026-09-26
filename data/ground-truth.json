@@ -1,0 +1,45 @@
+{
+  "_about": "Answer key for the Nimbus Ledger vault (§7.6): expected graph facts, deterministic compliance results, scanner flags and demo answers. Not ingested.",
+  "people": ["p-ananya", "p-vikram", "p-priya", "p-farhan", "p-divya", "p-rohit", "p-sneha", "p-karthik"],
+  "clause_versions": [
+    {"id": "RET-2.1@v1", "valid_from": "2024-01-15", "valid_to": "2025-01-06", "fields": {"retention_days_max": 365}},
+    {"id": "RET-2.1@v2", "valid_from": "2025-01-06", "valid_to": "2026-09-28", "fields": {"retention_days_max": 180}, "note": "valid_to set only once v3 is uploaded live"},
+    {"id": "RET-2.1@v3", "valid_from": "2026-09-28", "valid_to": null, "fields": {"retention_days_max": 90}, "note": "data/demo-upload/POL-RET-v3.md, uploaded live"},
+    {"id": "RET-4.2@v1..v3", "checkable": false, "note": "open-textured; compliance returns not_checkable if relied on"},
+    {"id": "PROC-3.1@v1", "valid_from": "2024-01-15", "valid_to": "2025-07-01", "fields": {"approver_threshold_inr": {"CTO": 500000, "CEO": null}}},
+    {"id": "PROC-3.1@v2", "valid_from": "2025-07-01", "valid_to": null, "fields": {"approver_threshold_inr": {"CTO": 200000, "CEO": null}}}
+  ],
+  "decisions": [
+    {"id": "DEC-001", "decided_on": "2024-03-12", "owner": "p-vikram", "relied_on": [], "compliance": "no_clause"},
+    {"id": "DEC-002", "decided_on": "2024-07-22", "owner": "p-ananya", "relied_on": ["RET-2.1@v1"], "status": "superseded", "compliance": "compliant"},
+    {"id": "DEC-003", "decided_on": "2024-11-05", "owner": "p-vikram", "project": "Project Atlas", "relied_on": [], "status": "superseded", "compliance": "no_clause"},
+    {"id": "DEC-004", "decided_on": "2025-03-14", "owner": "p-vikram", "relied_on": ["PROC-3.1@v1"], "compliance": "compliant", "compliance_today": "non_compliant"},
+    {"id": "DEC-005", "decided_on": "2025-04-02", "owner": "p-divya", "relied_on": [], "compliance": "no_clause"},
+    {"id": "DEC-006", "decided_on": "2025-05-20", "owner": "p-vikram", "project": "Project Atlas", "supersedes": "DEC-003", "justified_by": "MTG-2025-05-14", "relied_on": [], "compliance": "no_clause"},
+    {"id": "DEC-007", "decided_on": "2025-06-18", "owner": "p-ananya", "supersedes": "DEC-002", "justified_by": "MTG-2025-06-11", "relied_on": ["RET-2.1@v2"], "compliance": "compliant", "compliance_after_v3": "non_compliant"},
+    {"id": "DEC-008", "decided_on": "2025-09-09", "owner": "p-farhan", "relied_on": [], "compliance": "no_clause"},
+    {"id": "DEC-009", "decided_on": "2025-11-25", "owner": "p-karthik", "relied_on": ["PROC-3.1@v2"], "compliance": "compliant"},
+    {"id": "DEC-010", "decided_on": "2026-02-10", "owner": "p-divya", "project": "Project Atlas", "relied_on": [], "compliance": "no_clause"}
+  ],
+  "extraction_expected": [
+    {"document": "MTG-2025-05-14", "decision": "Move Project Atlas from AWS to an India-hosted provider", "owner": "p-vikram", "note": "duplicate of DEC-006 (logged 6 days later): reject in review"},
+    {"document": "MTG-2025-06-11", "decision": "Reduce customer log retention to 180 days", "owner": "p-ananya", "note": "duplicate of DEC-007: reject in review"},
+    {"document": "MTG-2025-08-12", "decision": "Keep anonymised logs for 24 months", "owner": "p-ananya", "note": "NOT in the decision log: accept, then add RELIED_ON -> RET-2.1@v2 in review; compliance must be not_checkable (no retention_days field: RET-2.1 covers customer logs, not anonymised ones)"},
+    {"document": "MTG-2025-08-12", "not_a_decision": "Trying a different dashboard tool", "note": "below the decision bar; must not be extracted (or reject)"}
+  ],
+  "flags_during_seed": [
+    {"trigger": "POL-RET@v2", "decision": "DEC-002", "impact_type": "SUPERSEDED", "proposal": false},
+    {"trigger": "POL-PROC@v2", "decision": "DEC-004", "impact_type": "RULE_CHANGED_SINCE", "proposal": true}
+  ],
+  "flags_on_live_v3_upload": [
+    {"decision": "DEC-007", "impact_type": "ONGOING_PRACTICE_BREACH", "proposal": true, "cites": ["RET-2.1@v2", "RET-2.1@v3"]},
+    {"decision": "DEC-002", "impact_type": "SUPERSEDED", "proposal": false}
+  ],
+  "demo_queries": [
+    {"step": 1, "q": "Show the history of Project Atlas.", "must_cite": ["DEC-003", "DEC-006", "DEC-010"], "order": ["DEC-003", "DEC-006", "DEC-010"]},
+    {"step": 2, "q": "Why did we move off AWS in May 2025?", "as_of": "2025-06-01", "must_cite": ["DEC-006", "MTG-2025-05-14"], "must_mention": ["Vikram", "2025-05-20", "data residency", "cost"]},
+    {"step": 3, "q": "Was the ₹4 lakh VendorCo contract approved correctly in March 2025?", "must_cite": ["DEC-004", "PROC-3.1@v1"], "result": "compliant", "today": "needs CEO sign-off under PROC-3.1@v2"},
+    {"step": 4, "q": "Was keeping customer logs for 180 days compliant in Q2 2025?", "as_of": "2025-06-30", "must_cite": ["DEC-007", "RET-2.1@v2"], "result": "compliant", "note": "as of any 2024 date the graph shows RET-2.1@v1 (365) and DEC-007 does not exist yet"},
+    {"step": 8, "q": "Why did we choose MongoDB?", "answer": "I have no recorded decision about that", "refused": true}
+  ]
+}

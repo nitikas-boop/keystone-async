@@ -19,6 +19,8 @@ async def main():
     await ingest.ingest_people(yaml.safe_load((root / 'people.yaml').read_text(encoding='utf-8'))['people'])
     docs = []
     for p in root.rglob('*.md'):
+        if 'inbox' in p.relative_to(root).parts:  # drop folder belongs to the watcher
+            continue
         raw = p.read_text(encoding='utf-8').replace('\r\n', '\n')
         fm = ingest.parse(raw)[0]
         docs.append((ingest.ref_date(fm), ORDER[fm['doc_type']], p.relative_to(root).as_posix(), raw))

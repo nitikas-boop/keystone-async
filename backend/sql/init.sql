@@ -103,7 +103,7 @@ CREATE TABLE answers (
 CREATE TABLE audit_log (
     id           bigserial PRIMARY KEY,
     ts           timestamptz NOT NULL DEFAULT now(),
-    actor        text NOT NULL CHECK (actor ~ '^(user:[a-z0-9_.-]+|system:scanner|executor)$'),
+    actor        text NOT NULL CHECK (actor ~ '^(user:[a-z0-9_.-]+|system:scanner|system:watcher|executor)$'),
     action       text NOT NULL CHECK (action IN ('query', 'flag_created', 'action_proposed', 'approved',
                                                  'rejected', 'executed', 'edited', 'extraction_reviewed',
                                                  'policy_ingested')),
