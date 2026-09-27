@@ -139,7 +139,7 @@ def test_extraction_review_and_not_checkable(api, clean):
     assert decisions, rows
     for r in rows:  # provenance on every extracted fact
         p = r['provenance']
-        assert 0 <= p['confidence'] <= 1 and p['extracted_by'] == 'qwen3:8b' and p['human_verified'] is False
+        assert 0 <= p['confidence'] <= 1 and p['extracted_by'] == os.environ.get('EXTRACT_MODEL', 'qwen2.5-7b-16k') and p['human_verified'] is False
     d = decisions[0]
     dec_key = d['source']
     assert httpx.post(f"{api}/extractions/{d['id']}/accept", headers=H).json()['status'] == 'accepted'

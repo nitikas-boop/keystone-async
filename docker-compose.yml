@@ -41,8 +41,8 @@ services:
       NEO4J_PASSWORD: keystone-dev-pw
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       EXTRACT_OLLAMA_URL: ${EXTRACT_OLLAMA_URL:-http://host.docker.internal:11434}
-      ANSWER_MODEL: ${ANSWER_MODEL:-qwen3:8b}
-      EXTRACT_MODEL: ${EXTRACT_MODEL:-qwen3:14b}
+      ANSWER_MODEL: ${ANSWER_MODEL:-qwen2.5-7b-16k}
+      EXTRACT_MODEL: ${EXTRACT_MODEL:-qwen2.5-7b-16k}
       EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
       EMBEDDING_DIM: ${EMBEDDING_DIM:-768}
       GRAPHITI_TELEMETRY_ENABLED: "false"
