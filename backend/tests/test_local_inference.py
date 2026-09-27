@@ -13,12 +13,6 @@ from datetime import date
 
 import pytest
 
-# ── Point at the team locked model ──────────────────────────────────────
-AVAILABLE_MODEL = os.environ.get("ANSWER_MODEL", "qwen2.5-7b-16k")
-INFERENCE_TIMEOUT = 300  # seconds – covers cold VRAM load on first call
-os.environ.setdefault("ANSWER_MODEL", AVAILABLE_MODEL)
-os.environ.setdefault("OLLAMA_BASE_URL", "http://localhost:11434")
-
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent))
 
 import httpx  # noqa: E402
@@ -26,6 +20,7 @@ from app import config
 
 # ── Model configuration locked to qwen2.5-7b-16k ───────────────────────────
 TARGET_MODEL = config.ANSWER_MODEL
+AVAILABLE_MODEL = config.ANSWER_MODEL
 INFERENCE_TIMEOUT = 300  # seconds – covers cold VRAM load on first call
 
 
