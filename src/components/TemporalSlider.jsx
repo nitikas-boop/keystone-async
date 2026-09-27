@@ -16,26 +16,26 @@ export default function TemporalSlider({ asOfDate, onDateChange }) {
 
   // Available key dates in chronological order
   const timelineDates = [
-    { date: "2024-02-14", label: "Q1 2024", policyTag: "RET v1 (365d)", note: "DEC-2024-001 (180d) chosen" },
-    { date: "2024-08-10", label: "Q3 2024", policyTag: "PROC v1 (₹5L)", note: "FinCore ₹4L unilateral signoff" },
-    { date: "2025-03-15", label: "Q1 2025", policyTag: "SOV v1 Active", note: "AWS to Bengaluru DC migration" },
-    { date: "2025-05-15", label: "Q2 2025", policyTag: "RET v2 (180d)", note: "Point-in-time compliant query point" },
-    { date: "2025-07-22", label: "Q3 2025", policyTag: "PROC v2 (₹2L)", note: "Project Atlas bi-temporal rollout" },
-    { date: "2025-11-12", label: "Q4 2025", policyTag: "RET v2 (180d)", note: "180d Purge daemon set" },
-    { date: "2026-02-18", label: "Q1 2026", policyTag: "Ollama Cluster", note: "Local 14B Qwen deployed" },
-    { date: "2026-09-24", label: "Sep 2026", policyTag: "RET v3 (90d)", note: "STALENESS: 90d mandate active" }
+    { date: "2024-03-12", label: "Q1 2024", policyTag: "RET v1 (365d)", note: "DEC-001 (Obsidian vault chosen)" },
+    { date: "2024-07-22", label: "Q3 2024", policyTag: "RET v1 (365d)", note: "DEC-002 (300d log retention)" },
+    { date: "2025-03-15", label: "Q1 2025", policyTag: "PROC v1 (₹5L)", note: "DEC-004 VendorCo ₹4L CTO approval" },
+    { date: "2025-06-01", label: "Q2 2025", policyTag: "India Cloud", note: "DEC-006 Switch off AWS to India DC" },
+    { date: "2025-06-30", label: "Q2 2025", policyTag: "RET v2 (180d)", note: "DEC-007 (180d log retention)" },
+    { date: "2025-07-01", label: "Q3 2025", policyTag: "PROC v2 (₹2L)", note: "PROC-3.1@v2 active (₹2L ceiling)" },
+    { date: "2025-11-25", label: "Q4 2025", policyTag: "PROC v2 (₹2L)", note: "DEC-009 Analytics tool ₹1.8L" },
+    { date: "2026-09-28", label: "Sep 2026", policyTag: "RET v3 (90d)", note: "STALENESS: 90d mandate active" }
   ];
 
   const currentIndex = timelineDates.findIndex(p => p.date === asOfDate);
   const activeIndex = currentIndex !== -1 ? currentIndex : timelineDates.length - 1;
 
-  const activeRetClause = asOfDate < '2025-01-01' ? 'RET-2.1 v1 (365d max)' : 
-                         asOfDate < '2026-09-01' ? 'RET-2.1 v2 (180d max)' : 
-                         'RET-2.1 v3 (90d max)';
+  const activeRetClause = asOfDate < '2025-01-06' ? 'RET-2.1@v1 (365d max)' : 
+                         asOfDate < '2026-09-28' ? 'RET-2.1@v2 (180d max)' : 
+                         'RET-2.1@v3 (90d max)';
 
-  const activeProcClause = asOfDate < '2025-07-01' ? 'PROC-1.4 v1 (₹5L ceiling)' : 'PROC-1.4 v2 (₹2L ceiling)';
+  const activeProcClause = asOfDate < '2025-07-01' ? 'PROC-3.1@v1 (₹5L ceiling)' : 'PROC-3.1@v2 (₹2L ceiling)';
 
-  const isConflictZone = asOfDate >= '2026-09-01';
+  const isConflictZone = asOfDate >= '2026-09-28';
 
   // Play animation through timeline
   useEffect(() => {

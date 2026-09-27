@@ -13,12 +13,44 @@ import {
 } from 'lucide-react';
 import { GRAPH_NODES, GRAPH_EDGES, DECISIONS, POLICIES, TEAM_MEMBERS } from '../data/mockData';
 
+const NODE_COORDINATES = {
+  "DEC-001": { x: 100, y: 150 },
+  "DEC-002": { x: 260, y: 150 },
+  "DEC-003": { x: 120, y: 280 },
+  "DEC-004": { x: 380, y: 280 },
+  "DEC-005": { x: 200, y: 400 },
+  "DEC-006": { x: 500, y: 220 },
+  "DEC-007": { x: 620, y: 150 },
+  "DEC-008": { x: 520, y: 400 },
+  "DEC-009": { x: 680, y: 300 },
+  "DEC-010": { x: 740, y: 400 },
+
+  "RET-2.1@v1": { x: 260, y: 60 },
+  "RET-2.1-v1": { x: 260, y: 60 },
+  "RET-2.1@v2": { x: 620, y: 60 },
+  "RET-2.1-v2": { x: 620, y: 60 },
+  "RET-2.1@v3": { x: 800, y: 60 },
+  "RET-2.1-v3": { x: 800, y: 60 },
+  "PROC-3.1@v1": { x: 380, y: 450 },
+  "PROC-3.1-v1": { x: 380, y: 450 },
+  "PROC-3.1@v2": { x: 680, y: 450 },
+  "PROC-3.1-v2": { x: 680, y: 450 },
+
+  "p-ananya": { x: 420, y: 150 },
+  "p-vikram": { x: 280, y: 240 },
+  "p-karthik": { x: 680, y: 220 },
+  "p-priya": { x: 520, y: 320 },
+  "p-farhan": { x: 380, y: 370 },
+  "p-divya": { x: 180, y: 340 }
+};
+
 export default function GraphVisualizer({ 
   asOfDate, 
   selectedNodeId, 
   onSelectNode, 
   highlightNodeIds = [],
-  onOpenCitation 
+  onOpenCitation,
+  liveGraphData = null
 }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -28,8 +60,44 @@ export default function GraphVisualizer({
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const svgRef = useRef(null);
 
+  // Determine base nodes & edges (live from API if present, otherwise mock)
+  const baseNodes = (liveGraphData?.nodes && liveGraphData.nodes.length > 0)
+    ? liveGraphData.nodes.map((n, idx) => {
+        const id = n.id;
+        const type = (n.type || 'decision').toLowerCase();
+        const coords = NODE_COORDINATES[id] || {
+          x: 140 + (idx % 5) * 140,
+          y: 120 + Math.floor(idx / 5) * 120
+        };
+        return {
+          id,
+          label: n.label || id,
+          type,
+          date: n.valid_from || n.attributes?.decided_on,
+          validFrom: n.valid_from,
+          validTo: n.valid_to,
+          attributes: n.attributes || {},
+          provenance: n.provenance || {},
+          x: coords.x,
+          y: coords.y
+        };
+      })
+    : GRAPH_NODES;
+
+  const baseEdges = (liveGraphData?.edges && liveGraphData.edges.length > 0)
+    ? liveGraphData.edges.map(e => ({
+        source: e.source,
+        target: e.target,
+        relation: e.relation || 'RELATES_TO',
+        validFrom: e.valid_from,
+        validTo: e.valid_to,
+        isConflict: e.relation === 'CONTRADICTED_BY' || e.isConflict,
+        provenance: e.provenance
+      }))
+    : GRAPH_EDGES;
+
   // Compute node active states based on asOfDate
-  const processedNodes = GRAPH_NODES.map(node => {
+  const processedNodes = baseNodes.map(node => {
     let isActiveAtDate = true;
     let isStaleAtDate = false;
 
@@ -44,7 +112,7 @@ export default function GraphVisualizer({
       if (node.date && asOfDate < node.date) {
         isActiveAtDate = false;
       }
-      if (asOfDate >= '2026-09-01' && (node.id === 'DEC-2024-001' || node.id === 'DEC-2025-019')) {
+      if (asOfDate >= '2026-09-28' && node.id === 'DEC-007') {
         isStaleAtDate = true;
       }
     }
@@ -75,7 +143,7 @@ export default function GraphVisualizer({
   });
 
   // Compute edges state based on asOfDate
-  const processedEdges = GRAPH_EDGES.map(edge => {
+  const processedEdges = baseEdges.map(edge => {
     let status = 'active';
     if (edge.validFrom && asOfDate < edge.validFrom) {
       status = 'future';
@@ -95,14 +163,24 @@ export default function GraphVisualizer({
     (selectedNodeId ? { id: selectedNodeId, label: selectedNodeId, type: 'decision' } : null);
 
   const activeDecision = activeNodeData?.type === 'decision' 
-    ? DECISIONS.find(d => d.id === activeNodeData.id) 
+    ? (DECISIONS.find(d => d.id === activeNodeData.id) || {
+        id: activeNodeData.id,
+        title: activeNodeData.label,
+        decidedOn: activeNodeData.date || activeNodeData.validFrom || "Recorded",
+        owner: activeNodeData.attributes?.owner || "Engineering Lead",
+        project: activeNodeData.attributes?.project || "Nimbus Core",
+        rationale: activeNodeData.attributes?.reasons || "Bi-temporal graph record.",
+        reliedOnClause: activeNodeData.attributes?.relied_on || null
+      })
     : null;
 
   const activeClause = activeNodeData?.type === 'clause'
     ? (() => {
         for (const p of POLICIES) {
           for (const v of p.versions) {
-            if (activeNodeData.id.includes(v.version) || activeNodeData.id.replace(/-/g, '.') === v.clauseId) {
+            const nId = activeNodeData.id.replace(/-/g, '.').replace('@', ' ');
+            const cId = v.clauseId.replace(/-/g, '.').replace('@', ' ');
+            if (activeNodeData.id === v.clauseId || activeNodeData.id.includes(v.version) || nId.includes(cId) || cId.includes(nId)) {
               return { policy: p, version: v };
             }
           }
@@ -112,7 +190,13 @@ export default function GraphVisualizer({
     : null;
 
   const activePerson = activeNodeData?.type === 'person'
-    ? TEAM_MEMBERS.find(m => m.id === activeNodeData.id)
+    ? (TEAM_MEMBERS.find(m => m.id === activeNodeData.id || m.name.toLowerCase().includes(activeNodeData.label.toLowerCase().slice(0, 5))) || {
+        id: activeNodeData.id,
+        name: activeNodeData.label,
+        role: activeNodeData.attributes?.role || "Team Member",
+        joined: activeNodeData.attributes?.joined || "2024-01-01",
+        status: "Active"
+      })
     : null;
 
   const handleMouseDown = (e) => {
@@ -441,7 +525,7 @@ export default function GraphVisualizer({
                 </div>
 
                 {/* Staleness Note */}
-                {activeDecision.isStaleUnderV3 && asOfDate >= '2026-09-01' && (
+                {(activeDecision.isStaleUnderV3 || activeDecision.id === 'DEC-007') && asOfDate >= '2026-09-28' && (
                   <div className="p-2.5 rounded-lg badge-note-rose flex items-start gap-2">
                     <Info size={14} className="text-[#991B1B] shrink-0 mt-0.5" />
                     <div>
@@ -449,9 +533,27 @@ export default function GraphVisualizer({
                         Temporal Staleness Flag
                       </div>
                       <p className="text-[11px] mt-0.5 leading-snug">
-                        Decision exceeds the 90-day ceiling mandated by <span className="font-mono font-bold">RET-2.1 v3</span>.
+                        Decision exceeds the 90-day ceiling mandated by <span className="font-mono font-bold">RET-2.1@v3</span>.
                       </p>
                     </div>
+                  </div>
+                )}
+
+                {/* Provenance trace if available */}
+                {activeNodeData.provenance?.source_doc && (
+                  <div className="p-2.5 rounded-lg bg-sky-50/70 border border-sky-100 font-mono text-[10.5px]">
+                    <div className="text-[#0284C7] font-semibold text-[10px] mb-1 uppercase tracking-wider flex items-center justify-between">
+                      <span>PROVENANCE TRACE</span>
+                      {activeNodeData.provenance.confidence && (
+                        <span>{(activeNodeData.provenance.confidence * 100).toFixed(0)}% CONF</span>
+                      )}
+                    </div>
+                    <div className="text-[#334155] truncate">Doc: {activeNodeData.provenance.source_doc}</div>
+                    {activeNodeData.provenance.source_span?.quote && (
+                      <div className="text-[#64748B] italic mt-1 bg-white/90 p-1.5 rounded border border-slate-100 text-[10px]">
+                        "{activeNodeData.provenance.source_span.quote}"
+                      </div>
+                    )}
                   </div>
                 )}
 

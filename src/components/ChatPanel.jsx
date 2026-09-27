@@ -14,12 +14,44 @@ import {
   Info
 } from 'lucide-react';
 import { DEMO_QUERIES } from '../data/mockData';
+import { ask } from '../api';
+
+// Turn a live /ask response into the message shape this panel renders.
+function toMessage(res) {
+  const parts = res.refused
+    ? [`🛑 ${res.answer}`]
+    : (res.sentences || []).map(s => `${s.text} ${(s.source_ids || []).map(id => `[${id}]`).join('')}`);
+  for (const c of res.compliance || []) {
+    parts.push(`Deterministic check [${c.decision_id}]: ${c.result} when decided (${c.decided_on}` +
+      `${(c.checks || []).map(k => `, ${k.source_id}`).join('')}); ${c.current_result} as of ${c.as_of}` +
+      `${(c.current || []).map(k => `, ${k.source_id}`).join('')}.`);
+  }
+  if (res.warnings?.length) {
+    parts.push(`⚠️ Unverified low-confidence facts used: ${res.warnings.map(w => w.fact_id).join(', ')}`);
+  }
+  return {
+    id: `asst-${Date.now()}`,
+    role: "assistant",
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    content: parts.join('\n\n') || res.answer || "No response received.",
+    citations: (res.citations || []).map(c => ({
+      id: c.id,
+      label: c.label || c.id,
+      type: c.type,
+      title: c.title || c.label || c.id,
+      date: c.date,
+      quote: c.quote,
+      source_doc: c.source_doc
+    }))
+  };
+}
 
 export default function ChatPanel({ 
   asOfDate, 
   onCitationClick, 
   onQueryExecuted,
-  onNodeHighlight 
+  onNodeHighlight,
+  onSubgraph
 }) {
   const [messages, setMessages] = useState([
     {
@@ -44,7 +76,7 @@ export default function ChatPanel({
     executeQuestion(demoQuery.query, demoQuery);
   };
 
-  const executeQuestion = (queryText, matchedDemoQuery = null) => {
+  const executeQuestion = async (queryText, matchedDemoQuery = null) => {
     if (!queryText.trim() || isProcessing) return;
 
     const userMsg = {
@@ -58,46 +90,53 @@ export default function ChatPanel({
     setInputValue('');
     setIsProcessing(true);
 
-    const targetQuery = matchedDemoQuery || DEMO_QUERIES.find(q => 
-      queryText.toLowerCase().includes(q.shortLabel.toLowerCase()) ||
-      queryText.toLowerCase().includes(q.query.toLowerCase().slice(0, 20)) ||
-      (queryText.toLowerCase().includes("mongodb") && q.id === "q-5") ||
-      (queryText.toLowerCase().includes("atlas") && q.id === "q-4") ||
-      (queryText.toLowerCase().includes("aws") && q.id === "q-1") ||
-      (queryText.toLowerCase().includes("180") && q.id === "q-2") ||
-      (queryText.toLowerCase().includes("changed") && q.id === "q-3")
-    ) || DEMO_QUERIES[0];
-
-    if (onNodeHighlight && targetQuery.highlightNodes) {
-      onNodeHighlight(targetQuery.highlightNodes);
+    // Demo chips carry their own as-of date; typed questions use the slider's date.
+    const asOf = matchedDemoQuery?.asOfDateSuggested || asOfDate;
+    if (onQueryExecuted && matchedDemoQuery?.asOfDateSuggested) {
+      onQueryExecuted(matchedDemoQuery);
     }
-    if (onQueryExecuted && targetQuery.asOfDateSuggested) {
-      onQueryExecuted(targetQuery);
-    }
+    setProcessingStep(`Traversing bi-temporal graph as of ${asOf} & running deterministic checks...`);
 
-    setProcessingStep("Reading local vector chunk index & entity triples...");
-    
-    setTimeout(() => {
-      setProcessingStep("Traversing bi-temporal graph as of " + asOfDate + "...");
-    }, 400);
+    try {
+      const res = await ask(queryText, asOf);
+      if (onNodeHighlight && res.highlight_nodes) onNodeHighlight(res.highlight_nodes);
+      if (onSubgraph && res.subgraph) onSubgraph(res.subgraph);
+      setMessages(prev => [...prev, toMessage(res)]);
+    } catch (err) {
+      // Fall back gracefully to mock query response if backend is offline/unseeded
+      const fallbackQuery = matchedDemoQuery || DEMO_QUERIES.find(q =>
+        queryText.toLowerCase().includes(q.shortLabel.toLowerCase()) ||
+        queryText.toLowerCase().includes(q.query.toLowerCase().slice(0, 20)) ||
+        (queryText.toLowerCase().includes("mongodb") && q.id === "q-5") ||
+        (queryText.toLowerCase().includes("aws") && q.id === "q-1") ||
+        (queryText.toLowerCase().includes("180") && q.id === "q-2") ||
+        (queryText.toLowerCase().includes("vendorco") && q.id === "q-3")
+      );
 
-    setTimeout(() => {
-      setProcessingStep("Verifying point-in-time clause validity & compiling citations...");
-    }, 800);
-
-    setTimeout(() => {
-      const assistantMsg = {
-        id: `asst-${Date.now()}`,
-        role: "assistant",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        content: targetQuery.answer,
-        citations: targetQuery.citations || []
-      };
-
-      setMessages(prev => [...prev, assistantMsg]);
+      if (fallbackQuery) {
+        if (onNodeHighlight && fallbackQuery.highlightNodes) {
+          onNodeHighlight(fallbackQuery.highlightNodes);
+        }
+        setMessages(prev => [...prev, {
+          id: `asst-${Date.now()}`,
+          role: "assistant",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          content: fallbackQuery.answer,
+          citations: fallbackQuery.citations || []
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          id: `err-${Date.now()}`,
+          role: "assistant",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          content: `⚠️ Keystone backend error: ${err.message}`,
+          citations: []
+        }]);
+      }
+    } finally {
       setIsProcessing(false);
       setProcessingStep('');
-    }, 1100);
+    }
   };
 
   const handleKeyDown = (e) => {
