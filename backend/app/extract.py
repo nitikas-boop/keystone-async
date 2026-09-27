@@ -1,12 +1,18 @@
 """LLM extraction from prose (meeting notes) + ingestion review (§6.8, §9).
 One structured-output call returns entities, relations AND a confidence per fact; offsets are found by us."""
 import json
+import logging
 from datetime import date, datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 from . import config, db, graph, llm
+from .prompts import EXTRACTION_SYSTEM_PROMPT
+
+log = logging.getLogger('keystone.extract')
 
 NODE_TYPES = ['Person', 'Decision', 'Project']
 RELATIONS = ['MADE_BY', 'ABOUT', 'SUPERSEDES']  # RELIED_ON links are added by a human in review
+
 SCHEMA = {
     'type': 'object', 'required': ['entities', 'relations'],
     'properties': {
@@ -20,81 +26,165 @@ SCHEMA = {
             'properties': {'source': {'type': 'string'}, 'relation': {'type': 'string', 'enum': RELATIONS},
                            'target': {'type': 'string'}, 'quote': {'type': 'string'},
                            'confidence': {'type': 'number', 'minimum': 0, 'maximum': 1}}}}}}
-SYSTEM = f"""You extract decisions from an organisation's meeting notes.
-A decision is a recorded choice between options, with an owner, a date, and at least one stated reason.
-Anything below that bar is NOT a decision: do not extract it.
-Entity types: {NODE_TYPES}. Relations: MADE_BY (Decision->Person), ABOUT (Decision->Project), SUPERSEDES (Decision->Decision).
-Refer to an entity that already exists by its exact known key. For a new entity use a short ref like D1, P1.
-For Decision entities, set effect: "ongoing" for a continuing practice, "completed" for a one-off act.
-quote: copy the single sentence from the notes that supports the fact, verbatim.
-confidence: how sure you are the fact is stated in the notes (0.0-1.0). Return JSON only."""
+
+
+def _locate(raw: str, body_start: int, quote: Optional[str]) -> dict:
+    if not quote or not isinstance(quote, str) or not quote.strip():
+        return {'source_start': None, 'source_end': None, 'source_quote': str(quote or '')}
+    q = quote.strip()
+    # Try exact match first
+    i = raw.find(q, body_start)
+    if i >= 0:
+        return {'source_start': i, 'source_end': i + len(q), 'source_quote': raw[i:i + len(q)]}
+    
+    # Try without surrounding quotes if model wrapped quote in quotes
+    if len(q) >= 2 and ((q.startswith('"') and q.endswith('"')) or (q.startswith("'") and q.endswith("'")) or (q.startswith('“') and q.endswith('”'))):
+        unwrapped = q[1:-1].strip()
+        i = raw.find(unwrapped, body_start)
+        if i >= 0:
+            return {'source_start': i, 'source_end': i + len(unwrapped), 'source_quote': raw[i:i + len(unwrapped)]}
+
+    # Fallback to returning clean quote string without failing
+    return {'source_start': None, 'source_end': None, 'source_quote': q}
+
+
+def parse_extraction_output(raw: str, body_start: int, out: dict, did: str, path: str, ref: date,
+                            visibility: str, known_keys: dict) -> Tuple[List[dict], List[dict], List[tuple]]:
+    """Pure parsing and provenance attachment on LLM extraction output."""
+    base = {'source_doc': path, 'visibility': visibility, 'extracted_by': config.EXTRACT_MODEL, 'human_verified': False}
+    keymap, nodes_out, edges_out, rows = {}, [], [], []
+
+    if not isinstance(out, dict):
+        return nodes_out, edges_out, rows
+
+    entities = out.get('entities') or []
+    if not isinstance(entities, list):
+        entities = []
+
+    for i, ent in enumerate(entities):
+        if not isinstance(ent, dict):
+            continue
+        ref_id = str(ent.get('ref') or f"E{i+1}")
+        if ref_id in known_keys:
+            keymap[ref_id] = ref_id
+            continue
+
+        key = f"{did}-{ref_id}"
+        keymap[ref_id] = key
+
+        quote = ent.get('quote') or ''
+        loc = _locate(raw, body_start, quote)
+        
+        try:
+            conf = float(ent.get('confidence', 1.0))
+        except (ValueError, TypeError):
+            conf = 1.0
+
+        prov = {**base, 'confidence': conf, **loc,
+                'source_span': {'start': loc['source_start'], 'end': loc['source_end'], 'quote': loc['source_quote']}}
+        attrs = {'valid_from': ref.isoformat(), **prov}
+        
+        ent_type = ent.get('type') or 'Entity'
+        ent_name = ent.get('name') or ref_id
+        effect = ent.get('effect') or 'ongoing'
+
+        if ent_type == 'Decision':
+            attrs.update(decided_on=ref.isoformat(), status='active', effect=effect,
+                         fields_json='{}', reasons=prov['source_quote'])
+        nodes_out.append({'key': key, 'type': ent_type, 'name': ent_name, 'attrs': attrs, 'prov': prov})
+        rows.append(('node', None, ent_type, key, None, ent_name, prov))
+
+        if ent_type == 'Decision':  # an extracted decision is justified by the note it came from
+            fact = f'{ent_name} JUSTIFIED_BY {did}'
+            edges_out.append({'src': key, 'rel': 'JUSTIFIED_BY', 'dst': did, 'fact': fact, 'prov': prov})
+            rows.append(('edge', None, 'JUSTIFIED_BY', key, did, fact, prov))
+
+    relations = out.get('relations') or []
+    if not isinstance(relations, list):
+        relations = []
+
+    valid_targets = set(keymap.values()) | set(known_keys.keys()) | {did}
+
+    for rel in relations:
+        if not isinstance(rel, dict):
+            continue
+        s_raw = str(rel.get('source') or '')
+        t_raw = str(rel.get('target') or '')
+        relation = str(rel.get('relation') or '')
+        if not s_raw or not t_raw or not relation:
+            continue
+
+        src, dst = keymap.get(s_raw, s_raw), keymap.get(t_raw, t_raw)
+        if src not in valid_targets or dst not in valid_targets:
+            continue  # model referenced something it never defined
+
+        try:
+            conf = float(rel.get('confidence', 1.0))
+        except (ValueError, TypeError):
+            conf = 1.0
+
+        quote = rel.get('quote') or ''
+        loc = _locate(raw, body_start, quote)
+        prov = {**base, 'confidence': conf, **loc}
+        fact = f"{src} {relation} {dst}"
+        edges_out.append({'src': src, 'rel': relation, 'dst': dst, 'fact': fact, 'prov': prov})
+        rows.append(('edge', None, relation, src, dst, fact, prov))
+
+    return nodes_out, edges_out, rows
 
 
 async def _known(as_of: date) -> list[dict]:
-    rows = await graph.q(f'MATCH (n:Entity {{group_id: $g}}) WHERE n.type IN $t AND {graph.node_ok("n")} '
-                         'RETURN n.key AS key, n.type AS type, n.name AS name',
-                         g=config.GROUP_ID, t=NODE_TYPES, d=as_of.isoformat())
-    return [dict(r) for r in rows]
+    try:
+        rows = await graph.q(f'MATCH (n:Entity {{group_id: $g}}) WHERE n.type IN $t AND {graph.node_ok("n")} '
+                             'RETURN n.key AS key, n.type AS type, n.name AS name',
+                             g=config.GROUP_ID, t=NODE_TYPES, d=as_of.isoformat())
+        return [dict(r) for r in rows]
+    except Exception as e:
+        log.warning("Graph query failed in _known(%s): %s (%s)", as_of, type(e).__name__, e)
+        return []
 
 
-def _locate(raw: str, body_start: int, quote: str) -> dict:
-    i = raw.find(quote.strip(), body_start) if quote.strip() else -1
-    if i < 0:
-        return {'source_start': None, 'source_end': None, 'source_quote': quote}
-    return {'source_start': i, 'source_end': i + len(quote.strip()), 'source_quote': quote.strip()}
-
-
-async def extract(raw, body_start, did, path, ref: date, visibility, episode) -> dict:
+async def extract(raw: str, body_start: int, did: str, path: str, ref: date, visibility: str, episode: str) -> dict:
     known = await _known(ref)
     known_keys = {k['key']: k for k in known}
     try:
-        out = await llm.chat_json(SYSTEM, f'Known entities: {json.dumps(known)}\n\nMeeting notes ({ref}):\n'
+        out = await llm.chat_json(EXTRACTION_SYSTEM_PROMPT,
+                                  f'Known entities: {json.dumps(known)}\n\nMeeting notes ({ref}):\n'
                                   f'{raw[body_start:]}', SCHEMA, model=config.EXTRACT_MODEL,
                                   base_url=config.EXTRACT_OLLAMA_URL, timeout=600)
     except Exception as e:
         return {'edge_uuids': [], 'extraction_error': f'{type(e).__name__}: {e}'}
 
-    base = {'source_doc': path, 'visibility': visibility, 'extracted_by': config.EXTRACT_MODEL, 'human_verified': False}
-    keymap, nodes, edges, rows = {}, 0, [], []
-    for ent in out['entities']:
-        if ent['ref'] in known_keys:
-            keymap[ent['ref']] = ent['ref']
-            continue
-        key = f"{did}-{ent['ref']}"
-        keymap[ent['ref']] = key
-        prov = {**base, 'confidence': float(ent['confidence']), **_locate(raw, body_start, ent['quote'])}
-        attrs = {'valid_from': ref.isoformat(), **prov}
-        if ent['type'] == 'Decision':
-            attrs.update(decided_on=ref.isoformat(), status='active', effect=ent.get('effect', 'ongoing'),
-                         fields_json='{}', reasons=prov['source_quote'])
-        u = await graph.upsert_node(key, ent['type'], ent['name'], attrs)
-        rows.append(('node', u, ent['type'], key, None, ent['name'], prov))
-        nodes += 1
-        if ent['type'] == 'Decision':  # an extracted decision is justified by the note it came from
-            eu = await graph.upsert_edge(key, 'JUSTIFIED_BY', did, f'{key} JUSTIFIED_BY {did}', graph.at(ref),
-                                         prov, episode)
-            edges.append(eu)
-            rows.append(('edge', eu, 'JUSTIFIED_BY', key, did, f'{ent["name"]} JUSTIFIED_BY {did}', prov))
+    nodes_to_upsert, edges_to_upsert, rows = parse_extraction_output(
+        raw, body_start, out, did, path, ref, visibility, known_keys
+    )
 
-    for rel in out['relations']:
-        src, dst = keymap.get(rel['source'], rel['source']), keymap.get(rel['target'], rel['target'])
-        if src not in keymap.values() and src not in known_keys or dst not in keymap.values() and dst not in known_keys:
-            continue  # model referenced something it never defined
-        prov = {**base, 'confidence': float(rel['confidence']), **_locate(raw, body_start, rel['quote'])}
-        fact = f"{src} {rel['relation']} {dst}"
-        eu = await graph.upsert_edge(src, rel['relation'], dst, fact, graph.at(ref), prov, episode)
+    edges = []
+    for n in nodes_to_upsert:
+        u = await graph.upsert_node(n['key'], n['type'], n['name'], n['attrs'])
+        # update row with graph_uuid
+        for i, r in enumerate(rows):
+            if r[0] == 'node' and r[3] == n['key']:
+                rows[i] = (r[0], u, r[2], r[3], r[4], r[5], r[6])
+
+    for e in edges_to_upsert:
+        eu = await graph.upsert_edge(e['src'], e['rel'], e['dst'], e['fact'], graph.at(ref), e['prov'], episode)
         edges.append(eu)
-        rows.append(('edge', eu, rel['relation'], src, dst, fact, prov))
+        for i, r in enumerate(rows):
+            if r[0] == 'edge' and r[3] == e['src'] and r[4] == e['dst'] and r[2] == e['rel']:
+                rows[i] = (r[0], eu, r[2], r[3], r[4], r[5], r[6])
 
-    async with db.pool.acquire() as c:
-        await c.execute('DELETE FROM extractions WHERE document_id=$1 AND status=$2', did, 'pending')
-        await c.executemany(
-            'INSERT INTO extractions (document_id, kind, graph_uuid, type, source_key, target_key, text, source_start, '
-            'source_end, source_quote, confidence, extracted_by, human_verified, visibility) '
-            'VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,false,$13)',
-            [(did, k, u, t, s, d, text, p['source_start'], p['source_end'], p['source_quote'], p['confidence'],
-              p['extracted_by'], p['visibility']) for k, u, t, s, d, text, p in rows])
-    return {'edge_uuids': edges, 'extracted': {'nodes': nodes, 'edges': len(edges)}, 'pending_review': len(rows)}
+    if db.pool is not None:
+        async with db.pool.acquire() as c:
+            await c.execute('DELETE FROM extractions WHERE document_id=$1 AND status=$2', did, 'pending')
+            await c.executemany(
+                'INSERT INTO extractions (document_id, kind, graph_uuid, type, source_key, target_key, text, source_start, '
+                'source_end, source_quote, confidence, extracted_by, human_verified, visibility) '
+                'VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,false,$13)',
+                [(did, k, u, t, s, d, text, p['source_start'], p['source_end'], p['source_quote'], p['confidence'],
+                  p['extracted_by'], p['visibility']) for k, u, t, s, d, text, p in rows])
+
+    return {'edge_uuids': edges, 'extracted': {'nodes': len(nodes_to_upsert), 'edges': len(edges)}, 'pending_review': len(rows)}
 
 
 # ---- ingestion review ----

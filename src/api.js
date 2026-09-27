@@ -32,11 +32,13 @@ async function handleResponse(res) {
 
 // ---- Ask (Chat) ----
 
-export async function ask(question, asOf) {
+export async function ask(question, asOf, sessionId = null) {
+  const payload = { question, as_of: asOf };
+  if (sessionId) payload.session_id = sessionId;  // short-term conversation memory (last few turns)
   const res = await fetch(`${API}/ask`, {
     method: 'POST',
     headers: jsonHeaders(),
-    body: JSON.stringify({ question, as_of: asOf }),
+    body: JSON.stringify(payload),
   });
   return handleResponse(res);
 }

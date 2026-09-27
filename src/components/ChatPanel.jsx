@@ -62,6 +62,7 @@ export default function ChatPanel({
       citations: []
     }
   ]);
+  const [sessionId, setSessionId] = useState(() => 'sess-' + Math.random().toString(36).substring(2, 10));
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
@@ -98,7 +99,7 @@ export default function ChatPanel({
     setProcessingStep(`Traversing bi-temporal graph as of ${asOf} & running deterministic checks...`);
 
     try {
-      const res = await ask(queryText, asOf);
+      const res = await ask(queryText, asOf, sessionId);
       if (onNodeHighlight && res.highlight_nodes) onNodeHighlight(res.highlight_nodes);
       if (onSubgraph && res.subgraph) onSubgraph(res.subgraph);
       setMessages(prev => [...prev, toMessage(res)]);
@@ -125,6 +126,7 @@ export default function ChatPanel({
   };
 
   const clearChat = () => {
+    setSessionId('sess-' + Math.random().toString(36).substring(2, 10));
     setMessages([
       {
         id: "msg-welcome-reset",
