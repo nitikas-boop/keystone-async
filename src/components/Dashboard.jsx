@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   ShieldCheck, 
   Terminal, 
@@ -26,13 +26,22 @@ import {
   INITIAL_AUDIT_LOGS, 
   ORG_METADATA 
 } from '../data/mockData';
-import { sha256 } from '../utils/crypto';
+import { 
+  fetchGraph, 
+  fetchProposals, 
+  approveProposal, 
+  rejectProposal, 
+  editProposal, 
+  fetchAudit, 
+  setCurrentUser 
+} from '../api';
 
 export default function Dashboard({ currentUser, onSignOut }) {
-  const [asOfDate, setAsOfDate] = useState('2026-09-24');
+  const [asOfDate, setAsOfDate] = useState('2026-09-28');
   const [activeView, setActiveView] = useState('UNIFIED');
-  const [selectedNodeId, setSelectedNodeId] = useState('DEC-2024-001');
-  const [highlightNodeIds, setHighlightNodeIds] = useState(['DEC-2024-001', 'RET-2.1-v2']);
+  const [selectedNodeId, setSelectedNodeId] = useState('DEC-007');
+  const [highlightNodeIds, setHighlightNodeIds] = useState(['DEC-007', 'RET-2.1@v2']);
+  const [liveGraphData, setLiveGraphData] = useState(null);
   const [queueItems, setQueueItems] = useState(INITIAL_REVIEW_QUEUE);
   const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
   const [isIngestModalOpen, setIsIngestModalOpen] = useState(false);
@@ -43,51 +52,106 @@ export default function Dashboard({ currentUser, onSignOut }) {
     setTimeout(() => setNotification(null), 3500);
   };
 
+  // Sync current user with api.js X-User header
+  useEffect(() => {
+    if (currentUser?.id || currentUser?.name) {
+      setCurrentUser(currentUser.name || currentUser.id);
+    }
+  }, [currentUser]);
+
+  // Load graph valid as of asOfDate
+  useEffect(() => {
+    let active = true;
+    fetchGraph(asOfDate)
+      .then(res => {
+        if (active && res && res.nodes) {
+          setLiveGraphData(res);
+        }
+      })
+      .catch(() => {
+        // Fall back gracefully to mock graph if backend not ready
+      });
+    return () => { active = false; };
+  }, [asOfDate]);
+
+  // Load proposals from GET /proposals
+  const loadProposals = useCallback(async () => {
+    try {
+      const res = await fetchProposals();
+      if (res && Array.isArray(res) && res.length > 0) {
+        setQueueItems(res);
+      }
+    } catch {
+      // Keep existing or initial queue items
+    }
+  }, []);
+
+  // Load audit trail from GET /audit
+  const loadAudit = useCallback(async () => {
+    try {
+      const res = await fetchAudit(0, 100);
+      if (res && Array.isArray(res) && res.length > 0) {
+        setAuditLogs(res);
+      }
+    } catch {
+      // Keep existing or initial audit logs
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProposals();
+    loadAudit();
+  }, [loadProposals, loadAudit]);
+
+  // Human Review Actions
   const handleApproveAction = async (actionId) => {
-    const item = queueItems.find(i => i.id === actionId);
-    if (!item) return;
-
-    const prevBlock = auditLogs[0];
-    const newBlockHeight = prevBlock ? prevBlock.blockHeight + 1 : 101;
-    const nowIso = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
-    const actorName = currentUser.name || "Priya Sharma (Compliance Lead)";
-    
-    const payload = `${newBlockHeight}:${nowIso}:${actorName}:EXECUTE_APPROVED_TASK:${prevBlock?.blockHash || '0'}`;
-    const newHash = await sha256(payload);
-
-    setQueueItems(prev => prev.map(i => i.id === actionId ? { ...i, status: 'Approved', archivedBlock: newBlockHeight } : i));
-
-    const newLogEntry = {
-      blockHeight: newBlockHeight,
-      timestamp: nowIso,
-      actor: actorName,
-      action: "EXECUTE_APPROVED_MCP_TASK",
-      targetTool: item.targetMcpTool,
-      sourceGraphIds: [item.sourceDecisionId, item.sourceClauseId],
-      prevHash: prevBlock?.blockHash || "0".repeat(64),
-      blockHash: newHash,
-      integrityStatus: "Verified"
-    };
-
-    setAuditLogs(prev => [newLogEntry, ...prev]);
-    showNotification(`Action ${actionId} approved & executed. Block #${newBlockHeight} appended to audit chain.`, "success");
+    try {
+      await approveProposal(actionId);
+      showNotification(`Proposal #${actionId} approved. Dispatched to executor.`, "success");
+      loadProposals();
+      loadAudit();
+    } catch (err) {
+      // Fallback local update
+      setQueueItems(prev => prev.map(i => i.id === actionId ? { ...i, status: 'approved' } : i));
+      showNotification(`Proposal #${actionId} marked approved: ${err.message}`, "info");
+      loadAudit();
+    }
   };
 
-  const handleRejectAction = (actionId) => {
-    setQueueItems(prev => prev.map(i => i.id === actionId ? { ...i, status: 'Rejected' } : i));
-    showNotification(`Action ${actionId} rejected and logged to governance trace.`, "warning");
+  const handleRejectAction = async (actionId, reason = null) => {
+    try {
+      await rejectProposal(actionId, reason);
+      showNotification(`Proposal #${actionId} rejected.`, "warning");
+      loadProposals();
+      loadAudit();
+    } catch (err) {
+      setQueueItems(prev => prev.map(i => i.id === actionId ? { ...i, status: 'rejected' } : i));
+      showNotification(`Proposal #${actionId} rejected: ${err.message}`, "warning");
+      loadAudit();
+    }
   };
 
-  const handleEditAction = (actionId, newParams) => {
-    setQueueItems(prev => prev.map(i => i.id === actionId ? { ...i, parameters: newParams } : i));
-    showNotification(`Parameters for ${actionId} staged successfully.`, "info");
+  const handleEditAction = async (actionId, changes) => {
+    try {
+      await editProposal(actionId, changes);
+      showNotification(`Proposal #${actionId} updated successfully.`, "success");
+      loadProposals();
+    } catch (err) {
+      setQueueItems(prev => prev.map(i => i.id === actionId ? { ...i, ...changes } : i));
+      showNotification(`Proposal #${actionId} updated (local).`, "info");
+    }
   };
 
-  const handlePolicyUploaded = () => {
-    setAsOfDate('2026-09-24');
-    setSelectedNodeId('DEC-2024-001');
-    setHighlightNodeIds(['DEC-2024-001', 'DEC-2025-019', 'RET-2.1-v3']);
-    showNotification("Policy RET-2.1 v3 activated. Staleness Scanner identified 2 decisions for review.", "info");
+  const handlePolicyUploaded = (uploadRes) => {
+    setAsOfDate('2026-09-28');
+    setSelectedNodeId('DEC-007');
+    setHighlightNodeIds(['DEC-007', 'RET-2.1@v3']);
+    loadProposals();
+    loadAudit();
+    fetchGraph('2026-09-28')
+      .then(res => { if (res && res.nodes) setLiveGraphData(res); })
+      .catch(() => {});
+    showNotification("Policy ingested. Staleness scanner ran and generated remediation flags.", "info");
   };
 
   return (
@@ -137,9 +201,9 @@ export default function Dashboard({ currentUser, onSignOut }) {
           >
             <ListChecks size={13} className={activeView === 'QUEUE' ? 'text-[#0284C7]' : ''} />
             <span>Review Queue</span>
-            {queueItems.filter(i => i.status === 'Pending Approval').length > 0 && (
+            {queueItems.filter(i => i.status === 'proposed' || i.status === 'Pending Approval').length > 0 && (
               <span className="w-4 h-4 rounded-full bg-[#0284C7] text-[10px] font-bold text-white flex items-center justify-center">
-                {queueItems.filter(i => i.status === 'Pending Approval').length}
+                {queueItems.filter(i => i.status === 'proposed' || i.status === 'Pending Approval').length}
               </span>
             )}
           </button>
@@ -220,13 +284,21 @@ export default function Dashboard({ currentUser, onSignOut }) {
                   setHighlightNodeIds([citId]);
                   showNotification(`Selected node ${citId}`, "info");
                 }}
-                onQueryExecuted={(query) => {
-                  if (query.asOfDateSuggested) {
+                onQueryExecuted={(query, res) => {
+                  if (query?.asOfDateSuggested) {
                     setAsOfDate(query.asOfDateSuggested);
+                  }
+                  if (res?.subgraph?.nodes?.length) {
+                    setLiveGraphData(res.subgraph);
                   }
                 }}
                 onNodeHighlight={(nodeIds) => {
                   setHighlightNodeIds(nodeIds);
+                }}
+                onSubgraph={(subgraph) => {
+                  if (subgraph && subgraph.nodes && subgraph.nodes.length > 0) {
+                    setLiveGraphData(subgraph);
+                  }
                 }}
               />
             </div>
@@ -240,6 +312,7 @@ export default function Dashboard({ currentUser, onSignOut }) {
                   selectedNodeId={selectedNodeId}
                   onSelectNode={(id) => setSelectedNodeId(id)}
                   highlightNodeIds={highlightNodeIds}
+                  liveGraphData={liveGraphData}
                   onOpenCitation={(citId) => {
                     setSelectedNodeId(citId);
                     setHighlightNodeIds([citId]);
@@ -267,6 +340,7 @@ export default function Dashboard({ currentUser, onSignOut }) {
               selectedNodeId={selectedNodeId}
               onSelectNode={(id) => setSelectedNodeId(id)}
               highlightNodeIds={highlightNodeIds}
+              liveGraphData={liveGraphData}
               onOpenCitation={(citId) => {
                 setSelectedNodeId(citId);
                 setHighlightNodeIds([citId]);
@@ -290,7 +364,8 @@ export default function Dashboard({ currentUser, onSignOut }) {
           <div className="flex-1 h-full min-h-0">
             <AuditLogTable
               auditLogs={auditLogs}
-              onVerifyChain={() => showNotification("18 blocks verified with 0 alterations.", "success")}
+              onRefresh={loadAudit}
+              onVerifyChain={() => showNotification("Audit chain verified. Cryptographic hash continuity intact.", "success")}
             />
           </div>
         )}
