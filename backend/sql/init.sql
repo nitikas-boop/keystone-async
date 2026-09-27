@@ -151,3 +151,18 @@ CREATE TRIGGER audit_no_truncate BEFORE TRUNCATE ON audit_log FOR EACH STATEMENT
 GRANT SELECT, INSERT, UPDATE, DELETE ON documents, chunks, policy_clauses, extractions, flags, proposals, answers TO keystone_app;
 GRANT SELECT, INSERT ON audit_log TO keystone_app;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO keystone_app;
+
+-- ingestion_runs: one row per seed / upload / watcher run; per-document outcomes in stats (never swallowed).
+-- Idempotent, so it can be applied to an existing database:
+--   sed -n '/^-- ingestion_runs/,$p' backend/sql/init.sql | docker compose exec -T postgres psql -U keystone_owner -d keystone -v ON_ERROR_STOP=1
+CREATE TABLE IF NOT EXISTS ingestion_runs (
+    id          bigserial PRIMARY KEY,
+    kind        text NOT NULL CHECK (kind IN ('seed', 'upload', 'watcher')),
+    started_at  timestamptz NOT NULL DEFAULT now(),
+    finished_at timestamptz,
+    status      text NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'succeeded', 'partial', 'failed')),
+    stats       jsonb NOT NULL DEFAULT '{}',   -- {documents: {path: {status, sha256, document_id, error?, ...}}, ok, failed, skipped}
+    error       text
+);
+GRANT SELECT, INSERT, UPDATE ON ingestion_runs TO keystone_app;
+GRANT USAGE ON SEQUENCE ingestion_runs_id_seq TO keystone_app;

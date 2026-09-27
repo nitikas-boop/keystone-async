@@ -5,7 +5,7 @@ import json
 import re
 from datetime import date, datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from . import config, db, graph
 
@@ -313,3 +313,24 @@ async def node_source(node_id: str, include_restricted: bool = False):
             'document': doc and {'id': doc['id'], 'path': doc['path'], 'docType': doc['doc_type'],
                                  'refTime': doc['ref_time'].isoformat(), 'visibility': doc['visibility']},
             'passage': passage, 'quote': quote, 'excerpt': excerpt}
+
+
+# ---- ingestion runs ----
+
+def _run_out(r) -> dict:
+    return {**dict(r), 'started_at': r['started_at'].isoformat(),
+            'finished_at': r['finished_at'] and r['finished_at'].isoformat()}
+
+
+@router.get('/ingest/runs')
+async def ingest_runs(limit: int = Query(20, ge=1, le=200)):
+    """Seed / upload / watcher runs, newest first. Per-document outcomes are in stats.documents."""
+    return [_run_out(r) for r in await db.pool.fetch('SELECT * FROM ingestion_runs ORDER BY id DESC LIMIT $1', limit)]
+
+
+@router.get('/ingest/runs/{run_id}')
+async def ingest_run(run_id: int):
+    r = await db.pool.fetchrow('SELECT * FROM ingestion_runs WHERE id=$1', run_id)
+    if r is None:
+        raise HTTPException(404, 'no such ingestion run')
+    return _run_out(r)
