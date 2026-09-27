@@ -255,7 +255,7 @@ def test_deterministic_compliance_all_outcomes():
 
 
 @pytest.mark.asyncio
-async def test_decision_evaluation_nimbus():
+async def test_decision_evaluation_nimbus(nimbus_test_graph):
     # DEC-004: ₹4L VendorCo contract decided 2025-03-14
     res_dec4 = await evaluate('DEC-004', as_of=date(2025, 3, 14), low=0.7, explain=False)
     assert res_dec4 is not None
