@@ -313,7 +313,19 @@ export default function GraphVisualizer({
           }}
         />
 
-        <svg 
+        {processedNodes.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="max-w-xs text-center p-4 rounded-xl bg-white/90 border border-slate-200 shadow-xs">
+              <div className="font-heading font-semibold text-xs text-[#0F172A]">No graph data as of {asOfDate}</div>
+              <p className="text-[11px] text-[#64748B] mt-1 leading-relaxed">
+                The knowledge graph is empty or nothing was valid on this date. Seed the vault or restore a
+                snapshot, or move the as-of date.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <svg
           ref={svgRef}
           className="w-full h-full"
           style={{
