@@ -1,11 +1,14 @@
 """LLM extraction from prose (meeting notes) + ingestion review (§6.8, §9).
 One structured-output call returns entities, relations AND a confidence per fact; offsets are found by us."""
 import json
+import logging
 from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import config, db, graph, llm
 from .prompts import EXTRACTION_SYSTEM_PROMPT
+
+log = logging.getLogger('keystone.extract')
 
 NODE_TYPES = ['Person', 'Decision', 'Project']
 RELATIONS = ['MADE_BY', 'ABOUT', 'SUPERSEDES']  # RELIED_ON links are added by a human in review
@@ -136,7 +139,8 @@ async def _known(as_of: date) -> list[dict]:
                              'RETURN n.key AS key, n.type AS type, n.name AS name',
                              g=config.GROUP_ID, t=NODE_TYPES, d=as_of.isoformat())
         return [dict(r) for r in rows]
-    except Exception:
+    except Exception as e:
+        log.warning("Graph query failed in _known(%s): %s (%s)", as_of, type(e).__name__, e)
         return []
 
 

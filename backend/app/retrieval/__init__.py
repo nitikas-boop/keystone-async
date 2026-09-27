@@ -10,13 +10,13 @@ from .synthetic import SyntheticRetrievalAdapter
 def get_retrieval_adapter(mode: Optional[str] = None) -> BaseRetrievalAdapter:
     """Factory to retrieve either the temporary synthetic adapter or production Graphiti adapter.
     
-    If mode is None, reads KEYSTONE_RETRIEVAL_ADAPTER env var (defaults to 'synthetic' if graphiti not ready,
-    or 'graphiti' if explicitly configured).
+    If mode is None, reads KEYSTONE_RETRIEVAL_ADAPTER env var (defaults to 'graphiti' for production,
+    or 'synthetic' for offline tests).
     """
-    adapter_mode = (mode or config.E('KEYSTONE_RETRIEVAL_ADAPTER', 'synthetic')).lower()
-    if adapter_mode == 'graphiti':
-        return GraphitiRetrievalAdapter()
-    return SyntheticRetrievalAdapter()
+    adapter_mode = (mode or config.E('KEYSTONE_RETRIEVAL_ADAPTER', config.KEYSTONE_RETRIEVAL_ADAPTER)).lower()
+    if adapter_mode == 'synthetic':
+        return SyntheticRetrievalAdapter()
+    return GraphitiRetrievalAdapter()
 
 
 __all__ = [

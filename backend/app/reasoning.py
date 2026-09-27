@@ -94,6 +94,14 @@ class ReasoningEngine:
                      session_id: Optional[str] = None, explain_compliance: bool = True) -> Dict[str, Any]:
         # 1. Retrieve point-in-time subgraph and sources
         retrieval = await self.adapter.retrieve(question, as_of)
+        if retrieval.is_empty and session_id:
+            history = conversation_memory.get_history(session_id)
+            user_queries = [m.content for m in history if m.role == 'user']
+            if user_queries:
+                expanded_q = f"{' '.join(user_queries[-2:])} {question}"
+                expanded_retrieval = await self.adapter.retrieve(expanded_q, as_of)
+                if not expanded_retrieval.is_empty:
+                    retrieval = expanded_retrieval
 
         subgraph_nodes = [n.to_dict() for n in retrieval.nodes]
         subgraph_edges = [e.to_dict() for e in retrieval.edges]
@@ -165,12 +173,15 @@ class ReasoningEngine:
                 sentences = self._fallback_grounded_answer(question, sources, checks, retrieval.seed_keys)
                 break
 
-        # If LLM failed to produce valid grounded sentences despite valid retrieved context, use fallback
-        if not sentences and retrieval.seed_keys and not retrieval.is_empty:
-            log.warning("LLM produced no valid grounded sentences after retries. Using deterministic offline fallback.")
-            sentences = self._fallback_grounded_answer(question, sources, checks, retrieval.seed_keys)
+        # If LLM failed to produce valid grounded sentences or refused despite valid retrieved context, use fallback
+        is_refusal = not sentences or any(ANSWER_REFUSAL_SENTENCE.lower() in s.get('text', '').lower() for s in sentences)
+        if is_refusal and retrieval.seed_keys and not retrieval.is_empty:
+            log.warning("LLM produced refusal or no valid grounded sentences despite valid retrieved context. Using fallback grounding.")
+            fallback_sentences = self._fallback_grounded_answer(question, sources, checks, retrieval.seed_keys)
+            if fallback_sentences:
+                sentences = fallback_sentences
 
-        refused = not sentences or any(ANSWER_REFUSAL_SENTENCE.lower() in s['text'].lower() for s in sentences)
+        refused = not sentences or any(ANSWER_REFUSAL_SENTENCE.lower() in s.get('text', '').lower() for s in sentences)
 
         return await self._format_response(
             question=question,

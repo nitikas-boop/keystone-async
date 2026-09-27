@@ -87,13 +87,14 @@ async def get_document(doc_id: str):
 class AskIn(BaseModel):
     question: str
     as_of: date | None = None
+    session_id: str | None = None
 
 
 @app.post('/ask')
 async def ask_endpoint(body: AskIn, who: str = Depends(actor)):
     if not body.question.strip():
         raise HTTPException(422, 'question is empty')
-    return await ask.ask(body.question.strip(), body.as_of or date.today(), who)
+    return await ask.ask(body.question.strip(), body.as_of or date.today(), who, session_id=body.session_id)
 
 
 @app.get('/answers/{answer_id}')

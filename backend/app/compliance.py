@@ -67,8 +67,9 @@ async def clause_in_force(clause_id: str, on: date) -> dict | None:
                 'AND (effective_to IS NULL OR effective_to > $2)', clause_id, on)
             return dict(row) if row else None
         except Exception as e:
-            log.debug("DB query failed in clause_in_force (%s: %s), using synthetic fallback", type(e).__name__, e)
-    # Fallback to synthetic adapter if DB is not connected
+            log.warning("Database query failed in clause_in_force(%s, %s): %s (%s). Falling back to synthetic adapter.",
+                        clause_id, on, type(e).__name__, e)
+    # Fallback to synthetic adapter if DB is not connected or query fails
     from .retrieval.synthetic import SyntheticRetrievalAdapter
     adapter = SyntheticRetrievalAdapter()
     return await adapter.get_clause_in_force(clause_id, on)
@@ -91,7 +92,8 @@ async def load_decision(decision_id: str) -> dict | None:
                         'fields': json.loads(d.get('fields_json') or '{}'), 'clauses': sorted(set(filter(None, rows[0]['clauses']))),
                         'provenance': graph._prov(d), 'relied_on_edges': [r for r in rows[0]['rels'] if r['key']]}
         except Exception as e:
-            log.debug("Graph query failed in load_decision (%s: %s), using synthetic fallback", type(e).__name__, e)
+            log.warning("Graph query failed in load_decision(%s): %s (%s). Falling back to synthetic adapter.",
+                        decision_id, type(e).__name__, e)
 
     # Fallback to synthetic adapter
     from .retrieval.synthetic import SyntheticRetrievalAdapter

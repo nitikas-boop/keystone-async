@@ -11,10 +11,19 @@ from .retrieval import get_retrieval_adapter
 
 RELEVANCE_MIN = float(config.E('RELEVANCE_MIN', '0.78'))
 
-# Global engine instance
-_engine = ReasoningEngine(get_retrieval_adapter())
+# Engine instance
+_engine: Optional[ReasoningEngine] = None
+
+
+def get_engine() -> ReasoningEngine:
+    global _engine
+    adapter = get_retrieval_adapter()
+    if _engine is None or type(_engine.adapter) is not type(adapter):
+        _engine = ReasoningEngine(adapter)
+    return _engine
 
 
 async def ask(question: str, as_of: date, actor: str, session_id: Optional[str] = None) -> Dict[str, Any]:
     """Execute temporal question answering pipeline."""
-    return await _engine.answer(question, as_of, actor=actor, session_id=session_id)
+    engine = get_engine()
+    return await engine.answer(question, as_of, actor=actor, session_id=session_id)

@@ -82,11 +82,26 @@ async def _existing_created_at(match: str, key_uuid: str):
     return rows[0]['c'].to_native() if rows and rows[0]['c'] is not None else None
 
 
+def _clean_attrs(attrs: dict) -> dict:
+    """Ensure attributes are flat primitive properties compatible with Neo4j."""
+    out = dict(attrs)
+    span = out.pop('source_span', None)
+    if isinstance(span, dict):
+        if 'start' in span and out.get('source_start') is None:
+            out['source_start'] = span.get('start')
+        if 'end' in span and out.get('source_end') is None:
+            out['source_end'] = span.get('end')
+        if 'quote' in span and out.get('source_quote') is None:
+            out['source_quote'] = span.get('quote')
+    return out
+
+
 async def upsert_node(key: str, type_: str, name: str, attrs: dict, summary: str = '') -> str:
     """attrs must be flat (Neo4j properties): provenance, valid_from/valid_to as 'YYYY-MM-DD' strings."""
     u = uid(key)
+    cleaned = _clean_attrs(attrs)
     node = EntityNode(uuid=u, name=name, group_id=config.GROUP_ID, labels=[type_], summary=summary,
-                      attributes={'key': key, 'type': type_, **attrs})
+                      attributes={'key': key, 'type': type_, **cleaned})
     # Ingestion time is when we first learned the fact; keep it across re-ingests.
     node.created_at = await _existing_created_at('MATCH (x:Entity {uuid: $u})', u) or node.created_at
     await node.generate_name_embedding(g.embedder)
@@ -103,10 +118,11 @@ async def ensure_node(key: str, type_: str, prov: dict) -> str:
 async def upsert_edge(src: str, rel: str, dst: str, fact: str, valid_at: datetime, prov: dict,
                       episode_uuid: str, invalid_at: datetime | None = None, extra: dict | None = None) -> str:
     u = uid(f'{src}|{rel}|{dst}')
+    cleaned_prov = _clean_attrs(prov)
     edge = EntityEdge(uuid=u, group_id=config.GROUP_ID, source_node_uuid=uid(src), target_node_uuid=uid(dst),
                       created_at=datetime.now(timezone.utc), name=rel, fact=fact, episodes=[episode_uuid],
                       valid_at=valid_at, invalid_at=invalid_at, reference_time=valid_at,
-                      attributes={'source_key': src, 'target_key': dst, **prov, **(extra or {})})
+                      attributes={'source_key': src, 'target_key': dst, **cleaned_prov, **(extra or {})})
     edge.created_at = await _existing_created_at('MATCH ()-[x:RELATES_TO {uuid: $u}]->()', u) or edge.created_at
     await edge.generate_embedding(g.embedder)
     await edge.save(g.driver)
