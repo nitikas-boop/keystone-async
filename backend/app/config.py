@@ -1,4 +1,21 @@
 import os
+from pathlib import Path
+
+# Load .env if present (root or backend)
+def _load_env():
+    for p in [Path('.env'), Path(__file__).resolve().parent.parent / '.env', Path(__file__).resolve().parent.parent.parent / '.env']:
+        if p.is_file():
+            try:
+                for line in p.read_text(encoding='utf-8').splitlines():
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        k, v = line.split('=', 1)
+                        os.environ.setdefault(k.strip(), v.strip().strip('"\''))
+            except Exception:
+                pass
+            break
+
+_load_env()
 
 E = os.environ.get
 
@@ -9,8 +26,8 @@ NEO4J_PASSWORD = E('NEO4J_PASSWORD', 'keystone-dev-pw')
 
 OLLAMA_BASE_URL = E('OLLAMA_BASE_URL', 'http://localhost:11434')
 EXTRACT_OLLAMA_URL = E('EXTRACT_OLLAMA_URL', OLLAMA_BASE_URL)
-ANSWER_MODEL = E('ANSWER_MODEL', 'qwen3:8b')
-EXTRACT_MODEL = E('EXTRACT_MODEL', 'qwen3:14b')
+ANSWER_MODEL = E('ANSWER_MODEL', 'qwen2.5:7b')
+EXTRACT_MODEL = E('EXTRACT_MODEL', 'qwen2.5:7b')
 EMBED_MODEL = E('EMBED_MODEL', 'nomic-embed-text')
 EMBEDDING_DIM = int(E('EMBEDDING_DIM', '768'))
 

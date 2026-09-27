@@ -1,10 +1,12 @@
-"""Deterministic compliance check (§6.5). The model never decides an outcome; it only words it."""
 import json
+import logging
 from datetime import date
 from typing import Any, Dict, List, Optional
 
 from . import db, graph, llm
 from .prompts import COMPLIANCE_EXPLAIN_SYSTEM_PROMPT
+
+log = logging.getLogger('keystone.compliance')
 
 # clause field -> (decision fields it needs, comparison). Returns (ok, rule text, decision value, limit).
 RULES = {
@@ -64,8 +66,8 @@ async def clause_in_force(clause_id: str, on: date) -> dict | None:
                 'SELECT * FROM policy_clauses WHERE clause_id=$1 AND effective_from <= $2 '
                 'AND (effective_to IS NULL OR effective_to > $2)', clause_id, on)
             return dict(row) if row else None
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("DB query failed in clause_in_force (%s: %s), using synthetic fallback", type(e).__name__, e)
     # Fallback to synthetic adapter if DB is not connected
     from .retrieval.synthetic import SyntheticRetrievalAdapter
     adapter = SyntheticRetrievalAdapter()
@@ -88,8 +90,8 @@ async def load_decision(decision_id: str) -> dict | None:
                         'status': d.get('status', 'active'), 'effect': d.get('effect', 'completed'),
                         'fields': json.loads(d.get('fields_json') or '{}'), 'clauses': sorted(set(filter(None, rows[0]['clauses']))),
                         'provenance': graph._prov(d), 'relied_on_edges': [r for r in rows[0]['rels'] if r['key']]}
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("Graph query failed in load_decision (%s: %s), using synthetic fallback", type(e).__name__, e)
 
     # Fallback to synthetic adapter
     from .retrieval.synthetic import SyntheticRetrievalAdapter

@@ -1,9 +1,11 @@
-"""Local Ollama calls. JSON-schema structured output; qwen3 thinking disabled for speed."""
 import json
+import logging
 
 import httpx
 
 from . import config
+
+log = logging.getLogger('keystone.llm')
 
 
 async def chat_json(system: str, user: str, schema: dict, model: str = config.ANSWER_MODEL,
@@ -25,5 +27,6 @@ async def explain(prompt: str, fallback: str) -> str:
             'Keep every ID in square brackets exactly as given.',
             prompt, {'type': 'object', 'properties': {'text': {'type': 'string'}}, 'required': ['text']}, timeout=180)
         return out['text'].strip() or fallback
-    except Exception:
+    except Exception as e:
+        log.debug("llm.explain failed (%s: %s), using fallback narration.", type(e).__name__, e)
         return fallback

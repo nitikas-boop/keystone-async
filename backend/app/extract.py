@@ -25,11 +25,24 @@ SCHEMA = {
                            'confidence': {'type': 'number', 'minimum': 0, 'maximum': 1}}}}}}
 
 
-def _locate(raw: str, body_start: int, quote: str) -> dict:
-    i = raw.find(quote.strip(), body_start) if quote.strip() else -1
-    if i < 0:
-        return {'source_start': None, 'source_end': None, 'source_quote': quote}
-    return {'source_start': i, 'source_end': i + len(quote.strip()), 'source_quote': quote.strip()}
+def _locate(raw: str, body_start: int, quote: Optional[str]) -> dict:
+    if not quote or not isinstance(quote, str) or not quote.strip():
+        return {'source_start': None, 'source_end': None, 'source_quote': str(quote or '')}
+    q = quote.strip()
+    # Try exact match first
+    i = raw.find(q, body_start)
+    if i >= 0:
+        return {'source_start': i, 'source_end': i + len(q), 'source_quote': raw[i:i + len(q)]}
+    
+    # Try without surrounding quotes if model wrapped quote in quotes
+    if len(q) >= 2 and ((q.startswith('"') and q.endswith('"')) or (q.startswith("'") and q.endswith("'")) or (q.startswith('“') and q.endswith('”'))):
+        unwrapped = q[1:-1].strip()
+        i = raw.find(unwrapped, body_start)
+        if i >= 0:
+            return {'source_start': i, 'source_end': i + len(unwrapped), 'source_quote': raw[i:i + len(unwrapped)]}
+
+    # Fallback to returning clean quote string without failing
+    return {'source_start': None, 'source_end': None, 'source_quote': q}
 
 
 def parse_extraction_output(raw: str, body_start: int, out: dict, did: str, path: str, ref: date,
@@ -38,35 +51,81 @@ def parse_extraction_output(raw: str, body_start: int, out: dict, did: str, path
     base = {'source_doc': path, 'visibility': visibility, 'extracted_by': config.EXTRACT_MODEL, 'human_verified': False}
     keymap, nodes_out, edges_out, rows = {}, [], [], []
 
-    for ent in out.get('entities', []):
-        if ent['ref'] in known_keys:
-            keymap[ent['ref']] = ent['ref']
+    if not isinstance(out, dict):
+        return nodes_out, edges_out, rows
+
+    entities = out.get('entities') or []
+    if not isinstance(entities, list):
+        entities = []
+
+    for i, ent in enumerate(entities):
+        if not isinstance(ent, dict):
             continue
-        key = f"{did}-{ent['ref']}"
-        keymap[ent['ref']] = key
-        loc = _locate(raw, body_start, ent['quote'])
-        prov = {**base, 'confidence': float(ent['confidence']), **loc,
+        ref_id = str(ent.get('ref') or f"E{i+1}")
+        if ref_id in known_keys:
+            keymap[ref_id] = ref_id
+            continue
+
+        key = f"{did}-{ref_id}"
+        keymap[ref_id] = key
+
+        quote = ent.get('quote') or ''
+        loc = _locate(raw, body_start, quote)
+        
+        try:
+            conf = float(ent.get('confidence', 1.0))
+        except (ValueError, TypeError):
+            conf = 1.0
+
+        prov = {**base, 'confidence': conf, **loc,
                 'source_span': {'start': loc['source_start'], 'end': loc['source_end'], 'quote': loc['source_quote']}}
         attrs = {'valid_from': ref.isoformat(), **prov}
-        if ent['type'] == 'Decision':
-            attrs.update(decided_on=ref.isoformat(), status='active', effect=ent.get('effect', 'ongoing'),
-                         fields_json='{}', reasons=prov['source_quote'])
-        nodes_out.append({'key': key, 'type': ent['type'], 'name': ent['name'], 'attrs': attrs, 'prov': prov})
-        rows.append(('node', None, ent['type'], key, None, ent['name'], prov))
+        
+        ent_type = ent.get('type') or 'Entity'
+        ent_name = ent.get('name') or ref_id
+        effect = ent.get('effect') or 'ongoing'
 
-        if ent['type'] == 'Decision':  # an extracted decision is justified by the note it came from
-            fact = f'{ent["name"]} JUSTIFIED_BY {did}'
+        if ent_type == 'Decision':
+            attrs.update(decided_on=ref.isoformat(), status='active', effect=effect,
+                         fields_json='{}', reasons=prov['source_quote'])
+        nodes_out.append({'key': key, 'type': ent_type, 'name': ent_name, 'attrs': attrs, 'prov': prov})
+        rows.append(('node', None, ent_type, key, None, ent_name, prov))
+
+        if ent_type == 'Decision':  # an extracted decision is justified by the note it came from
+            fact = f'{ent_name} JUSTIFIED_BY {did}'
             edges_out.append({'src': key, 'rel': 'JUSTIFIED_BY', 'dst': did, 'fact': fact, 'prov': prov})
             rows.append(('edge', None, 'JUSTIFIED_BY', key, did, fact, prov))
 
-    for rel in out.get('relations', []):
-        src, dst = keymap.get(rel['source'], rel['source']), keymap.get(rel['target'], rel['target'])
-        if src not in keymap.values() and src not in known_keys or dst not in keymap.values() and dst not in known_keys:
+    relations = out.get('relations') or []
+    if not isinstance(relations, list):
+        relations = []
+
+    valid_targets = set(keymap.values()) | set(known_keys.keys()) | {did}
+
+    for rel in relations:
+        if not isinstance(rel, dict):
+            continue
+        s_raw = str(rel.get('source') or '')
+        t_raw = str(rel.get('target') or '')
+        relation = str(rel.get('relation') or '')
+        if not s_raw or not t_raw or not relation:
+            continue
+
+        src, dst = keymap.get(s_raw, s_raw), keymap.get(t_raw, t_raw)
+        if src not in valid_targets or dst not in valid_targets:
             continue  # model referenced something it never defined
-        prov = {**base, 'confidence': float(rel['confidence']), **_locate(raw, body_start, rel['quote'])}
-        fact = f"{src} {rel['relation']} {dst}"
-        edges_out.append({'src': src, 'rel': rel['relation'], 'dst': dst, 'fact': fact, 'prov': prov})
-        rows.append(('edge', None, rel['relation'], src, dst, fact, prov))
+
+        try:
+            conf = float(rel.get('confidence', 1.0))
+        except (ValueError, TypeError):
+            conf = 1.0
+
+        quote = rel.get('quote') or ''
+        loc = _locate(raw, body_start, quote)
+        prov = {**base, 'confidence': conf, **loc}
+        fact = f"{src} {relation} {dst}"
+        edges_out.append({'src': src, 'rel': relation, 'dst': dst, 'fact': fact, 'prov': prov})
+        rows.append(('edge', None, relation, src, dst, fact, prov))
 
     return nodes_out, edges_out, rows
 

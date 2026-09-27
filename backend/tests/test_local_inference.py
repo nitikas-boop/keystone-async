@@ -22,13 +22,18 @@ os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent))
 
 import httpx  # noqa: E402
+from app import config
+
+# ── Model configuration locked to qwen2.5:7b ───────────────────────────────
+TARGET_MODEL = config.ANSWER_MODEL
+INFERENCE_TIMEOUT = 300  # seconds – covers cold VRAM load on first call
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 def ollama_alive() -> bool:
     try:
-        r = httpx.get("http://localhost:11434/api/tags", timeout=4)
+        r = httpx.get(f"{config.OLLAMA_BASE_URL}/api/tags", timeout=4)
         return r.status_code == 200
     except Exception:
         return False
@@ -36,7 +41,7 @@ def ollama_alive() -> bool:
 
 def model_available(name: str) -> bool:
     try:
-        r = httpx.get("http://localhost:11434/api/tags", timeout=4)
+        r = httpx.get(f"{config.OLLAMA_BASE_URL}/api/tags", timeout=4)
         models = [m["name"] for m in r.json().get("models", [])]
         return name in models
     except Exception:
@@ -54,9 +59,9 @@ pytestmark = pytest.mark.skipif(
 # model must declare `warm_model` as a parameter.
 @pytest.fixture(scope="session")
 async def warm_model():
-    """Ensure qwen2.5:7b is loaded into VRAM before inference tests."""
+    """Ensure locked model is loaded into VRAM before inference tests."""
     payload = {
-        "model": AVAILABLE_MODEL,
+        "model": TARGET_MODEL,
         "stream": False,
         "think": False,
         "options": {"temperature": 0},
@@ -68,9 +73,9 @@ async def warm_model():
         "messages": [{"role": "user", "content": "ok?"}],
     }
     t0 = time.perf_counter()
-    print(f"\n  [warmup] Loading {AVAILABLE_MODEL} into VRAM ...", flush=True)
+    print(f"\n  [warmup] Loading {TARGET_MODEL} into VRAM ...", flush=True)
     async with httpx.AsyncClient(timeout=INFERENCE_TIMEOUT) as client:
-        r = await client.post("http://localhost:11434/api/chat", json=payload)
+        r = await client.post(f"{config.OLLAMA_BASE_URL}/api/chat", json=payload)
     elapsed = time.perf_counter() - t0
     assert r.status_code == 200, f"Warmup failed: {r.text}"
     print(f"  [warmup] Model ready in {elapsed:.1f}s", flush=True)
@@ -78,12 +83,12 @@ async def warm_model():
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# 1. Raw Ollama connectivity
+# 1. Raw Ollama connectivity & Model Configuration
 # ══════════════════════════════════════════════════════════════════════════
 
 def test_ollama_tags_endpoint():
     """Ollama /api/tags returns HTTP 200 and at least one model."""
-    r = httpx.get("http://localhost:11434/api/tags", timeout=4)
+    r = httpx.get(f"{config.OLLAMA_BASE_URL}/api/tags", timeout=4)
     assert r.status_code == 200
     models = [m["name"] for m in r.json().get("models", [])]
     print(f"\n  Available models: {models}")
@@ -91,14 +96,16 @@ def test_ollama_tags_endpoint():
 
 
 def test_model_is_available():
-    """The target model is actually pulled."""
-    assert model_available(AVAILABLE_MODEL), (
-        f"{AVAILABLE_MODEL} not found in Ollama. Run: ollama pull {AVAILABLE_MODEL}"
+    """The target locked model (qwen2.5:7b) is actually pulled and configured."""
+    assert config.ANSWER_MODEL == "qwen2.5:7b", f"Expected ANSWER_MODEL=qwen2.5:7b, got {config.ANSWER_MODEL}"
+    assert config.EXTRACT_MODEL == "qwen2.5:7b", f"Expected EXTRACT_MODEL=qwen2.5:7b, got {config.EXTRACT_MODEL}"
+    assert model_available(TARGET_MODEL), (
+        f"{TARGET_MODEL} not found in Ollama. Run: ollama pull {TARGET_MODEL}"
     )
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. Raw chat_json call – JSON schema structured output
+# 2. Raw chat_json call & think: false verification
 # ══════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.asyncio
@@ -117,8 +124,8 @@ async def test_raw_chat_json_structured_output(warm_model):
         system="Answer in JSON only.",
         user="Reply with result: 'pong'",
         schema=schema,
-        model=AVAILABLE_MODEL,
-        base_url="http://localhost:11434",
+        model=TARGET_MODEL,
+        base_url=config.OLLAMA_BASE_URL,
         timeout=INFERENCE_TIMEOUT,
     )
     elapsed = time.perf_counter() - t0
@@ -128,32 +135,55 @@ async def test_raw_chat_json_structured_output(warm_model):
     assert "result" in out, f"Missing 'result' key: {out}"
 
 
+@pytest.mark.asyncio
+async def test_think_false_structured_output_clean(warm_model):
+    """Verify that think: false is accepted by qwen2.5:7b and generates clean JSON without thinking tokens."""
+    payload = {
+        "model": TARGET_MODEL,
+        "stream": False,
+        "think": False,
+        "options": {"temperature": 0},
+        "format": {
+            "type": "object",
+            "required": ["status", "count"],
+            "properties": {
+                "status": {"type": "string"},
+                "count": {"type": "integer"}
+            }
+        },
+        "messages": [
+            {"role": "system", "content": "You are a precise JSON generator. Output only valid JSON."},
+            {"role": "user", "content": "Generate status: 'ok', count: 42"}
+        ]
+    }
+    async with httpx.AsyncClient(timeout=INFERENCE_TIMEOUT) as client:
+        r = await client.post(f"{config.OLLAMA_BASE_URL}/api/chat", json=payload)
+    assert r.status_code == 200, f"Ollama request failed: {r.text}"
+    content = r.json()["message"]["content"]
+    assert "<think>" not in content, f"Unwanted thinking tag in output: {content}"
+    assert "</think>" not in content
+    import json
+    data = json.loads(content)
+    assert data.get("status") == "ok"
+    assert data.get("count") == 42
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # 3. Compliance explain() narration
 # ══════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.asyncio
 async def test_compliance_explain_narration(warm_model):
-    """llm.explain() must return a non-empty string and not contradict the result.
+    """llm.explain() must return a non-empty string and not contradict the result."""
+    from app import llm
 
-    explain() has a 60s hardcoded timeout and returns the fallback string on
-    any exception. After warmup the model is hot so 60s is sufficient; we also
-    accept the fallback gracefully — what matters is that the result is a string
-    and does not flip the compliance verdict.
-    """
-    from app import llm, config
-    original_model = config.ANSWER_MODEL
-    config.ANSWER_MODEL = AVAILABLE_MODEL
-    try:
-        result = await llm.explain(
-            prompt=(
-                "Decision DEC-004 (Rs 4L VendorCo contract, CTO Vikram Rao, 2025-03-14) was "
-                "checked against PROC-3.1@v1 (CTO limit Rs 5L). Result: compliant."
-            ),
-            fallback="compliant"
-        )
-    finally:
-        config.ANSWER_MODEL = original_model
+    result = await llm.explain(
+        prompt=(
+            "Decision DEC-004 (Rs 4L VendorCo contract, CTO Vikram Rao, 2025-03-14) was "
+            "checked against PROC-3.1@v1 (CTO limit Rs 5L). Result: compliant."
+        ),
+        fallback="compliant"
+    )
 
     print(f"\n  explain() narration:\n    {result}")
     # Accept both a full LLM narration AND the graceful fallback word
@@ -171,9 +201,6 @@ async def test_compliance_explain_narration(warm_model):
 @pytest.mark.asyncio
 async def test_e2e_reasoning_aws_move(warm_model):
     """E2E: 'Why did we move off AWS?' must cite DEC-006 and not be refused."""
-    from app import config as cfg
-    cfg.ANSWER_MODEL = AVAILABLE_MODEL
-
     from app.reasoning import ReasoningEngine
     from app.retrieval.synthetic import SyntheticRetrievalAdapter
 
@@ -201,9 +228,6 @@ async def test_e2e_reasoning_aws_move(warm_model):
 @pytest.mark.asyncio
 async def test_e2e_reasoning_vendorco_compliance(warm_model):
     """E2E: VendorCo Rs 4L contract must be cited as compliant."""
-    from app import config as cfg
-    cfg.ANSWER_MODEL = AVAILABLE_MODEL
-
     from app.reasoning import ReasoningEngine
     from app.retrieval.synthetic import SyntheticRetrievalAdapter
 
@@ -231,9 +255,6 @@ async def test_e2e_reasoning_vendorco_compliance(warm_model):
 @pytest.mark.asyncio
 async def test_e2e_reasoning_no_evidence_refusal(warm_model):
     """E2E: MongoDB question must be refused, not hallucinated."""
-    from app import config as cfg
-    cfg.ANSWER_MODEL = AVAILABLE_MODEL
-
     from app.reasoning import ReasoningEngine
     from app.retrieval.synthetic import SyntheticRetrievalAdapter
     from app.prompts import ANSWER_REFUSAL_SENTENCE

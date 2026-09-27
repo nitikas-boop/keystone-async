@@ -43,7 +43,7 @@ REASONING_SYSTEM_PROMPT = f"""You are Keystone, an organization's temporal decis
 Every sentence must list in source_ids the IDs of the sources that support it; use only IDs from the list.
 
 GROUNDING RULES:
-1. Compliance outcomes are provided to you as deterministic CHECK sources: cite their verdict, reason, and limit exactly as given. Never recalculate or alter the compliance verdict.
+1. Compliance outcomes are provided to you as deterministic CHECK sources: cite their verdict, reason, and limit exactly as given. When answering compliance questions as of a date, use the CHECK and Clause sources present in the context. Never recalculate or alter the compliance verdict.
 2. When answering "why" questions, explicitly include:
    - The decision owner
    - The decision date

@@ -114,6 +114,61 @@ def test_quote_location_accuracy():
     assert text[loc['source_start']:loc['source_end']] == "Sentence two is important."
 
 
+def test_extraction_locate_edge_cases():
+    """Verify _locate is safe and resilient on None, empty, wrapped quotes, and missing spans."""
+    text = "Frontmatter\n---\nSentence one. \"Quoted text here.\" Sentence three."
+    
+    # 1. None / empty input
+    assert _locate(text, 0, None)['source_start'] is None
+    assert _locate(text, 0, "")['source_start'] is None
+    
+    # 2. Quote wrapped in double quotes by LLM
+    loc_wrapped = _locate(text, 0, '"Quoted text here."')
+    assert loc_wrapped['source_start'] is not None
+    assert "Quoted text here." in loc_wrapped['source_quote']
+    
+    # 3. Not found quote
+    loc_missing = _locate(text, 0, "Nonexistent phrase")
+    assert loc_missing['source_start'] is None
+    assert loc_missing['source_quote'] == "Nonexistent phrase"
+
+
+def test_extraction_robustness_missing_quotes_and_none_fields():
+    """Verify parse_extraction_output does not crash on malformed LLM outputs, None values, or missing fields."""
+    raw = "---\ndoc_type: meeting_note\n---\n# Notes\nSome text."
+    body_start = raw.find('# Notes')
+    
+    malformed_out = {
+        "entities": [
+            {"ref": "D1", "type": "Decision", "name": "Decision with None quote", "quote": None, "confidence": None},
+            {"ref": "P1", "type": "Person", "name": "Person without confidence", "quote": "Some text."},
+            {"ref": "D2", "type": "Decision"}  # completely missing fields
+        ],
+        "relations": [
+            {"source": "D1", "relation": "JUSTIFIED_BY", "target": "MTG-2025-05-14", "quote": None, "confidence": None},
+            {"source": "D1", "relation": "MADE_BY", "target": "P1", "quote": ""},
+            {"source": None, "relation": None, "target": None}  # empty relation
+        ]
+    }
+    
+    nodes, edges, rows = parse_extraction_output(
+        raw, body_start, malformed_out, "MTG-2025-05-14", "data/vault/meeting-notes/2025-05-14.md",
+        date(2025, 5, 14), "org", {}
+    )
+    
+    assert len(nodes) == 3
+    # Check Decision node attributes and defaults
+    d1 = next(n for n in nodes if n['key'] == 'MTG-2025-05-14-D1')
+    assert d1['attrs']['effect'] == 'ongoing'
+    assert d1['attrs']['confidence'] == 1.0
+    assert d1['prov']['source_span']['start'] is None
+    
+    # Check auto-added JUSTIFIED_BY edges exist for Decision nodes
+    assert any(e['rel'] == 'JUSTIFIED_BY' and e['dst'] == 'MTG-2025-05-14' for e in edges)
+    # Check relation targeting did (document ID) is safely parsed without dropping
+    assert any(e['src'] == 'MTG-2025-05-14-D1' and e['dst'] == 'MTG-2025-05-14' for e in edges)
+
+
 # =====================================================================
 # 2. Temporal Retrieval Adapter & Nimbus Ledger Dataset Tests
 # =====================================================================
