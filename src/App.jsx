@@ -5,9 +5,9 @@ import Dashboard from './components/Dashboard';
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState({
-    id: "P-105",
-    name: "Priya Sharma (Compliance Lead)",
-    role: "Compliance & Risk Lead"
+    id: "p-priya",
+    name: "Priya Menon (Ops Lead)",
+    role: "Ops Lead"
   });
 
   const handleLaunchConsole = (roleId, roleName) => {

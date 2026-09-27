@@ -1,21 +1,53 @@
-// Cryptographic hash simulation for Keystone Hash-Chained Audit Trail
+// Client-side verification of Keystone's hash-chained audit log.
+// Mirrors backend/app/db.py (canonical_json, row_hash) and the audit_chain trigger in backend/sql/init.sql.
 
 export async function sha256(message) {
-  if (typeof window !== "undefined" && window.crypto && window.crypto.subtle) {
-    const msgBuffer = new TextEncoder().encode(message);
-    const hashBuffer = await window.crypto.subtle.digest("SHA-256", msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  // No fallback: a fake hash would make verification meaningless.
+  if (!globalThis.crypto?.subtle) throw new Error('Web Crypto unavailable (needs https or localhost)');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(message));
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Byte-identical to Postgres jsonb::text: keys ordered by (UTF-8 length, bytes), ", " and ": " separators.
+export function canonicalJson(value) {
+  if (Array.isArray(value)) return '[' + value.map(canonicalJson).join(', ') + ']';
+  if (value && typeof value === 'object') {
+    const enc = new TextEncoder();
+    const keys = Object.keys(value).sort((a, b) => {
+      const ea = enc.encode(a), eb = enc.encode(b);
+      if (ea.length !== eb.length) return ea.length - eb.length;
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    return '{' + keys.map(k => `${JSON.stringify(k)}: ${canonicalJson(value[k])}`).join(', ') + '}';
   }
-  // Fallback pseudorandom SHA-like hex
-  let hash = 0;
-  for (let i = 0; i < message.length; i++) {
-    const char = message.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
+  return JSON.stringify(value);
+}
+
+// The API returns Python isoformat ("2026-09-26T18:16:27.123456+00:00"); the trigger hashed
+// "YYYY-MM-DDTHH:MM:SS.ffffffZ". String surgery, because JS Dates drop microseconds.
+function canonicalTs(ts) {
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(\+00:00|Z)$/.exec(ts);
+  if (!m) throw new Error(`unexpected timestamp format: ${ts}`);
+  return `${m[1]}.${(m[2] || '').padEnd(6, '0')}Z`;
+}
+
+export async function verifyAuditChain(rows) {
+  const sorted = [...rows].sort((a, b) => a.id - b.id);
+  if (sorted.length === 0) return { ok: true, message: 'Audit log is empty: nothing to verify.' };
+  let prev = null;
+  for (const r of sorted) {
+    const expected = await sha256(canonicalJson({
+      id: r.id, ts: canonicalTs(r.ts), actor: r.actor, action: r.action, object_type: r.object_type,
+      object_id: r.object_id, source_ids: r.source_ids, payload_hash: r.payload_hash, prev_hash: r.prev_hash,
+    }));
+    if (expected !== r.hash) return { ok: false, message: `Row #${r.id}: stored hash does not match its contents.` };
+    const expectedPrev = prev ? prev.hash : (r.id === 1 ? '0'.repeat(64) : null);
+    if (expectedPrev !== null && r.prev_hash !== expectedPrev) {
+      return { ok: false, message: `Row #${r.id}: chain broken, prev_hash does not match row #${prev ? prev.id : 'genesis'}.` };
+    }
+    prev = r;
   }
-  const hex = Math.abs(hash).toString(16).padStart(8, "0");
-  return hex.repeat(8).slice(0, 64);
+  return { ok: true, message: `Verified ${sorted.length} rows: every hash recomputes and every link holds.` };
 }
 
 export function formatHash(hash, length = 12) {

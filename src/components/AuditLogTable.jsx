@@ -8,7 +8,7 @@ import {
   RefreshCw,
   X
 } from 'lucide-react';
-import { formatHash } from '../utils/crypto';
+import { formatHash, verifyAuditChain } from '../utils/crypto';
 
 export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
   const [selectedBlock, setSelectedBlock] = useState(null);
@@ -22,12 +22,17 @@ export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
     setTimeout(() => setCopiedHash(null), 2000);
   };
 
-  const runVerificationSweep = () => {
+  // Real check: recompute every row's SHA-256 and every prev_hash link from the rows the backend returned.
+  const runVerificationSweep = async () => {
     setIsVerifying(true);
-    setTimeout(() => {
-      setIsVerifying(false);
-      if (onVerifyChain) onVerifyChain();
-    }, 700);
+    let result;
+    try {
+      result = await verifyAuditChain(auditLogs || []);
+    } catch (err) {
+      result = { ok: false, message: `Verification could not run: ${err.message}` };
+    }
+    setIsVerifying(false);
+    if (onVerifyChain) onVerifyChain(result);
   };
 
   return (

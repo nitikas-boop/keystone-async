@@ -179,3 +179,13 @@ def test_folder_watcher_ingests_new_file_as_system_watcher(api, clean):
         assert (row['actor'], row['action'], row['object_id']) == ('system:watcher', 'policy_ingested', 'T-POL-RET@v1')
     finally:
         shutil.rmtree(vault, ignore_errors=True)
+
+
+def test_reference_to_uningested_decision_does_not_break_ask(api, clean):
+    # A decision that supersedes one never ingested creates a placeholder node; it must not be treated as a decision.
+    post(api, 'pol-v1.md', POLICY.format(v='v1', day='2024-01-15', n=365))
+    post(api, 'pol-v2.md', POLICY.format(v='v2', day='2025-01-06', n=180))
+    post(api, 'dec-7.md', DECISION.replace('project: T-Atlas', 'project: T-Atlas\nsupersedes: T-DEC-OLD'))
+    assert httpx.get(f'{api}/decisions/T-DEC-OLD/compliance', timeout=60).status_code == 404
+    a = ask(api, 'Was keeping customer logs for 180 days compliant in 2025?', '2025-06-30')
+    assert not a['refused'] and a['compliance'][0]['decision_id'] == 'T-DEC-7'

@@ -11,43 +11,24 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { uploadDocument } from '../api';
+import retV3 from '../../data/demo-upload/POL-RET-v3.md?raw';
+import procV2 from '../../data/vault/policies/POL-PROC-v2.md?raw';
 
+// Presets are the real files, imported verbatim, so the demo uploads exactly what is committed in data/.
 const PRESET_FILES = {
   'RET-v3': {
     filename: 'POL-RET-v3.md',
     title: 'Customer Data Retention Policy (v3 - 90 Days)',
     desc: 'Sets RET-2.1 to 90-day ceiling (breaks DEC-007 180-day practice)',
     impactExpected: 'ONGOING_PRACTICE_BREACH on DEC-007',
-    content: `---
-policy_id: POL-RET
-version: v3
-effective_from: 2026-09-28
-document_id: POL-RET-v3
-doc_type: policy_version
----
-# Customer Data & Audit Trail Retention Policy (v3)
-
-## Clause RET-2.1
-Customer telemetry and raw interaction logs must not be retained longer than 90 calendar days, after which automated anonymization or purge must trigger.
-`
+    content: retV3
   },
   'PROC-v2': {
     filename: 'POL-PROC-v2.md',
     title: 'Procurement Approval Policy (v2 - ₹2 Lakh Ceiling)',
     desc: 'Reduces CTO unilateral threshold from ₹5L to ₹2L',
     impactExpected: 'RULE_CHANGED_SINCE on DEC-004',
-    content: `---
-policy_id: POL-PROC
-version: v2
-effective_from: 2025-07-01
-document_id: POL-PROC-v2
-doc_type: policy_version
----
-# Procurement Spend Authority & Sign-off Policy (v2)
-
-## Clause PROC-3.1
-CTO holds unilateral signing authority for software infrastructure licenses up to INR 200000. Any purchase exceeding INR 200000 strictly requires co-signing by CEO.
-`
+    content: procV2
   }
 };
 
@@ -95,35 +76,8 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded }) {
         onPolicyUploaded(res);
       }
     } catch (err) {
-      // If backend is unavailable, simulate the demo scanner outcome
-      console.warn("Backend upload failed, simulating scanner:", err);
-      setIngestStep("Running deterministic policy impact scanner...");
-
-      setTimeout(() => {
-        const simulatedFlags = selectedPreset === 'RET-v3' ? [
-          {
-            id: 'flag-sim-01',
-            impact_type: 'ONGOING_PRACTICE_BREACH',
-            decision_id: 'DEC-007',
-            clause_id: 'RET-2.1@v3',
-            reason: 'Decision DEC-007 specifies 180-day log retention; newly ingested RET-2.1@v3 enforces 90-day ceiling.'
-          }
-        ] : [
-          {
-            id: 'flag-sim-02',
-            impact_type: 'RULE_CHANGED_SINCE',
-            decision_id: 'DEC-004',
-            clause_id: 'PROC-3.1@v2',
-            reason: 'Decision DEC-004 (₹4,00,000) was signed under ₹5L limit; current limit is ₹2L.'
-          }
-        ];
-
-        setReturnedFlags(simulatedFlags);
-        setIngestComplete(true);
-        if (onPolicyUploaded) {
-          onPolicyUploaded({ flags: simulatedFlags, simulated: true });
-        }
-      }, 700);
+      // Never simulate a scanner result: a failed upload must look failed.
+      setErrorMsg(err.message);
     } finally {
       setIsIngesting(false);
       setIngestStep('');
@@ -241,6 +195,16 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded }) {
               </pre>
             </div>
 
+            {errorMsg && (
+              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 flex items-start gap-2 text-xs text-rose-900">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold">Upload failed. Nothing was ingested and the scanner did not run.</div>
+                  <div className="font-mono text-[11px] mt-0.5 break-all">{errorMsg}</div>
+                </div>
+              </div>
+            )}
+
             {isIngesting ? (
               <div className="p-3 rounded-lg bg-sky-50 border border-sky-200 flex items-center gap-3">
                 <div className="w-4 h-4 border-2 border-[#0284C7] border-t-transparent rounded-full animate-spin shrink-0"></div>
@@ -303,18 +267,20 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded }) {
                     >
                       <div className="flex items-center justify-between font-bold mb-1">
                         <span className="px-2 py-0.5 rounded badge-note-rose text-[10.5px]">
-                          {flag.impact_type || 'ONGOING_PRACTICE_BREACH'}
+                          {flag.impact_type}
                         </span>
                         <span className="text-[#0284C7] text-[11px]">
                           Target: {flag.decision_id}
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-700 font-sans mt-1">
-                        {flag.reason || `Decision ${flag.decision_id} relied on clause replaced by ${flag.clause_id}. Requires human review.`}
+                        Flag <span className="font-mono">{flag.id}</span> recorded in the graph and the audit log.
                       </p>
                       <div className="mt-2 text-[10px] text-slate-500 font-mono flex items-center gap-1">
                         <ArrowRight size={10} className="text-[#0284C7]" />
-                        <span>Automated remediation proposal dispatched to Review Queue.</span>
+                        <span>{flag.proposal_id
+                          ? `Proposal #${flag.proposal_id} queued for human review.`
+                          : 'Historical record only: no action proposed.'}</span>
                       </div>
                     </div>
                   ))}

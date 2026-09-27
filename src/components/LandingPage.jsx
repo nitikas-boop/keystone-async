@@ -36,8 +36,8 @@ export default function LandingPage({ onLaunchConsole }) {
       num: "02",
       title: "Build Graph",
       subtitle: "Bi-Temporal Triples",
-      desc: "Graphiti & FalkorDB index entities, decisions, and clauses with independent valid-time axes.",
-      tag: "FalkorDB Temporal Graph",
+      desc: "Graphiti on Neo4j indexes entities, decisions, and clauses with independent valid-time axes.",
+      tag: "Neo4j Temporal Graph",
       color: "badge-note-sky"
     },
     {
@@ -53,13 +53,13 @@ export default function LandingPage({ onLaunchConsole }) {
       title: "Sourced Answer",
       subtitle: "Forced Provenance",
       desc: "Every claim cites a node ID. The system strictly refuses ungrounded questions.",
-      tag: "14B Qwen Grounded",
+      tag: "Local Qwen, Grounded",
       color: "badge-note-green"
     },
     {
       num: "05",
       title: "Human Approval",
-      subtitle: "Gated MCP Action",
+      subtitle: "Gated Action",
       desc: "Actions land in the review queue. Only human sign-off triggers external tool execution.",
       tag: "SHA-256 Audit Trail",
       color: "badge-note-rose"
@@ -121,7 +121,7 @@ export default function LandingPage({ onLaunchConsole }) {
         {/* Subheadline */}
         <p className="mt-5 text-base md:text-lg text-[#64748B] max-w-2xl font-sans leading-relaxed">
           Link every organizational decision to the exact policy clause version and timestamp in force. 
-          Point-in-time compliance, zero context loss, and hard human-in-the-loop MCP execution.
+          Point-in-time compliance, zero context loss, and hard human-in-the-loop execution.
         </p>
 
         {/* Action CTAs */}
@@ -182,7 +182,7 @@ export default function LandingPage({ onLaunchConsole }) {
               <Lock size={16} className="text-emerald-700" />
             </div>
             <div className="text-[11px] font-mono text-[#64748B] mt-0.5">
-              Ollama + FalkorDB / Zero API egress
+              Ollama + Neo4j / Zero API egress
             </div>
           </div>
         </div>
@@ -208,7 +208,7 @@ export default function LandingPage({ onLaunchConsole }) {
             { id: 'temporal', label: '1. Temporal "As-Of" Context', icon: Clock },
             { id: 'clause', label: '2. Clause-Level Compliance', icon: FileText },
             { id: 'staleness', label: '3. Staleness Scanner', icon: AlertTriangle },
-            { id: 'gated', label: '4. Gated MCP Execution', icon: Lock }
+            { id: 'gated', label: '4. Gated Execution', icon: Lock }
           ].map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -383,7 +383,7 @@ export default function LandingPage({ onLaunchConsole }) {
                 Structural Human-in-the-Loop Execution
               </h3>
               <p className="text-xs text-[#475569] leading-relaxed">
-                The AI model physically does not possess credentials or network permissions to execute tool actions. The agent drafts a proposal; a human clicks Approve; only then does the sovereign executor call the MCP tool and record the SHA-256 block.
+                The AI model physically does not possess credentials or network permissions to execute tool actions. The agent drafts a proposal; a human clicks Approve; only then does the separate executor act (today it writes the notification to outbox/; MCP tools are on the roadmap) and record the SHA-256 block.
               </p>
               <div className="text-xs font-mono text-emerald-700 flex items-center gap-1.5">
                 <ShieldCheck size={15} />
@@ -393,14 +393,14 @@ export default function LandingPage({ onLaunchConsole }) {
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs space-y-1.5">
               <div className="flex justify-between text-[10px] text-[#64748B]">
-                <span>MCP EXECUTOR PIPELINE</span>
+                <span>EXECUTOR PIPELINE</span>
                 <span className="text-[#0284C7] font-semibold">GATE: LOCKED</span>
               </div>
               <div className="text-xs text-[#334155] bg-white p-2 rounded border border-slate-200">
-                1. Agent: Staged ACT-809 (Update Kafka TTL to 90d)<br/>
-                2. Human: Aditi Sen (CEO) signed approval<br/>
-                3. Executor: Dispatched to mcp://internal-devops<br/>
-                4. Audit: Block #105 appended w/ SHA-256 hash
+                1. Scanner: flagged DEC-007 against RET-2.1@v3<br/>
+                2. Human: Farhan Qureshi approved the proposal<br/>
+                3. Executor: wrote outbox/proposal-N.eml<br/>
+                4. Audit: row appended with SHA-256 hash chain
               </div>
             </div>
           </div>
@@ -539,16 +539,16 @@ export default function LandingPage({ onLaunchConsole }) {
               <button
                 onClick={() => {
                   setShowLoginModal(false);
-                  onLaunchConsole("P-105", "Priya Sharma (Compliance Lead)");
+                  onLaunchConsole("p-priya", "Priya Menon (Ops Lead)");
                 }}
                 className="w-full p-3 rounded-xl bg-white hover:bg-sky-50 border border-slate-200 hover:border-sky-200 text-left flex items-center justify-between text-xs transition-colors group cursor-pointer shadow-2xs"
               >
                 <div>
                   <div className="font-heading font-semibold text-[#0F172A] group-hover:text-[#0284C7]">
-                    Priya Sharma
+                    Priya Menon
                   </div>
                   <div className="text-[10.5px] font-mono text-[#64748B]">
-                    Role: Compliance & Risk Lead
+                    Role: Ops Lead
                   </div>
                 </div>
                 <span className="text-[10.5px] font-mono text-[#0284C7] font-medium">Select Role →</span>
@@ -557,13 +557,13 @@ export default function LandingPage({ onLaunchConsole }) {
               <button
                 onClick={() => {
                   setShowLoginModal(false);
-                  onLaunchConsole("P-103", "Kavya Nair (CTO)");
+                  onLaunchConsole("p-karthik", "Karthik Rao (CTO)");
                 }}
                 className="w-full p-3 rounded-xl bg-white hover:bg-sky-50 border border-slate-200 hover:border-sky-200 text-left flex items-center justify-between text-xs transition-colors group cursor-pointer shadow-2xs"
               >
                 <div>
                   <div className="font-heading font-semibold text-[#0F172A] group-hover:text-[#0284C7]">
-                    Kavya Nair
+                    Karthik Rao
                   </div>
                   <div className="text-[10.5px] font-mono text-[#64748B]">
                     Role: Chief Technology Officer
@@ -575,13 +575,13 @@ export default function LandingPage({ onLaunchConsole }) {
               <button
                 onClick={() => {
                   setShowLoginModal(false);
-                  onLaunchConsole("P-101", "Aditi Sen (CEO)");
+                  onLaunchConsole("p-ananya", "Ananya Rao (CEO)");
                 }}
                 className="w-full p-3 rounded-xl bg-white hover:bg-sky-50 border border-slate-200 hover:border-sky-200 text-left flex items-center justify-between text-xs transition-colors group cursor-pointer shadow-2xs"
               >
                 <div>
                   <div className="font-heading font-semibold text-[#0F172A] group-hover:text-[#0284C7]">
-                    Aditi Sen
+                    Ananya Rao
                   </div>
                   <div className="text-[10.5px] font-mono text-[#64748B]">
                     Role: Chief Executive Officer
@@ -604,7 +604,7 @@ export default function LandingPage({ onLaunchConsole }) {
               <button
                 onClick={() => {
                   setShowLoginModal(false);
-                  onLaunchConsole("ADMIN-01", "Local Sovereign Administrator");
+                  onLaunchConsole("nitika", "Nitika (Keystone Admin)");
                 }}
                 className="w-full py-2.5 rounded-lg btn-sky-gradient text-white text-xs font-mono font-medium flex items-center justify-center gap-1.5 cursor-pointer"
               >
@@ -623,7 +623,7 @@ export default function LandingPage({ onLaunchConsole }) {
           <span>•</span>
           <span>ASYNC'26 Track 1 (Sovereign AI)</span>
           <span>•</span>
-          <span>PostgreSQL + FalkorDB + Ollama + MCP</span>
+          <span>PostgreSQL + Neo4j/Graphiti + Ollama</span>
         </div>
         <div className="text-[10px] text-[#94A3B8]">
           Designed for high-density regulatory compliance and knowledge continuity in India under DPDP Act 2025/2026.

@@ -22,17 +22,13 @@ import ReviewQueue from './ReviewQueue';
 import AuditLogTable from './AuditLogTable';
 import IngestModal from './IngestModal';
 import { 
-  INITIAL_REVIEW_QUEUE, 
-  INITIAL_AUDIT_LOGS, 
-  ORG_METADATA 
-} from '../data/mockData';
-import { 
   fetchGraph, 
   fetchProposals, 
   approveProposal, 
   rejectProposal, 
   editProposal, 
   fetchAudit, 
+  healthCheck,
   setCurrentUser 
 } from '../api';
 
@@ -42,8 +38,10 @@ export default function Dashboard({ currentUser, onSignOut }) {
   const [selectedNodeId, setSelectedNodeId] = useState('DEC-007');
   const [highlightNodeIds, setHighlightNodeIds] = useState(['DEC-007', 'RET-2.1@v2']);
   const [liveGraphData, setLiveGraphData] = useState(null);
-  const [queueItems, setQueueItems] = useState(INITIAL_REVIEW_QUEUE);
-  const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
+  // Only ever backend data: an empty list is shown as empty, never padded with mock rows.
+  const [queueItems, setQueueItems] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [answerModel, setAnswerModel] = useState(null);
   const [isIngestModalOpen, setIsIngestModalOpen] = useState(false);
   const [notification, setNotification] = useState(null);
 
@@ -68,33 +66,35 @@ export default function Dashboard({ currentUser, onSignOut }) {
           setLiveGraphData(res);
         }
       })
-      .catch(() => {
-        // Fall back gracefully to mock graph if backend not ready
+      .catch(err => {
+        if (active) {
+          setLiveGraphData({ nodes: [], edges: [] });
+          showNotification(`Graph unavailable: ${err.message}`, "warning");
+        }
       });
     return () => { active = false; };
   }, [asOfDate]);
 
+  // Show the model actually serving answers, as reported by the backend.
+  useEffect(() => {
+    healthCheck().then(h => setAnswerModel(h?.models?.answer ?? null));
+  }, []);
+
   // Load proposals from GET /proposals
   const loadProposals = useCallback(async () => {
     try {
-      const res = await fetchProposals();
-      if (res && Array.isArray(res) && res.length > 0) {
-        setQueueItems(res);
-      }
-    } catch {
-      // Keep existing or initial queue items
+      setQueueItems(await fetchProposals());
+    } catch (err) {
+      showNotification(`Review queue unavailable: ${err.message}`, "warning");
     }
   }, []);
 
   // Load audit trail from GET /audit
   const loadAudit = useCallback(async () => {
     try {
-      const res = await fetchAudit(0, 100);
-      if (res && Array.isArray(res) && res.length > 0) {
-        setAuditLogs(res);
-      }
-    } catch {
-      // Keep existing or initial audit logs
+      setAuditLogs(await fetchAudit(0, 500));
+    } catch (err) {
+      showNotification(`Audit log unavailable: ${err.message}`, "warning");
     }
   }, []);
 
@@ -107,14 +107,15 @@ export default function Dashboard({ currentUser, onSignOut }) {
   const handleApproveAction = async (actionId) => {
     try {
       await approveProposal(actionId);
-      showNotification(`Proposal #${actionId} approved. Dispatched to executor.`, "success");
+      showNotification(`Proposal #${actionId} approved. The executor picks it up within seconds.`, "success");
       loadProposals();
       loadAudit();
+      // The executor is a separate process polling every ~2s; refresh so the row flips to executed.
+      setTimeout(() => { loadProposals(); loadAudit(); }, 4000);
     } catch (err) {
-      // Fallback local update
-      setQueueItems(prev => prev.map(i => i.id === actionId ? { ...i, status: 'approved' } : i));
-      showNotification(`Proposal #${actionId} marked approved: ${err.message}`, "info");
-      loadAudit();
+      // No local fallback: an approval the backend did not record must not look approved.
+      showNotification(`Approval failed, nothing was approved: ${err.message}`, "warning");
+      loadProposals();
     }
   };
 
@@ -125,9 +126,8 @@ export default function Dashboard({ currentUser, onSignOut }) {
       loadProposals();
       loadAudit();
     } catch (err) {
-      setQueueItems(prev => prev.map(i => i.id === actionId ? { ...i, status: 'rejected' } : i));
-      showNotification(`Proposal #${actionId} rejected: ${err.message}`, "warning");
-      loadAudit();
+      showNotification(`Rejection failed, nothing was changed: ${err.message}`, "warning");
+      loadProposals();
     }
   };
 
@@ -137,21 +137,26 @@ export default function Dashboard({ currentUser, onSignOut }) {
       showNotification(`Proposal #${actionId} updated successfully.`, "success");
       loadProposals();
     } catch (err) {
-      setQueueItems(prev => prev.map(i => i.id === actionId ? { ...i, ...changes } : i));
-      showNotification(`Proposal #${actionId} updated (local).`, "info");
+      showNotification(`Edit failed, nothing was saved: ${err.message}`, "warning");
+      loadProposals();
     }
   };
 
   const handlePolicyUploaded = (uploadRes) => {
-    setAsOfDate('2026-09-28');
-    setSelectedNodeId('DEC-007');
-    setHighlightNodeIds(['DEC-007', 'RET-2.1@v3']);
+    // Jump to the new version's start date and highlight what the scanner actually flagged.
+    const flagged = (uploadRes?.flags || []).map(f => f.decision_id);
+    const asOf = uploadRes?.ref_time || asOfDate;
+    setAsOfDate(asOf);
+    if (flagged.length) {
+      setSelectedNodeId(flagged[0]);
+      setHighlightNodeIds(flagged);
+    }
     loadProposals();
     loadAudit();
-    fetchGraph('2026-09-28')
+    fetchGraph(asOf)
       .then(res => { if (res && res.nodes) setLiveGraphData(res); })
       .catch(() => {});
-    showNotification("Policy ingested. Staleness scanner ran and generated remediation flags.", "info");
+    showNotification(`${uploadRes?.document_id ?? 'Document'} ingested. Scanner raised ${flagged.length} flag(s).`, "info");
   };
 
   return (
@@ -166,7 +171,7 @@ export default function Dashboard({ currentUser, onSignOut }) {
             <span className="text-slate-300">|</span>
             <span className="text-emerald-700 flex items-center gap-1 font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-              Local Engine Active (Ollama 14B)
+              {answerModel ? `Local Engine Active (Ollama · ${answerModel})` : 'Local engine unreachable'}
             </span>
           </div>
         </div>
@@ -365,7 +370,7 @@ export default function Dashboard({ currentUser, onSignOut }) {
             <AuditLogTable
               auditLogs={auditLogs}
               onRefresh={loadAudit}
-              onVerifyChain={() => showNotification("Audit chain verified. Cryptographic hash continuity intact.", "success")}
+              onVerifyChain={(result) => showNotification(result.message, result.ok ? "success" : "warning")}
             />
           </div>
         )}

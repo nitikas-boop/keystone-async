@@ -11,7 +11,6 @@ import {
   Layers,
   ChevronRight
 } from 'lucide-react';
-import { GRAPH_NODES, GRAPH_EDGES, DECISIONS, POLICIES, TEAM_MEMBERS } from '../data/mockData';
 
 const NODE_COORDINATES = {
   "DEC-001": { x: 100, y: 150 },
@@ -60,9 +59,8 @@ export default function GraphVisualizer({
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const svgRef = useRef(null);
 
-  // Determine base nodes & edges (live from API if present, otherwise mock)
-  const baseNodes = (liveGraphData?.nodes && liveGraphData.nodes.length > 0)
-    ? liveGraphData.nodes.map((n, idx) => {
+  // Live graph only. An empty or unreachable backend shows an empty graph, never the mock one.
+  const baseNodes = (liveGraphData?.nodes || []).map((n, idx) => {
         const id = n.id;
         const type = (n.type || 'decision').toLowerCase();
         const coords = NODE_COORDINATES[id] || {
@@ -81,20 +79,27 @@ export default function GraphVisualizer({
           x: coords.x,
           y: coords.y
         };
-      })
-    : GRAPH_NODES;
+      });
 
-  const baseEdges = (liveGraphData?.edges && liveGraphData.edges.length > 0)
-    ? liveGraphData.edges.map(e => ({
+  const baseEdges = (liveGraphData?.edges || []).map(e => ({
         source: e.source,
         target: e.target,
         relation: e.relation || 'RELATES_TO',
         validFrom: e.valid_from,
         validTo: e.valid_to,
-        isConflict: e.relation === 'CONTRADICTED_BY' || e.isConflict,
+        isConflict: e.relation === 'AFFECTS',
         provenance: e.provenance
-      }))
-    : GRAPH_EDGES;
+      }));
+
+  // Staleness comes from the scanner: a decision is stale when a Flag AFFECTS it as of the chosen date.
+  const nodeById = Object.fromEntries(baseNodes.map(n => [n.id, n]));
+  const flagsFor = (decisionId) => baseEdges
+    .filter(e => e.relation === 'AFFECTS' && e.target === decisionId && (!e.validFrom || e.validFrom.slice(0, 10) <= asOfDate))
+    .map(e => {
+      const cause = baseEdges.find(c => c.source === e.source && c.relation === 'CAUSED_BY');
+      return { id: e.source, impactType: nodeById[e.source]?.attributes?.impact_type, clause: cause?.target };
+    });
+  const targetsOf = (id, relation) => baseEdges.filter(e => e.source === id && e.relation === relation).map(e => e.target);
 
   // Compute node active states based on asOfDate
   const processedNodes = baseNodes.map(node => {
@@ -112,7 +117,7 @@ export default function GraphVisualizer({
       if (node.date && asOfDate < node.date) {
         isActiveAtDate = false;
       }
-      if (asOfDate >= '2026-09-28' && node.id === 'DEC-007') {
+      if (flagsFor(node.id).length > 0) {
         isStaleAtDate = true;
       }
     }
@@ -162,41 +167,49 @@ export default function GraphVisualizer({
   const activeNodeData = processedNodes.find(n => n.id === selectedNodeId) || 
     (selectedNodeId ? { id: selectedNodeId, label: selectedNodeId, type: 'decision' } : null);
 
-  const activeDecision = activeNodeData?.type === 'decision' 
-    ? (DECISIONS.find(d => d.id === activeNodeData.id) || {
+  // Inspector shows exactly what the graph holds; missing fields stay visibly missing ("—").
+  const attrs = activeNodeData?.attributes || {};
+  const activeDecision = activeNodeData?.type === 'decision'
+    ? {
         id: activeNodeData.id,
         title: activeNodeData.label,
-        decidedOn: activeNodeData.date || activeNodeData.validFrom || "Recorded",
-        owner: activeNodeData.attributes?.owner || "Engineering Lead",
-        project: activeNodeData.attributes?.project || "Nimbus Core",
-        rationale: activeNodeData.attributes?.reasons || "Bi-temporal graph record.",
-        reliedOnClause: activeNodeData.attributes?.relied_on || null
-      })
+        decidedOn: attrs.decided_on || activeNodeData.validFrom || '—',
+        owner: attrs.owner || '—',
+        project: attrs.project || '—',
+        rationale: attrs.reasons || '—',
+        reliedOnClause: targetsOf(activeNodeData.id, 'RELIED_ON')[0] || null,
+        flags: flagsFor(activeNodeData.id)
+      }
     : null;
 
   const activeClause = activeNodeData?.type === 'clause'
     ? (() => {
-        for (const p of POLICIES) {
-          for (const v of p.versions) {
-            const nId = activeNodeData.id.replace(/-/g, '.').replace('@', ' ');
-            const cId = v.clauseId.replace(/-/g, '.').replace('@', ' ');
-            if (activeNodeData.id === v.clauseId || activeNodeData.id.includes(v.version) || nId.includes(cId) || cId.includes(nId)) {
-              return { policy: p, version: v };
-            }
+        let fields = {};
+        try { fields = JSON.parse(attrs.fields_json || '{}'); } catch { fields = {}; }
+        const policyVersion = targetsOf(activeNodeData.id, 'BELONGS_TO')[0];
+        return {
+          policy: { title: nodeById[policyVersion]?.label || policyVersion || attrs.policy_id || '—' },
+          version: {
+            clauseName: activeNodeData.label,
+            clauseId: activeNodeData.id,
+            effectiveFrom: activeNodeData.validFrom || '—',
+            effectiveTo: activeNodeData.validTo,
+            limitDays: fields.retention_days_max,
+            limitInr: fields.approver_threshold_inr?.CTO,
+            description: attrs.text || '—'
           }
-        }
-        return null;
+        };
       })()
     : null;
 
   const activePerson = activeNodeData?.type === 'person'
-    ? (TEAM_MEMBERS.find(m => m.id === activeNodeData.id || m.name.toLowerCase().includes(activeNodeData.label.toLowerCase().slice(0, 5))) || {
+    ? {
         id: activeNodeData.id,
         name: activeNodeData.label,
-        role: activeNodeData.attributes?.role || "Team Member",
-        joined: activeNodeData.attributes?.joined || "2024-01-01",
-        status: "Active"
-      })
+        role: attrs.role || '—',
+        joined: attrs.joined || '—',
+        left: attrs.left
+      }
     : null;
 
   const handleMouseDown = (e) => {
@@ -525,19 +538,19 @@ export default function GraphVisualizer({
                 </div>
 
                 {/* Staleness Note */}
-                {(activeDecision.isStaleUnderV3 || activeDecision.id === 'DEC-007') && asOfDate >= '2026-09-28' && (
-                  <div className="p-2.5 rounded-lg badge-note-rose flex items-start gap-2">
+                {activeDecision.flags.map(flag => (
+                  <div key={flag.id} className="p-2.5 rounded-lg badge-note-rose flex items-start gap-2">
                     <Info size={14} className="text-[#991B1B] shrink-0 mt-0.5" />
                     <div>
                       <div className="text-[11px] font-bold uppercase font-mono">
-                        Temporal Staleness Flag
+                        Policy Impact: {flag.impactType || 'flagged'}
                       </div>
                       <p className="text-[11px] mt-0.5 leading-snug">
-                        Decision exceeds the 90-day ceiling mandated by <span className="font-mono font-bold">RET-2.1@v3</span>.
+                        Flagged by the impact scanner against <span className="font-mono font-bold">{flag.clause || 'a changed clause'}</span>.
                       </p>
                     </div>
                   </div>
-                )}
+                ))}
 
                 {/* Provenance trace if available */}
                 {activeNodeData.provenance?.source_doc && (
@@ -569,13 +582,17 @@ export default function GraphVisualizer({
                   </div>
                   <div className="col-span-2 pt-1 border-t border-slate-200">
                     <span className="text-[#64748B] block text-[9.5px]">RELIED ON CLAUSE</span>
-                    <button 
-                      onClick={() => onOpenCitation && onOpenCitation(activeDecision.reliedOnClause)}
-                      className="citation-pill-paper mt-1"
-                    >
-                      <FileText size={10} />
-                      {activeDecision.reliedOnClause}
-                    </button>
+                    {activeDecision.reliedOnClause ? (
+                      <button
+                        onClick={() => onOpenCitation && onOpenCitation(activeDecision.reliedOnClause)}
+                        className="citation-pill-paper mt-1"
+                      >
+                        <FileText size={10} />
+                        {activeDecision.reliedOnClause}
+                      </button>
+                    ) : (
+                      <span className="text-[#0F172A] font-medium block mt-1">None in force as of {asOfDate}</span>
+                    )}
                   </div>
                 </div>
 

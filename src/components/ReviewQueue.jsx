@@ -81,7 +81,7 @@ export default function ReviewQueue({
             <div className="font-heading font-semibold text-xs tracking-tight text-[#0F172A] flex items-center gap-2">
               <span>HUMAN-IN-THE-LOOP REVIEW QUEUE</span>
               <span className="font-mono text-[10px] px-2 py-0.5 rounded-md badge-note-sky font-semibold">
-                STAGE 5: CONTROLLED MCP EXECUTION
+                STAGE 5: CONTROLLED EXECUTION
               </span>
             </div>
             <div className="text-[10.5px] font-mono text-[#64748B]">
@@ -231,7 +231,7 @@ export default function ReviewQueue({
                         </div>
                       ) : (
                         <span className="text-[10px] font-mono text-[#94A3B8]">
-                          {isExecuted ? 'Executed via MCP' : isApproved ? 'Approved by Admin' : 'Rejected'}
+                          {isExecuted ? `Executed: ${item.outbox_file || '.eml in outbox'}` : isApproved ? 'Approved, awaiting executor' : 'Rejected'}
                         </span>
                       )}
                     </td>

@@ -103,36 +103,14 @@ export default function ChatPanel({
       if (onSubgraph && res.subgraph) onSubgraph(res.subgraph);
       setMessages(prev => [...prev, toMessage(res)]);
     } catch (err) {
-      // Fall back gracefully to mock query response if backend is offline/unseeded
-      const fallbackQuery = matchedDemoQuery || DEMO_QUERIES.find(q =>
-        queryText.toLowerCase().includes(q.shortLabel.toLowerCase()) ||
-        queryText.toLowerCase().includes(q.query.toLowerCase().slice(0, 20)) ||
-        (queryText.toLowerCase().includes("mongodb") && q.id === "q-5") ||
-        (queryText.toLowerCase().includes("aws") && q.id === "q-1") ||
-        (queryText.toLowerCase().includes("180") && q.id === "q-2") ||
-        (queryText.toLowerCase().includes("vendorco") && q.id === "q-3")
-      );
-
-      if (fallbackQuery) {
-        if (onNodeHighlight && fallbackQuery.highlightNodes) {
-          onNodeHighlight(fallbackQuery.highlightNodes);
-        }
-        setMessages(prev => [...prev, {
-          id: `asst-${Date.now()}`,
-          role: "assistant",
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          content: fallbackQuery.answer,
-          citations: fallbackQuery.citations || []
-        }]);
-      } else {
-        setMessages(prev => [...prev, {
-          id: `err-${Date.now()}`,
-          role: "assistant",
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          content: `⚠️ Keystone backend error: ${err.message}`,
-          citations: []
-        }]);
-      }
+      // Never substitute a canned answer: an answer that did not come from the graph must not look like one.
+      setMessages(prev => [...prev, {
+        id: `err-${Date.now()}`,
+        role: "assistant",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        content: `⚠️ Keystone backend error: ${err.message}`,
+        citations: []
+      }]);
     } finally {
       setIsProcessing(false);
       setProcessingStep('');
@@ -210,7 +188,7 @@ export default function ChatPanel({
             <div className="font-heading font-semibold text-xs tracking-tight text-[#0F172A] flex items-center gap-1.5">
               <span>TEMPORAL REASONING CONSOLE</span>
               <span className="font-mono text-[10px] px-1.5 py-0.2 bg-sky-50 text-[#0284C7] rounded border border-sky-100 font-semibold">
-                OLLAMA 14B
+                LOCAL OLLAMA
               </span>
             </div>
             <div className="text-[10.5px] font-mono text-[#64748B]">
