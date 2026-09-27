@@ -23,7 +23,7 @@ async def explain(prompt: str, fallback: str) -> str:
         out = await chat_json(
             'You rewrite a compliance result as 1-2 plain sentences. Never change the result, numbers or IDs. '
             'Keep every ID in square brackets exactly as given.',
-            prompt, {'type': 'object', 'properties': {'text': {'type': 'string'}}, 'required': ['text']}, timeout=60)
+            prompt, {'type': 'object', 'properties': {'text': {'type': 'string'}}, 'required': ['text']}, timeout=180)
         return out['text'].strip() or fallback
     except Exception:
         return fallback
