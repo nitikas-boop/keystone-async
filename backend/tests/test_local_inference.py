@@ -13,18 +13,18 @@ from datetime import date
 
 import pytest
 
-# ── Point at the model that IS pulled ──────────────────────────────────────
-AVAILABLE_MODEL = "qwen2.5:7b"
+# ── Point at the team locked model ──────────────────────────────────────
+AVAILABLE_MODEL = os.environ.get("ANSWER_MODEL", "qwen2.5-7b-16k")
 INFERENCE_TIMEOUT = 300  # seconds – covers cold VRAM load on first call
-os.environ["ANSWER_MODEL"] = AVAILABLE_MODEL
-os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
+os.environ.setdefault("ANSWER_MODEL", AVAILABLE_MODEL)
+os.environ.setdefault("OLLAMA_BASE_URL", "http://localhost:11434")
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent))
 
 import httpx  # noqa: E402
 from app import config
 
-# ── Model configuration locked to qwen2.5:7b ───────────────────────────────
+# ── Model configuration locked to qwen2.5-7b-16k ───────────────────────────
 TARGET_MODEL = config.ANSWER_MODEL
 INFERENCE_TIMEOUT = 300  # seconds – covers cold VRAM load on first call
 
@@ -43,7 +43,7 @@ def model_available(name: str) -> bool:
     try:
         r = httpx.get(f"{config.OLLAMA_BASE_URL}/api/tags", timeout=4)
         models = [m["name"] for m in r.json().get("models", [])]
-        return name in models
+        return any(m == name or m.startswith(f"{name}:") or m.split(":")[0] == name for m in models)
     except Exception:
         return False
 
@@ -96,9 +96,9 @@ def test_ollama_tags_endpoint():
 
 
 def test_model_is_available():
-    """The target locked model (qwen2.5:7b) is actually pulled and configured."""
-    assert config.ANSWER_MODEL == "qwen2.5:7b", f"Expected ANSWER_MODEL=qwen2.5:7b, got {config.ANSWER_MODEL}"
-    assert config.EXTRACT_MODEL == "qwen2.5:7b", f"Expected EXTRACT_MODEL=qwen2.5:7b, got {config.EXTRACT_MODEL}"
+    """The target locked model (qwen2.5-7b-16k) is actually pulled and configured."""
+    assert config.ANSWER_MODEL == "qwen2.5-7b-16k", f"Expected ANSWER_MODEL=qwen2.5-7b-16k, got {config.ANSWER_MODEL}"
+    assert config.EXTRACT_MODEL == "qwen2.5-7b-16k", f"Expected EXTRACT_MODEL=qwen2.5-7b-16k, got {config.EXTRACT_MODEL}"
     assert model_available(TARGET_MODEL), (
         f"{TARGET_MODEL} not found in Ollama. Run: ollama pull {TARGET_MODEL}"
     )
@@ -297,7 +297,7 @@ async def test_latency_benchmark(warm_model):
 
     t0 = time.perf_counter()
     async with httpx.AsyncClient(timeout=INFERENCE_TIMEOUT) as client:
-        r = await client.post("http://localhost:11434/api/chat", json=payload)
+        r = await client.post(f"{config.OLLAMA_BASE_URL}/api/chat", json=payload)
     elapsed = time.perf_counter() - t0
 
     data = r.json()
