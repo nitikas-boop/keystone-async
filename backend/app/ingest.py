@@ -7,6 +7,7 @@ import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+import asyncpg
 import yaml
 
 from . import config, db, extract, graph, scanner
@@ -68,7 +69,7 @@ def span(raw: str, needle: str, limit: int) -> dict:
     return {'source_start': s, 'source_end': e, 'source_quote': raw[s:e]}
 
 
-async def ingest(raw: str, path: str, actor: str, visibility: str = 'org') -> dict:
+async def _ingest(raw: str, path: str, actor: str, visibility: str = 'org') -> dict:
     raw = raw.replace('\r\n', '\n')
     fm, fm_end, body_start = parse(raw)
     ref, did, doc_type = ref_date(fm), doc_id(fm), fm['doc_type']
@@ -221,3 +222,69 @@ async def watch(interval: float = 5):
                 log.info('watcher ingested %s: %s', p, out['document_id'])
             except Exception:
                 log.exception('watcher failed on %s', p)
+
+
+# ---- ingestion run tracking (ingestion_runs) ----
+
+async def start_run(kind: str) -> int | None:
+    try:
+        return await db.pool.fetchval('INSERT INTO ingestion_runs (kind) VALUES ($1) RETURNING id', kind)
+    except asyncpg.UndefinedTableError:  # database created before ingestion_runs existed: see backend/sql/init.sql
+        log.warning('ingestion_runs table missing; run not tracked')
+        return None
+
+
+async def update_run(run_id: int | None, stats: dict, status: str = 'running', error: str | None = None):
+    if run_id is None:
+        return
+    await db.pool.execute(
+        "UPDATE ingestion_runs SET stats=$2, status=$3, error=$4, "
+        "finished_at=CASE WHEN $3 = 'running' THEN NULL ELSE now() END WHERE id=$1", run_id, stats, status, error)
+
+
+def doc_entry(out: dict, sha: str) -> dict:
+    """Per-document outcome for stats. A meeting note whose LLM extraction failed counts as failed."""
+    entry = {'status': 'failed' if out.get('extraction_error') else 'ok', 'sha256': sha,
+             'document_id': out['document_id'], 'extracted': out['extracted'],
+             'pending_review': out['pending_review'], 'flags': [f['id'] for f in out['flags']]}
+    if out.get('extraction_error'):
+        entry['error'] = out['extraction_error']
+    return entry
+
+
+def error_entry(e: Exception, sha: str | None) -> dict:
+    return {'status': 'failed', 'sha256': sha, 'error': f'{type(e).__name__}: {e}'}
+
+
+def summarise(docs: dict) -> tuple[dict, str, str | None]:
+    """(stats, status, error) for a finished run."""
+    count = lambda s: sum(1 for d in docs.values() if d['status'] == s)
+    stats = {'documents': docs, 'ok': count('ok'), 'failed': count('failed'), 'skipped': count('skipped')}
+    failed = [f"{p}: {d['error']}" for p, d in docs.items() if d['status'] == 'failed']
+    status = 'failed' if failed and not stats['ok'] + stats['skipped'] else 'partial' if failed else 'succeeded'
+    return stats, status, '\n'.join(failed) or None
+
+
+async def completed_docs() -> dict[str, dict]:
+    """path -> last stats entry, for documents whose last recorded run finished them (ok or skipped) and whose
+    stored copy still has that sha256. Interrupted runs count too: stats are written after every document."""
+    rows = await db.pool.fetch("SELECT d.key AS path, d.value AS v FROM ingestion_runs r, "
+                               "jsonb_each(r.stats->'documents') d ORDER BY r.id")
+    last = {r['path']: r['v'] for r in rows}
+    stored = {r['id']: r['sha256'] for r in await db.pool.fetch('SELECT id, sha256 FROM documents')}
+    return {p: v for p, v in last.items()
+            if v.get('status') in ('ok', 'skipped') and stored.get(v.get('document_id')) == v.get('sha256')}
+
+
+async def ingest(raw: str, path: str, actor: str, visibility: str = 'org') -> dict:
+    """Tracked entry point for uploads and the watcher: one ingestion_runs row per call.
+    Failures are recorded in the row and re-raised, never swallowed."""
+    run = await start_run('watcher' if actor == 'system:watcher' else 'upload')
+    sha = hashlib.sha256(raw.replace('\r\n', '\n').encode()).hexdigest()
+    try:
+        out = await _ingest(raw, path, actor, visibility)
+    except Exception as e:
+        await update_run(run, *summarise({path: error_entry(e, sha)}))
+        raise
+    await update_run(run, *summarise({path: doc_entry(out, sha)}))
+    return out

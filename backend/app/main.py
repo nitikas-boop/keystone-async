@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from . import ask, compliance, config, db, extract, graph, ingest
+from . import views
 
 # ponytail: hardcoded users (§9 "hardcoded auth is fine"); real auth/RBAC is roadmap
 USERS = set(config.E('KEYSTONE_USERS', 'nitika,priya,farhan,ananya,karthik').split(','))
@@ -34,6 +35,7 @@ async def lifespan(app):
 app = FastAPI(title='Keystone', lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:5173', 'http://127.0.0.1:5173'],
                    allow_methods=['*'], allow_headers=['*'])
+app.include_router(views.router)
 
 
 @app.get('/health')

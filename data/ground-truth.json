@@ -1,5 +1,12 @@
 {
   "_about": "Answer key for the Nimbus Ledger vault (§7.6): expected graph facts, deterministic compliance results, scanner flags and demo answers. Not ingested.",
+  "projects": {
+    "Project Atlas": {"id": "prj-atlas", "decisions": ["DEC-003", "DEC-006", "DEC-010"]},
+    "Data Governance": {"id": "prj-data-governance", "decisions": ["DEC-002", "DEC-007"]},
+    "Procurement": {"id": "prj-procurement", "decisions": ["DEC-004", "DEC-009"]},
+    "Internal Ops": {"id": "prj-internal-ops", "decisions": ["DEC-001", "DEC-005", "DEC-008"]}
+  },
+  "restricted": {"note": "visibility: restricted in front-matter; hidden by the read views unless include_restricted=true, everything else is org", "ids": ["DEC-008", "MTG-2025-08-12"]},
   "people": ["p-ananya", "p-vikram", "p-priya", "p-farhan", "p-divya", "p-rohit", "p-sneha", "p-karthik"],
   "clause_versions": [
     {"id": "RET-2.1@v1", "valid_from": "2024-01-15", "valid_to": "2025-01-06", "fields": {"retention_days_max": 365}},
@@ -10,15 +17,15 @@
     {"id": "PROC-3.1@v2", "valid_from": "2025-07-01", "valid_to": null, "fields": {"approver_threshold_inr": {"CTO": 200000, "CEO": null}}}
   ],
   "decisions": [
-    {"id": "DEC-001", "decided_on": "2024-03-12", "owner": "p-vikram", "relied_on": [], "compliance": "no_clause"},
-    {"id": "DEC-002", "decided_on": "2024-07-22", "owner": "p-ananya", "relied_on": ["RET-2.1@v1"], "status": "superseded", "compliance": "compliant"},
+    {"id": "DEC-001", "decided_on": "2024-03-12", "owner": "p-vikram", "project": "Internal Ops", "relied_on": [], "compliance": "no_clause"},
+    {"id": "DEC-002", "decided_on": "2024-07-22", "owner": "p-ananya", "project": "Data Governance", "relied_on": ["RET-2.1@v1"], "status": "superseded", "compliance": "compliant"},
     {"id": "DEC-003", "decided_on": "2024-11-05", "owner": "p-vikram", "project": "Project Atlas", "relied_on": [], "status": "superseded", "compliance": "no_clause"},
-    {"id": "DEC-004", "decided_on": "2025-03-14", "owner": "p-vikram", "relied_on": ["PROC-3.1@v1"], "compliance": "compliant", "compliance_today": "non_compliant"},
-    {"id": "DEC-005", "decided_on": "2025-04-02", "owner": "p-divya", "relied_on": [], "compliance": "no_clause"},
+    {"id": "DEC-004", "decided_on": "2025-03-14", "owner": "p-vikram", "project": "Procurement", "relied_on": ["PROC-3.1@v1"], "compliance": "compliant", "compliance_today": "non_compliant"},
+    {"id": "DEC-005", "decided_on": "2025-04-02", "owner": "p-divya", "project": "Internal Ops", "relied_on": [], "compliance": "no_clause"},
     {"id": "DEC-006", "decided_on": "2025-05-20", "owner": "p-vikram", "project": "Project Atlas", "supersedes": "DEC-003", "justified_by": "MTG-2025-05-14", "relied_on": [], "compliance": "no_clause"},
-    {"id": "DEC-007", "decided_on": "2025-06-18", "owner": "p-ananya", "supersedes": "DEC-002", "justified_by": "MTG-2025-06-11", "relied_on": ["RET-2.1@v2"], "compliance": "compliant", "compliance_after_v3": "non_compliant"},
-    {"id": "DEC-008", "decided_on": "2025-09-09", "owner": "p-farhan", "relied_on": [], "compliance": "no_clause"},
-    {"id": "DEC-009", "decided_on": "2025-11-25", "owner": "p-karthik", "relied_on": ["PROC-3.1@v2"], "compliance": "compliant"},
+    {"id": "DEC-007", "decided_on": "2025-06-18", "owner": "p-ananya", "project": "Data Governance", "supersedes": "DEC-002", "justified_by": "MTG-2025-06-11", "relied_on": ["RET-2.1@v2"], "compliance": "compliant", "compliance_after_v3": "non_compliant"},
+    {"id": "DEC-008", "decided_on": "2025-09-09", "owner": "p-farhan", "project": "Internal Ops", "visibility": "restricted", "relied_on": [], "compliance": "no_clause"},
+    {"id": "DEC-009", "decided_on": "2025-11-25", "owner": "p-karthik", "project": "Procurement", "relied_on": ["PROC-3.1@v2"], "compliance": "compliant"},
     {"id": "DEC-010", "decided_on": "2026-02-10", "owner": "p-divya", "project": "Project Atlas", "relied_on": [], "compliance": "no_clause"}
   ],
   "extraction_expected": [
