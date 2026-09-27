@@ -7,20 +7,45 @@ import logging
 import uuid
 from datetime import date, datetime, time, timezone
 
-from graphiti_core import Graphiti
-from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
-from graphiti_core.edges import EntityEdge
-from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
-from graphiti_core.llm_client.config import LLMConfig
-from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
-from graphiti_core.nodes import EntityNode, EpisodeType, EpisodicNode
+import importlib
+
+# Dynamic loading for optional Graphiti dependency (installed in container)
+try:
+    _gc = importlib.import_module('graphiti_core')
+    Graphiti = getattr(_gc, 'Graphiti', None)
+    _ce = importlib.import_module('graphiti_core.cross_encoder.openai_reranker_client')
+    OpenAIRerankerClient = getattr(_ce, 'OpenAIRerankerClient', None)
+    _ed = importlib.import_module('graphiti_core.edges')
+    EntityEdge = getattr(_ed, 'EntityEdge', None)
+    _em = importlib.import_module('graphiti_core.embedder.openai')
+    OpenAIEmbedder = getattr(_em, 'OpenAIEmbedder', None)
+    OpenAIEmbedderConfig = getattr(_em, 'OpenAIEmbedderConfig', None)
+    _lc = importlib.import_module('graphiti_core.llm_client.config')
+    LLMConfig = getattr(_lc, 'LLMConfig', None)
+    _og = importlib.import_module('graphiti_core.llm_client.openai_generic_client')
+    OpenAIGenericClient = getattr(_og, 'OpenAIGenericClient', None)
+    _nd = importlib.import_module('graphiti_core.nodes')
+    EntityNode = getattr(_nd, 'EntityNode', None)
+    EpisodeType = getattr(_nd, 'EpisodeType', None)
+    EpisodicNode = getattr(_nd, 'EpisodicNode', None)
+except Exception:
+    Graphiti = None
+    OpenAIRerankerClient = None
+    EntityEdge = None
+    OpenAIEmbedder = None
+    OpenAIEmbedderConfig = None
+    LLMConfig = None
+    OpenAIGenericClient = None
+    EntityNode = None
+    EpisodeType = None
+    EpisodicNode = None
 
 from . import config
 
 # Our queries use optional properties (e.g. rejected); Neo4j warns about unseen keys on every call.
 logging.getLogger('neo4j.notifications').setLevel(logging.ERROR)
 _NS = uuid.UUID('9b1f3a52-6c0e-4d8e-9a57-4b0c2f1e7d11')
-g: Graphiti | None = None
+g = None
 
 
 def uid(key: str) -> str:

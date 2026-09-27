@@ -263,7 +263,7 @@ export const DEMO_QUERIES = [
     id: "q-1",
     shortLabel: "Cloud Vendor Switch (2025)",
     query: "Why did we switch from AWS to a local cloud provider in 2025?",
-    asOfDateSuggested: "2025-03-15",
+    asOfDateSuggested: "2025-06-01",
     answer: "Nimbus Ledger transitioned workloads from AWS us-east-1 to a Bengaluru Private Datacenter on **March 3, 2025** via [DEC-2025-002]. \n\nThe decision was authored by **Vikram Rao (Former CTO)** and **Anand Verma (Sr. Infra Lead)**, grounded in the Sovereign Infrastructure Policy clause [SOV-3.1 @ v1].\n\n**Primary Rationale:**\n1. **Cost Reduction:** Eliminated variable USD egress charges, resulting in an audited **42% reduction** in recurring cloud expenditure.\n2. **Regulatory Sovereignty:** Direct adherence to upcoming India DPDP Act data residency directives prohibiting cross-border storage of domestic banking telemetry.\n\n*Graph check confirms no subsequent reversal or contradictory decision has been recorded.*",
     citations: [
       { id: "DEC-2025-002", label: "DEC-2025-002", type: "decision", date: "2025-03-03", title: "AWS to Bengaluru DC Migration" },
@@ -275,7 +275,7 @@ export const DEMO_QUERIES = [
     id: "q-2",
     shortLabel: "180-Day Retention in Q2 2025",
     query: "Was keeping customer logs for 180 days compliant in Q2 2025?",
-    asOfDateSuggested: "2025-05-15",
+    asOfDateSuggested: "2025-06-30",
     answer: "### Point-in-Time Compliance Assessment: **YES (COMPLIANT AT THE TIME)**\n\nAs of **Q2 2025 (evaluated at May 15, 2025)**, the active policy clause in force was [RET-2.1 @ v2] (effective Jan 1, 2025 – Aug 31, 2026), which mandated a maximum retention ceiling of **180 calendar days**.\n\n- **Historical Precedent:** The practice originated under [DEC-2024-001] (authored by Vikram Rao on Feb 14, 2024), which was initially compliant under [RET-2.1 @ v1] (365-day ceiling).\n- **Compliance at Q2 2025:** Exact match (180 days practice <= 180 days policy ceiling).\n\n⚠️ **Temporal Advisory Alert (Future Horizon):**\nWhen evaluated against the current timeline after **September 1, 2026**, the newly ratified [RET-2.1 @ v3] lowered the retention ceiling to **90 days**. Consequently, this practice has now been flagged as **STALE** by the Keystone Staleness Scanner, and an automated remediation task has been deposited into the Human-in-the-Loop Review Queue.",
     citations: [
       { id: "DEC-2024-001", label: "DEC-2024-001", type: "decision", date: "2024-02-14", title: "180d Customer Log Retention" },
