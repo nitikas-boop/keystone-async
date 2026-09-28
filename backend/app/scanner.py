@@ -58,18 +58,24 @@ IMPACT_MEANING = {
 }
 
 
+async def explain_flag(dec: dict, new: dict, old: dict | None, impact: str) -> str:
+    """Flag wording: the deterministic facts, including the direction of the change and what the impact type
+    means, so the local model only rephrases and has nothing to guess."""
+    old_id = old['source_id'] if old else None
+    facts = (f"[{dec['id']}] ({dec['title']}) was {old['result'].replace('_', '-') if old else 'not linked'} under "
+             f"[{old_id}] when decided on {dec['decided_on']}, but is non-compliant under [{new['source_id']}] "
+             f"({new['rule']}: value {new['decision_value']}, limit {new['limit']}).")
+    limits = (old or {}).get('limit'), new.get('limit')
+    if all(isinstance(x, (int, float)) for x in limits) and limits[0] != limits[1]:
+        facts += f" The limit was {'lowered' if limits[1] < limits[0] else 'raised'} from {limits[0]} to {limits[1]}."
+    return await llm.explain(facts + IMPACT_MEANING[impact], facts + IMPACT_MEANING[impact])
+
+
 async def _write_flag(dec: dict, new: dict, old: dict | None, old_version: str | None) -> dict | None:
     impact = classify(dec['status'], dec['effect'])
     old_id = old['source_id'] if old else None
     flag_id = f"FLAG-{dec['id']}-{new['source_id']}"
-    facts = (f"[{dec['id']}] ({dec['title']}) was {old['result'].replace('_', '-') if old else 'not linked'} under "
-             f"[{old_id}] when decided on {dec['decided_on']}, but is non-compliant under [{new['source_id']}] "
-             f"({new['rule']}: value {new['decision_value']}, limit {new['limit']}).")
-    # State the direction and what the impact type means, so the wording model has nothing to guess.
-    if old and isinstance(old.get('limit'), (int, float)) and isinstance(new.get('limit'), (int, float))             and old['limit'] != new['limit']:
-        facts += f" The limit was {'lowered' if new['limit'] < old['limit'] else 'raised'} from {old['limit']} to {new['limit']}."
-    facts += IMPACT_MEANING[impact]
-    explanation = await llm.explain(facts, facts)
+    explanation = await explain_flag(dec, new, old, impact)
 
     async with db.pool.acquire() as c, c.transaction():
         inserted = await c.fetchval(

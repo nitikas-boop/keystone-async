@@ -13,7 +13,7 @@ import {
   RotateCcw,
   Info
 } from 'lucide-react';
-import { DEMO_QUERIES } from '../data/mockData';
+import { DEMO_QUERIES } from '../data/demoQueries';
 import { ask } from '../api';
 
 // Turn a live /ask response into the message shape this panel renders.

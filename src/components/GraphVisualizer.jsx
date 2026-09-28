@@ -164,8 +164,8 @@ export default function GraphVisualizer({
     };
   });
 
-  const activeNodeData = processedNodes.find(n => n.id === selectedNodeId) || 
-    (selectedNodeId ? { id: selectedNodeId, label: selectedNodeId, type: 'decision' } : null);
+  // A node absent from the graph as of this date has nothing to inspect: the inspector stays closed.
+  const activeNodeData = processedNodes.find(n => n.id === selectedNodeId) || null;
 
   // Inspector shows exactly what the graph holds; missing fields stay visibly missing ("—").
   const attrs = activeNodeData?.attributes || {};

@@ -32,7 +32,7 @@ const PRESET_FILES = {
   }
 };
 
-export default function IngestModal({ isOpen, onClose, onPolicyUploaded }) {
+export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProceedToQueue }) {
   const [selectedPreset, setSelectedPreset] = useState('RET-v3');
   const [customFile, setCustomFile] = useState(null);
   const [isIngesting, setIsIngesting] = useState(false);
@@ -291,7 +291,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded }) {
             <div className="flex justify-end pt-2">
               <button
                 type="button"
-                onClick={handleResetAndClose}
+                onClick={() => { handleResetAndClose(); onProceedToQueue(); }}
                 className="px-4 py-2 rounded-lg btn-sky-gradient text-white text-xs font-mono font-medium cursor-pointer"
               >
                 Proceed to Review Queue →

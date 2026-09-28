@@ -122,10 +122,10 @@ export default function ReviewQueue({
                 const isRejected = item.status === 'rejected' || item.status === 'Rejected';
                 const isExecuted = item.status === 'executed';
 
-                const subjectText = item.subject || item.proposedAction;
-                const bodyText = item.body || item.reasoningChain;
-                const decId = item.decision_id || item.sourceDecisionId || 'DEC-007';
-                const clauseId = item.clause_id || item.sourceClauseId || 'RET-2.1@v3';
+                const subjectText = item.subject;
+                const bodyText = item.body;
+                const decId = item.decision_id;
+                const clauseId = item.clause_id;
 
                 return (
                   <tr 
@@ -174,7 +174,7 @@ export default function ReviewQueue({
                     <td className="py-3 px-3 align-top font-mono">
                       <div className="p-1.5 rounded-md bg-slate-50 border border-slate-200 text-[10.5px] text-[#0F172A] flex items-center gap-1.5">
                         {item.to ? <Mail size={11} className="text-[#0284C7] shrink-0" /> : <Terminal size={11} className="text-[#0284C7] shrink-0" />}
-                        <span className="truncate">{item.to || item.targetMcpTool || 'outbox/notification.eml'}</span>
+                        <span className="truncate">{item.to}</span>
                       </div>
                       {item.decided_by && (
                         <div className="text-[9.5px] text-[#64748B] mt-1 font-sans">

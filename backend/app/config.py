@@ -5,14 +5,12 @@ from pathlib import Path
 def _load_env():
     for p in [Path('.env'), Path(__file__).resolve().parent.parent / '.env', Path(__file__).resolve().parent.parent.parent / '.env']:
         if p.is_file():
-            try:
-                for line in p.read_text(encoding='utf-8').splitlines():
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        k, v = line.split('=', 1)
-                        os.environ.setdefault(k.strip(), v.strip().strip('"\''))
-            except Exception:
-                pass
+            # An unreadable .env must fail loudly, not silently run with defaults.
+            for line in p.read_text(encoding='utf-8').splitlines():
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    k, v = line.split('=', 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip('"\''))
             break
 
 _load_env()

@@ -337,6 +337,14 @@ def test_citation_with_repeated_version_tag_resolves_to_the_listed_id():
     assert [b['source_ids'] for b in bad] == [['DEC-0071']]
 
 
+def test_only_follow_up_questions_use_session_history():
+    from app.reasoning import is_follow_up
+    assert not any(is_follow_up(q) for q in (
+        'Show the history of Project Atlas.', 'Why did we move off AWS in May 2025?',
+        'Was keeping customer logs for 180 days compliant in Q2 2025?', 'Why did we choose MongoDB?'))
+    assert is_follow_up('Who approved that decision?') and is_follow_up('Why did he leave?')
+
+
 def test_citation_lead_in_left_dangling_is_removed():
     good, _ = validate_citations([{'text': 'Atlas moved to AWS Mumbai in 2024-11-05, as per [DEC-003].',
                                    'source_ids': ['DEC-003']}], {'DEC-003': {'text': 'd'}})

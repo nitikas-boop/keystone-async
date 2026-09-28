@@ -18,7 +18,7 @@ import Logo from './Logo';
 
 export default function LandingPage({ onLaunchConsole }) {
   const [activeTab, setActiveTab] = useState('temporal');
-  const [sliderPreviewDate, setSliderPreviewDate] = useState('2025-05-15');
+  const [sliderPreviewDate, setSliderPreviewDate] = useState('2025-06-30');
   const [activeWorkflowStep, setActiveWorkflowStep] = useState(2);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('sk-sov-nimbus-ledger-2026-prod');
@@ -28,8 +28,8 @@ export default function LandingPage({ onLaunchConsole }) {
       num: "01",
       title: "Ingest Docs",
       subtitle: "Front-matter & Dates",
-      desc: "Meeting notes, policy PDFs, and decision logs ingested with explicit effective_from timestamps.",
-      tag: "PostgreSQL & Vector",
+      desc: "Meeting notes, policy versions, and decision logs as Markdown, each with its real date in front-matter.",
+      tag: "PostgreSQL Records",
       color: "badge-note-lavender"
     },
     {
@@ -60,7 +60,7 @@ export default function LandingPage({ onLaunchConsole }) {
       num: "05",
       title: "Human Approval",
       subtitle: "Gated Action",
-      desc: "Actions land in the review queue. Only human sign-off triggers external tool execution.",
+      desc: "Actions land in the review queue. Only a human approval lets the executor act (today: an email file in outbox/).",
       tag: "SHA-256 Audit Trail",
       color: "badge-note-rose"
     }
@@ -172,7 +172,7 @@ export default function LandingPage({ onLaunchConsole }) {
               <ShieldCheck size={16} className="text-[#D97706]" />
             </div>
             <div className="text-[11px] font-mono text-[#64748B] mt-0.5">
-              Immutable hash-chained audit trail
+              Tamper-evident hash-chained audit trail
             </div>
           </div>
 
@@ -207,7 +207,7 @@ export default function LandingPage({ onLaunchConsole }) {
           {[
             { id: 'temporal', label: '1. Temporal "As-Of" Context', icon: Clock },
             { id: 'clause', label: '2. Clause-Level Compliance', icon: FileText },
-            { id: 'staleness', label: '3. Staleness Scanner', icon: AlertTriangle },
+            { id: 'staleness', label: '3. Policy Impact', icon: AlertTriangle },
             { id: 'gated', label: '4. Gated Execution', icon: Lock }
           ].map(tab => {
             const Icon = tab.icon;
@@ -253,41 +253,41 @@ export default function LandingPage({ onLaunchConsole }) {
                   min="0"
                   max="2"
                   step="1"
-                  value={sliderPreviewDate === '2024-02-14' ? 0 : sliderPreviewDate === '2025-05-15' ? 1 : 2}
+                  value={sliderPreviewDate === '2024-09-01' ? 0 : sliderPreviewDate === '2025-06-30' ? 1 : 2}
                   onChange={(e) => {
-                    const vals = ['2024-02-14', '2025-05-15', '2026-09-24'];
+                    const vals = ['2024-09-01', '2025-06-30', '2026-09-28'];
                     setSliderPreviewDate(vals[parseInt(e.target.value)]);
                   }}
                   className="w-full accent-[#0284C7] cursor-pointer"
                 />
                 <div className="flex justify-between text-[10px] text-[#64748B]">
-                  <span>Q1 2024 (v1 Active)</span>
-                  <span>Q2 2025 (v2 Active)</span>
+                  <span>Sep 2024 (v1 Active)</span>
+                  <span>Jun 2025 (v2 Active)</span>
                   <span>Sep 2026 (v3 Active)</span>
                 </div>
               </div>
 
               <div className="text-xs font-mono p-2.5 rounded-lg bg-white border border-slate-200 text-[#0F172A] shadow-2xs">
-                {sliderPreviewDate === '2024-02-14' && "Policy in force: RET-2.1 v1 (Max 365 days). DEC-2024-001 (180d) is fully COMPLIANT."}
-                {sliderPreviewDate === '2025-05-15' && "Policy in force: RET-2.1 v2 (Max 180 days). DEC-2024-001 (180d) is border-line COMPLIANT."}
-                {sliderPreviewDate === '2026-09-24' && "Policy in force: RET-2.1 v3 (Max 90 days). DEC-2024-001 (180d) is flagged as CONFLICT/STALE!"}
+                {sliderPreviewDate === '2024-09-01' && "Policy in force: RET-2.1 v1 (max 365 days). DEC-007 does not exist yet; DEC-002 (300 days) is compliant."}
+                {sliderPreviewDate === '2025-06-30' && "Policy in force: RET-2.1 v2 (max 180 days). DEC-007 (180 days) is compliant, exactly at the limit."}
+                {sliderPreviewDate === '2026-09-28' && "Policy in force: RET-2.1 v3 (max 90 days). DEC-007 (180 days) is flagged ONGOING_PRACTICE_BREACH."}
               </div>
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 font-mono text-xs">
               <div className="text-[10px] text-[#64748B] border-b border-slate-200 pb-2 mb-3 flex items-center justify-between">
                 <span>GRAPH RETRIEVAL PAYLOAD</span>
-                <span className="text-emerald-700 font-medium">REPRODUCIBLE</span>
+                <span className="text-emerald-700 font-medium">ILLUSTRATIVE</span>
               </div>
               <pre className="text-[11px] text-[#0369A1] overflow-x-auto leading-relaxed">
 {`{
   "query": "Is 180d log retention compliant?",
   "evaluation_horizon": "${sliderPreviewDate}",
-  "active_clause": "${sliderPreviewDate < '2025-01-01' ? 'RET-2.1 v1 (365d)' : sliderPreviewDate < '2026-09-01' ? 'RET-2.1 v2 (180d)' : 'RET-2.1 v3 (90d)'}",
-  "verdict": "${sliderPreviewDate >= '2026-09-01' ? 'VIOLATION_DETECTED' : 'POINT_IN_TIME_COMPLIANT'}",
+  "active_clause": "${sliderPreviewDate < '2025-01-06' ? 'RET-2.1@v1 (365d)' : sliderPreviewDate < '2026-09-28' ? 'RET-2.1@v2 (180d)' : 'RET-2.1@v3 (90d)'}",
+  "verdict": "${sliderPreviewDate < '2025-06-18' ? 'NOT_YET_DECIDED' : sliderPreviewDate < '2026-09-28' ? 'COMPLIANT' : 'ONGOING_PRACTICE_BREACH'}",
   "provenance_chain": [
-    "DEC-2024-001 -> RELIED_ON -> RET-2.1",
-    "Source doc: MeetingNotes-2024-02.md"
+    "DEC-007 -> RELIED_ON -> RET-2.1@v2",
+    "Source doc: decisions/DEC-007.md"
   ]
 }`}
               </pre>
@@ -325,7 +325,7 @@ export default function LandingPage({ onLaunchConsole }) {
               <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
                 <div className="flex justify-between text-[#0F172A] font-bold text-[11px]">
                   <span>CLAUSE: RET-2.1 v2</span>
-                  <span className="text-[#64748B]">Jan 2025 – Aug 2026</span>
+                  <span className="text-[#64748B]">Jan 2025 – Sep 2026</span>
                 </div>
                 <div className="text-[#475569] text-[11px] mt-1">Tightened ceiling: 180 Days</div>
               </div>
@@ -334,7 +334,7 @@ export default function LandingPage({ onLaunchConsole }) {
                   <span>CLAUSE: RET-2.1 v3 (Current)</span>
                   <span className="text-[#64748B]">Sep 2026 – Present</span>
                 </div>
-                <div className="text-[#0F172A] text-[11px] mt-1">Strict ceiling: 90 Days (DPDP Act alignment)</div>
+                <div className="text-[#0F172A] text-[11px] mt-1">Strict ceiling: 90 Days</div>
               </div>
             </div>
           </div>
@@ -348,25 +348,25 @@ export default function LandingPage({ onLaunchConsole }) {
                 PROACTIVE SCANNER
               </div>
               <h3 className="text-lg font-heading font-bold text-[#0F172A]">
-                Event-Driven Contradiction Scanner
+                Policy Impact Scanner
               </h3>
               <p className="text-xs text-[#475569] leading-relaxed">
-                Rather than waiting for an auditor to discover a discrepancy, ingesting a new policy version immediately triggers Keystone's Staleness Scanner. It locates every still-active decision relying on obsolete clauses and raises a staged remediation proposal.
+                Rather than waiting for an auditor to discover a discrepancy, ingesting a new policy version immediately triggers Keystone's policy impact scanner. It locates every still-active decision relying on obsolete clauses and raises a staged remediation proposal.
               </p>
               <div className="p-3 rounded-lg badge-note-amber text-xs font-mono flex items-center gap-2">
                 <Info size={15} className="shrink-0" />
-                <span>Automatically flags DEC-2024-001 (180d) when RET-2.1 v3 (90d) is uploaded.</span>
+                <span>Automatically flags DEC-007 (180 days) when RET-2.1 v3 (90 days) is uploaded.</span>
               </div>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs space-y-1.5">
-              <div className="text-[10px] text-[#64748B]">LIVE SCANNER OUTPUT</div>
-              <div className="text-[#991B1B] font-bold">[FLAG]: Decision Contradiction Found</div>
+              <div className="text-[10px] text-[#64748B]">EXAMPLE SCANNER OUTPUT</div>
+              <div className="text-[#991B1B] font-bold">[FLAG]: ONGOING_PRACTICE_BREACH</div>
               <div className="text-[#334155] text-[11px]">
-                Target: DEC-2025-019 (Purge Daemon)<br/>
+                Target: DEC-007 (180-day customer log retention)<br/>
                 Old Clause: RET-2.1 v2 (180d)<br/>
                 New Clause: RET-2.1 v3 (90d)<br/>
-                Action Staged: Review Queue ACT-809
+                Action Staged: notification proposal in the review queue
               </div>
             </div>
           </div>
@@ -417,7 +417,7 @@ export default function LandingPage({ onLaunchConsole }) {
             Data → Knowledge → Memory → Reasoning → Action
           </h2>
           <p className="text-xs font-sans text-[#64748B] max-w-xl mx-auto mt-2">
-            Most hackathon submissions stop at a flat chatbot. Keystone takes the full journey to gated, auditable action.
+            Many systems stop at retrieval. Keystone goes all the way to gated, auditable action.
           </p>
         </div>
 
@@ -469,7 +469,7 @@ export default function LandingPage({ onLaunchConsole }) {
             Competitive Differentiation
           </span>
           <h2 className="text-2xl md:text-3xl font-heading font-bold text-[#0F172A] mt-1">
-            Why Keystone Outclasses Existing Paradigms
+            How Keystone Differs
           </h2>
         </div>
 
@@ -494,18 +494,18 @@ export default function LandingPage({ onLaunchConsole }) {
                 <td className="py-3 px-4 font-mono font-bold text-[#0F172A]">ADRs / Notion Logs</td>
                 <td className="py-3 px-4 text-[#64748B]">Captures a decision once</td>
                 <td className="py-3 px-4 text-rose-700">Static; never flags when a past decision goes stale</td>
-                <td className="py-3 px-4 text-emerald-700 font-mono font-medium">Automated Staleness Scanner</td>
+                <td className="py-3 px-4 text-emerald-700 font-mono font-medium">Policy impact scanner</td>
               </tr>
               <tr className="hover:bg-slate-50/50">
-                <td className="py-3 px-4 font-mono font-bold text-[#0F172A]">Enterprise AI (Obin, Palantir)</td>
-                <td className="py-3 px-4 text-[#64748B]">Governed bank workflows</td>
-                <td className="py-3 px-4 text-rose-700">Sales-led, $500k+ contracts, heavy enterprise lock-in</td>
+                <td className="py-3 px-4 font-mono font-bold text-[#0F172A]">Enterprise AI (Obin AI, Sphere)</td>
+                <td className="py-3 px-4 text-[#64748B]">Governed AI for large institutions</td>
+                <td className="py-3 px-4 text-rose-700">Enterprise sales; not built for 10–50 person teams</td>
                 <td className="py-3 px-4 text-emerald-700 font-mono font-medium">Open & self-hostable in 1 Docker</td>
               </tr>
               <tr className="hover:bg-sky-50/40 bg-sky-50/20">
                 <td className="py-3 px-4 font-mono font-bold text-[#0284C7]">Keystone Sovereign Engine</td>
                 <td className="py-3 px-4 text-[#0F172A]">Decisions + Clauses + Time + Actions</td>
-                <td className="py-3 px-4 text-emerald-700 font-medium">None — Pure point-in-time sovereign stack</td>
+                <td className="py-3 px-4 text-[#475569] font-medium">Single-tenant; extraction needs human review; demo data is synthetic</td>
                 <td className="py-3 px-4 text-[#0284C7] font-mono font-bold">100% Owned & Verifiable</td>
               </tr>
             </tbody>
@@ -626,7 +626,7 @@ export default function LandingPage({ onLaunchConsole }) {
           <span>PostgreSQL + Neo4j/Graphiti + Ollama</span>
         </div>
         <div className="text-[10px] text-[#94A3B8]">
-          Designed for high-density regulatory compliance and knowledge continuity in India under DPDP Act 2025/2026.
+          Built for small regulated teams that need an auditable record of which rule applied when.
         </div>
       </footer>
     </div>

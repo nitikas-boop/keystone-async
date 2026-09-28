@@ -151,6 +151,11 @@ export async function fetchExtractions(status = null, documentId = null) {
   return handleResponse(res);
 }
 
+export async function reviewExtraction(id, decision) {
+  const res = await fetch(`${API}/extractions/${id}/${decision}`, { method: 'POST', headers: jsonHeaders() });
+  return handleResponse(res);
+}
+
 // ---- Health ----
 
 export async function healthCheck() {

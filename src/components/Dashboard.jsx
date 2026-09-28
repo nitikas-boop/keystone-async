@@ -12,7 +12,8 @@ import {
   LogOut, 
   Cpu, 
   Bell,
-  LayoutGrid
+  LayoutGrid,
+  FileSearch
 } from 'lucide-react';
 import Logo from './Logo';
 import TemporalSlider from './TemporalSlider';
@@ -20,6 +21,7 @@ import ChatPanel from './ChatPanel';
 import GraphVisualizer from './GraphVisualizer';
 import ReviewQueue from './ReviewQueue';
 import AuditLogTable from './AuditLogTable';
+import IngestionReview from './IngestionReview';
 import IngestModal from './IngestModal';
 import { 
   fetchGraph, 
@@ -33,7 +35,7 @@ import {
 } from '../api';
 
 export default function Dashboard({ currentUser, onSignOut }) {
-  const [asOfDate, setAsOfDate] = useState('2026-09-28');
+  const [asOfDate, setAsOfDate] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [activeView, setActiveView] = useState('UNIFIED');
   const [selectedNodeId, setSelectedNodeId] = useState('DEC-007');
   const [highlightNodeIds, setHighlightNodeIds] = useState(['DEC-007', 'RET-2.1@v2']);
@@ -44,6 +46,7 @@ export default function Dashboard({ currentUser, onSignOut }) {
   const [answerModel, setAnswerModel] = useState(null);
   const [isIngestModalOpen, setIsIngestModalOpen] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [policyRefresh, setPolicyRefresh] = useState(0);
 
   const showNotification = (msg, type = "info") => {
     setNotification({ msg, type });
@@ -153,9 +156,10 @@ export default function Dashboard({ currentUser, onSignOut }) {
     }
     loadProposals();
     loadAudit();
+    setPolicyRefresh(k => k + 1);
     fetchGraph(asOf)
       .then(res => { if (res && res.nodes) setLiveGraphData(res); })
-      .catch(() => {});
+      .catch(err => showNotification(`Graph unavailable: ${err.message}`, "warning"));
     showNotification(`${uploadRes?.document_id ?? 'Document'} ingested. Scanner raised ${flagged.length} flag(s).`, "info");
   };
 
@@ -214,6 +218,16 @@ export default function Dashboard({ currentUser, onSignOut }) {
           </button>
 
           <button
+            onClick={() => setActiveView('EXTRACTIONS')}
+            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
+              activeView === 'EXTRACTIONS' ? 'bg-white text-[#0F172A] font-semibold shadow-xs' : 'text-[#64748B] hover:text-[#0F172A]'
+            }`}
+          >
+            <FileSearch size={13} className={activeView === 'EXTRACTIONS' ? 'text-[#0284C7]' : ''} />
+            <span>Ingestion Review</span>
+          </button>
+
+          <button
             onClick={() => setActiveView('AUDIT')}
             className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
               activeView === 'AUDIT' ? 'bg-white text-[#0F172A] font-semibold shadow-xs' : 'text-[#64748B] hover:text-[#0F172A]'
@@ -254,6 +268,7 @@ export default function Dashboard({ currentUser, onSignOut }) {
       {/* Global "As-Of" Date Slider Ribbon */}
       <div className="px-6 py-3 bg-[#F8FAFC] border-b border-slate-200/80 shrink-0">
         <TemporalSlider 
+          refreshKey={policyRefresh}
           asOfDate={asOfDate} 
           onDateChange={(newDate) => {
             setAsOfDate(newDate);
@@ -299,6 +314,8 @@ export default function Dashboard({ currentUser, onSignOut }) {
                 }}
                 onNodeHighlight={(nodeIds) => {
                   setHighlightNodeIds(nodeIds);
+                  // Inspect what the answer cited; the previous selection may not be in the answer's subgraph.
+                  if (nodeIds.length) setSelectedNodeId(nodeIds[0]);
                 }}
                 onSubgraph={(subgraph) => {
                   if (subgraph && subgraph.nodes && subgraph.nodes.length > 0) {
@@ -365,6 +382,12 @@ export default function Dashboard({ currentUser, onSignOut }) {
           </div>
         )}
 
+        {activeView === 'EXTRACTIONS' && (
+          <div className="flex-1 h-full min-h-0">
+            <IngestionReview onNotify={showNotification} />
+          </div>
+        )}
+
         {activeView === 'AUDIT' && (
           <div className="flex-1 h-full min-h-0">
             <AuditLogTable
@@ -381,6 +404,7 @@ export default function Dashboard({ currentUser, onSignOut }) {
         isOpen={isIngestModalOpen}
         onClose={() => setIsIngestModalOpen(false)}
         onPolicyUploaded={handlePolicyUploaded}
+        onProceedToQueue={() => setActiveView('QUEUE')}
       />
     </div>
   );

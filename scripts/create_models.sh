@@ -19,3 +19,6 @@ else
   ollama show "$MODEL" --parameters >&2
   exit 1
 fi
+# Local embeddings (768-d); Graphiti would otherwise default to a cloud embedder.
+ollama show nomic-embed-text >/dev/null 2>&1 || ollama pull nomic-embed-text
+echo "OK: nomic-embed-text present"

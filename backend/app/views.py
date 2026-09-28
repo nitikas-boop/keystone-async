@@ -1,4 +1,4 @@
-"""Read views for the frontend (Member 4): shapes and camelCase keys follow src/data/mockData.js on main.
+"""Read views for the frontend (Member 4): shapes and camelCase keys follow the original frontend mock data (since removed).
 Everything is read from backend's own graph and tables. Ids stay backend-style (RET-2.1@v2, DEC-004, p-vikram).
 Restricted items (visibility: restricted) are hidden unless ?include_restricted=true."""
 import json
@@ -190,7 +190,7 @@ def _label(p: dict, t: str, as_of: str) -> str:
 
 @router.get('/graph/view')
 async def graph_view(as_of: date | None = None, include_restricted: bool = False):
-    """The as-of graph with stable x/y (mockData GRAPH_NODES/GRAPH_EDGES). /graph is left unchanged for the chat."""
+    """The as-of graph with stable x/y (the shape the graph panel expects). /graph is left unchanged for the chat."""
     d = (as_of or date.today()).isoformat()
     dt = graph.at(date.fromisoformat(d))
     all_nodes = await _nodes()

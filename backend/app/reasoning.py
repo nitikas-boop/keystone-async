@@ -95,6 +95,14 @@ def validate_citations(sentences: List[Dict[str, Any]], sources: Dict[str, Any])
     return good, bad
 
 
+# ponytail: pronoun heuristic for "refers back to an earlier turn"; swap for a model-based check if it misfires.
+FOLLOW_UP = re.compile(r"\b(that|this|those|these|it|its|they|them|their|he|him|his|she|her|the same)\b", re.IGNORECASE)
+
+
+def is_follow_up(question: str) -> bool:
+    return bool(FOLLOW_UP.search(question))
+
+
 class ModelUnavailable(RuntimeError):
     """The local LLM could not be reached; surfaced to the API as 503."""
 
@@ -110,7 +118,9 @@ class ReasoningEngine:
         # 1. Retrieve point-in-time subgraph and sources
         # Follow-ups ("who approved that decision?") only make sense with the previous question, so in a session
         # retrieve with the recent questions first; fall back to the question alone if that finds nothing.
-        history = conversation_memory.get_history(session_id) if session_id else []
+        # A standalone question gets no history at all: earlier turns in retrieval or the prompt only add noise
+        # (the AWS answer lost its decision date after an Atlas question in the same session).
+        history = conversation_memory.get_history(session_id) if session_id and is_follow_up(question) else []
         user_queries = [m.content for m in history if m.role == 'user']
         retrieval = None
         if user_queries:
@@ -181,7 +191,7 @@ class ReasoningEngine:
 
         # 4. Assemble sources and conversational context for the model
         source_listing = '\n'.join(f'[{k}] {v["text"]}' for k, v in sources.items())
-        history_context = conversation_memory.format_for_prompt(session_id) if session_id else ""
+        history_context = conversation_memory.format_for_prompt(session_id) if history else ""
         context_block = f"{history_context}\n\n" if history_context else ""
         user_prompt = f"{context_block}Question (answer as of {as_of}): {question}\n\nSources:\n{source_listing}"
 
