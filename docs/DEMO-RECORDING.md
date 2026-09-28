@@ -80,7 +80,8 @@ For the sovereignty point, record one take with Wi-Fi switched off: everything a
 | Symptom | Fix |
 |---|---|
 | Chat says "Failed to fetch" | The backend is not reachable: `curl http://localhost:8000/health` must answer. If not, `docker compose up -d --wait`. Open the app at `http://localhost:…`, not the PC's network IP |
-| Red error in chat / "local model error" | Ollama is not running or a model is missing: start Ollama, run `ollama list` (needs `qwen2.5-7b-16k` and `nomic-embed-text`), re-run the setup script |
+| Chat says "local model error … Connection error", or the top bar says "Local model unreachable" | The backend container cannot reach Ollama. 1) Start Ollama (the Windows app; tray icon) and check `curl http://localhost:11434/api/tags` answers. 2) `ollama list` must show `qwen2.5-7b-16k` and `nomic-embed-text` (else re-run the setup script). 3) Ollama must run on Windows, not inside WSL. 4) If Docker runs without Docker Desktop (inside WSL/Linux), set the Windows env var `OLLAMA_HOST=0.0.0.0`, restart Ollama, then `docker compose up -d`. 5) Pause VPN/firewall for port 11434. Check with `curl http://localhost:8000/health`: `ollama` must list both models as `true`; `ollama_error` says why not |
+| Chat says "local model error … not found" | A model is missing: re-run the setup script |
 | A vague question ("explain the latest policy") is refused | Expected: nothing scores above the relevance cutoff. Ask specifically, e.g. "What does the current customer log retention policy say?" |
 | Page shows nothing, or API errors | `docker compose up -d --wait` (Docker Desktop must be running) |
 | After the PC slept, everything is dead | Start Docker Desktop and Ollama again, then `docker compose up -d --wait` |

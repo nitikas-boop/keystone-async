@@ -44,6 +44,7 @@ export default function Dashboard({ currentUser, onSignOut }) {
   const [queueItems, setQueueItems] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [answerModel, setAnswerModel] = useState(null);
+  const [engineOk, setEngineOk] = useState(null);  // null = not checked yet
   const [isIngestModalOpen, setIsIngestModalOpen] = useState(false);
   const [notification, setNotification] = useState(null);
   const [policyRefresh, setPolicyRefresh] = useState(0);
@@ -78,9 +79,16 @@ export default function Dashboard({ currentUser, onSignOut }) {
     return () => { active = false; };
   }, [asOfDate]);
 
-  // Show the model actually serving answers, as reported by the backend.
+  // Show the model actually serving answers, and whether the backend can reach it (Ollama up, models pulled).
+  // Re-checked every 15 s so the badge turns red when Ollama stops and green again when it is back.
   useEffect(() => {
-    healthCheck().then(h => setAnswerModel(h?.models?.answer ?? null));
+    const check = () => healthCheck().then(h => {
+      setAnswerModel(h?.models?.answer ?? null);
+      setEngineOk(!!h && !!h.ollama && Object.values(h.ollama).every(v => v === true));
+    });
+    check();
+    const t = setInterval(check, 15000);
+    return () => clearInterval(t);
   }, []);
 
   // Load proposals from GET /proposals
@@ -173,11 +181,19 @@ export default function Dashboard({ currentUser, onSignOut }) {
             <span className="text-[#64748B]">NODE:</span>
             <span className="text-[#0F172A] font-medium">nimbus-ledger.local</span>
             <span className="text-slate-300">|</span>
-            <span className="text-emerald-700 flex items-center gap-1 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-              {answerModel ? `Local Engine Active (Ollama · ${answerModel})` : 'Local engine unreachable'}
-            </span>
+            {engineOk !== false && (
+              <span className="text-emerald-700 flex items-center gap-1 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                {answerModel ? `Local Engine Active (Ollama · ${answerModel})` : 'Checking local engine…'}
+              </span>
+            )}
           </div>
+          {engineOk === false && (
+            <span className="font-mono text-[11px] px-2 py-1 rounded-md badge-note-rose"
+                  title="The backend cannot reach Ollama or a model is missing. Start Ollama and check `ollama list`.">
+              Local model unreachable: start Ollama
+            </span>
+          )}
         </div>
 
         {/* View Switcher Segmented Pills */}

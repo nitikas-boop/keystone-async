@@ -49,7 +49,9 @@ async def surface_errors(request, call_next):
         return await call_next(request)
     except openai.APIError as e:
         log.error('local model error on %s: %s', request.url.path, e)
-        return JSONResponse({'detail': f'local model error (is Ollama running with the models pulled?): {e}'}, 503)
+        return JSONResponse({'detail': f'local model error: the backend could not use Ollama at {config.OLLAMA_BASE_URL} '
+                                       f'({e}). Start Ollama; `ollama list` must show {config.ANSWER_MODEL} and '
+                                       f'{config.EMBED_MODEL}.'}, 503)
     except Exception as e:
         log.exception('unhandled error on %s', request.url.path)
         return JSONResponse({'detail': f'{type(e).__name__}: {e}'}, 500)
@@ -78,8 +80,9 @@ async def health():
             tags = (await h.get(f'{config.OLLAMA_BASE_URL}/api/tags')).json()
         names = {m['name'] for m in tags.get('models', [])}
         out['ollama'] = {m: (m in names or f'{m}:latest' in names) for m in (config.ANSWER_MODEL, config.EMBED_MODEL)}
-    except Exception:
+    except Exception as e:
         out['ollama'] = False
+        out['ollama_error'] = f'cannot reach {config.OLLAMA_BASE_URL}: {type(e).__name__}: {e}'
     if not (out['postgres'] and out['neo4j']):
         raise HTTPException(503, out)
     return out

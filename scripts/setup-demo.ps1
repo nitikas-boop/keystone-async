@@ -25,6 +25,15 @@ Step 'pull nomic-embed-text' { ollama pull nomic-embed-text }
 Step 'build and start the stack' { docker compose up -d --build --wait }
 Step 'restore the demo data (backups/nimbus-seed)' { powershell -ExecutionPolicy Bypass -File scripts/restore.ps1 -Name nimbus-seed }
 Get-ChildItem outbox -Filter *.eml -ErrorAction SilentlyContinue | Remove-Item
+
+# `ollama list` above ran on Windows; this checks the backend container can reach Ollama too (what the chat needs).
+Write-Host '== backend can reach Ollama'
+$h = Invoke-RestMethod http://localhost:8000/health
+if (-not $h.ollama -or ($h.ollama.PSObject.Properties.Value -contains $false)) {
+    throw "The backend cannot use Ollama: $($h.ollama_error) $($h.ollama | ConvertTo-Json -Compress). " +
+          "Start Ollama (Windows app, not inside WSL) and make sure 'ollama list' shows qwen2.5-7b-16k and nomic-embed-text."
+}
+Write-Host ($h.ollama | ConvertTo-Json -Compress)
 Step 'install frontend packages' { npm install }
 
 Write-Host ''

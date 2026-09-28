@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   ArrowRight, 
@@ -15,11 +15,17 @@ import {
   Info
 } from 'lucide-react';
 import Logo from './Logo';
+import { healthCheck } from '../api';
 
 export default function LandingPage({ onLaunchConsole }) {
   const [activeTab, setActiveTab] = useState('temporal');
   const [sliderPreviewDate, setSliderPreviewDate] = useState('2025-06-30');
   const [activeWorkflowStep, setActiveWorkflowStep] = useState(2);
+  // Real status: backend up and it can reach Ollama with both models (null = not checked yet).
+  const [engineOk, setEngineOk] = useState(null);
+  useEffect(() => {
+    healthCheck().then(h => setEngineOk(!!h && !!h.ollama && Object.values(h.ollama).every(v => v === true)));
+  }, []);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('sk-sov-nimbus-ledger-2026-prod');
 
@@ -86,9 +92,9 @@ export default function LandingPage({ onLaunchConsole }) {
           <a href="#comparison" className="text-[#64748B] hover:text-[#0F172A] transition-colors">
             Architecture Matrix
           </a>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md badge-note-green text-[11px]">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span>
-            <span>Local Engine Active</span>
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] ${engineOk === false ? 'badge-note-rose' : 'badge-note-green'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${engineOk === false ? 'bg-rose-600' : 'bg-emerald-600 animate-ping'}`}></span>
+            <span>{engineOk === null ? 'Checking local engine…' : engineOk ? 'Local Engine Active' : 'Local model unreachable'}</span>
           </div>
         </div>
 
