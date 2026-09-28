@@ -33,3 +33,7 @@ GROUP_ID = E('GROUP_ID', 'keystone')
 VAULT_DIR = E('VAULT_DIR', 'data/vault')
 OUTBOX_DIR = E('OUTBOX_DIR', 'outbox')
 KEYSTONE_RETRIEVAL_ADAPTER = E('KEYSTONE_RETRIEVAL_ADAPTER', 'graphiti')
+
+# ponytail: visibility filter by user list; full RBAC / source-level ACLs are roadmap
+RESTRICTED_READERS = set(E('RESTRICTED_READERS', 'nitika,farhan,ananya').split(','))
+WHISPER_MODEL = E('WHISPER_MODEL', 'base.en')

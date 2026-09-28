@@ -22,6 +22,19 @@ Team *minty jamun* · ASYNC'26 Track 1 (Sovereign AI). Demo dataset: "Nimbus Led
   approved (today it writes an `.eml` to `outbox/`), and every step is appended to a hash-chained audit log.
 - **Ingestion review.** Facts the model extracts from meeting notes carry their source sentence, confidence and
   verification state; a human accepts or rejects each one.
+- **Voice, transcribed locally.** A mic button in the chat and meeting-audio upload in Ingest Document. Audio goes
+  to `POST /transcribe` (faster-whisper `base.en` on CPU, weights in `backend/models/`, no runtime download); a
+  recording becomes an ordinary `meeting_note` with front-matter and goes through the same extraction + review path.
+  The browser's Web Speech API is not used: Chrome sends that audio to Google.
+- **Visibility filter at retrieval.** Nodes with `visibility: restricted` (DEC-008, MTG-2025-08-12) never reach the
+  prompt unless the asking user is in `RESTRICTED_READERS` (default nitika, farhan, ananya). Priya gets the ordinary
+  refusal. A user list, not RBAC.
+- **MCP server.** `mcp/keystone_mcp.py` (stdio, stdlib only) exposes `ask`, `check_compliance`, `list_policies`,
+  `list_flags`, `list_proposals`, `verify_audit_chain` and one write tool, `propose_action`, which can only create a
+  `proposed` row (`POST /proposals`): approval stays a human click. Claude Desktop config:
+  `{"mcpServers": {"keystone": {"command": "python", "args": ["<repo>/mcp/keystone_mcp.py"]}}}`
+- **Server-side chain check.** `GET /audit/verify` recomputes every hash and link and names the first broken row;
+  the Audit Trail's Verify button runs it alongside the in-browser check.
 
 ## Stack
 
@@ -78,14 +91,24 @@ docker compose exec backend python -m pytest -q tests
 Tests run against an isolated backend on :8001 (`keystone_test` database, graph group `keystone-test`) and never
 touch the demo data.
 
+Evaluation against `data/ground-truth.json` (extraction precision/recall + answer correctness for the demo
+questions; exit 1 on any failed answer). It writes answers and audit rows, so restore `nimbus-seed` afterwards:
+
+```bash
+python backend/tests/eval.py http://localhost:8000
+```
+
+Last run (28 Sept): 5/5 demo answers pass; extraction precision 1.00, recall 0.67 (the MTG-2025-05-14 decision is
+skipped by design because DEC-006 already records it).
+
 ## Known limitations
 
 - Extraction quality bounds the graph: every extracted fact needs human review.
 - Open-textured clauses are marked `checkable: false` and returned as `not_checkable`, never guessed.
 - Exceptions, waivers and decision-vs-decision conflicts are not modelled.
-- Single-tenant; permissions (RBAC, source-level ACLs) are roadmap.
+- Single-tenant; the only access control is the restricted-visibility user list. RBAC and source-level ACLs are roadmap.
 - The audit log is tamper-evident, not regulatory-grade.
-- MCP tools are roadmap: the executor writes email files to `outbox/`.
+- Real Jira/Gmail/Slack integrations are roadmap: the executor writes email files to `outbox/`.
 - The data is synthetic.
 
 Graphiti (by Zep) is the temporal graph engine underneath; Keystone adds the clause model, the deterministic

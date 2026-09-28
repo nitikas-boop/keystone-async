@@ -108,6 +108,21 @@ export async function uploadDocument(file) {
   return handleResponse(res);
 }
 
+// Local Whisper on the backend. With meetingDate the result also carries a meeting_note Markdown document.
+export async function transcribe(blob, filename = 'recording.webm', meetingDate = null, title = null) {
+  const formData = new FormData();
+  formData.append('file', blob, filename);
+  if (meetingDate) formData.append('meeting_date', meetingDate);
+  if (title) formData.append('title', title);
+  const res = await fetch(`${API}/transcribe`, { method: 'POST', headers: headers(), body: formData });
+  return handleResponse(res);
+}
+
+export async function verifyAuditServer() {
+  const res = await fetch(`${API}/audit/verify`, { headers: headers() });
+  return handleResponse(res);
+}
+
 // ---- Decisions / Compliance ----
 
 export async function fetchDecisions(asOf) {

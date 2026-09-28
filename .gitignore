@@ -37,3 +37,6 @@ backups/*
 
 # recorded demo video (large; share it directly)
 demo-recording/
+
+# local Whisper model weights (downloaded once, see backend/app/stt.py)
+backend/models/

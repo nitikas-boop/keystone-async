@@ -11,10 +11,14 @@ import {
   Cpu,
   CornerDownLeft,
   RotateCcw,
-  Info
+  Info,
+  Mic,
+  Square,
+  Loader2
 } from 'lucide-react';
 import { DEMO_QUERIES } from '../data/demoQueries';
-import { ask } from '../api';
+import { ask, transcribe } from '../api';
+import { startRecording } from '../utils/recorder';
 
 // Turn a live /ask response into the message shape this panel renders.
 function toMessage(res) {
@@ -117,6 +121,35 @@ export default function ChatPanel({
     } finally {
       setIsProcessing(false);
       setProcessingStep('');
+    }
+  };
+
+  // Voice query: record, transcribe on the local backend, then run the same /ask pipeline as typed text.
+  const [micState, setMicState] = useState('idle');  // idle | recording | transcribing
+  const recorderRef = useRef(null);
+  const toggleMic = async () => {
+    if (micState === 'idle') {
+      try {
+        recorderRef.current = await startRecording();
+        setMicState('recording');
+      } catch (err) {
+        setMessages(prev => [...prev, { id: `err-${Date.now()}`, role: 'assistant', citations: [],
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          content: `⚠️ Microphone unavailable: ${err.message}` }]);
+      }
+      return;
+    }
+    if (micState !== 'recording') return;
+    setMicState('transcribing');
+    try {
+      const { text } = await transcribe(await recorderRef.current.stop());
+      setMicState('idle');
+      executeQuestion(text);
+    } catch (err) {
+      setMicState('idle');
+      setMessages(prev => [...prev, { id: `err-${Date.now()}`, role: 'assistant', citations: [],
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        content: `⚠️ Transcription failed: ${err.message}` }]);
     }
   };
 
@@ -301,9 +334,19 @@ export default function ChatPanel({
             onKeyDown={handleKeyDown}
             placeholder="Ask Keystone (e.g., 'Was keeping customer logs for 180 days compliant in Q2 2025?')..."
             rows={1}
-            className="w-full bg-[#F8FAFC] border border-slate-200 rounded-lg pl-3 pr-20 py-2.5 text-xs text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-300 resize-none font-sans"
+            className="w-full bg-[#F8FAFC] border border-slate-200 rounded-lg pl-3 pr-28 py-2.5 text-xs text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-300 resize-none font-sans"
           />
           <div className="absolute right-2 flex items-center gap-1.5">
+            <button
+              onClick={toggleMic}
+              disabled={isProcessing || micState === 'transcribing'}
+              title={micState === 'recording' ? 'Stop and transcribe (local Whisper)' : 'Ask by voice (transcribed locally)'}
+              aria-label="Ask by voice"
+              data-testid="mic-button"
+              className={`p-1.5 rounded-md border text-xs cursor-pointer disabled:opacity-40 ${micState === 'recording' ? 'bg-rose-500 border-rose-500 text-white animate-pulse' : 'bg-white border-slate-200 text-slate-600 hover:border-sky-400'}`}
+            >
+              {micState === 'transcribing' ? <Loader2 size={13} className="animate-spin" /> : micState === 'recording' ? <Square size={13} /> : <Mic size={13} />}
+            </button>
             <button
               onClick={() => executeQuestion(inputValue)}
               disabled={!inputValue.trim() || isProcessing}

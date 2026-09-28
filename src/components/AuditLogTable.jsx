@@ -9,6 +9,7 @@ import {
   X
 } from 'lucide-react';
 import { formatHash, verifyAuditChain } from '../utils/crypto';
+import { verifyAuditServer } from '../api';
 
 export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
   const [selectedBlock, setSelectedBlock] = useState(null);
@@ -27,7 +28,9 @@ export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
     setIsVerifying(true);
     let result;
     try {
-      result = await verifyAuditChain(auditLogs || []);
+      // Two independent checks: in this browser, and GET /audit/verify on the server (whole table).
+      const [client, server] = await Promise.all([verifyAuditChain(auditLogs || []), verifyAuditServer()]);
+      result = { ok: client.ok && server.ok, message: `Browser: ${client.message} Server: ${server.message}` };
     } catch (err) {
       result = { ok: false, message: `Verification could not run: ${err.message}` };
     }

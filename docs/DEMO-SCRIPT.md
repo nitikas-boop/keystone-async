@@ -1,6 +1,6 @@
 # Keystone demo: voice-over script
 
-Narration for the recorded walkthrough (`demo-recording/keystone-demo.webm`, silent, 5:32). Timestamps are where
+Narration for the recorded walkthrough (`demo-recording/v2/keystone-demo-v2.webm`, silent). Timestamps are where
 each scene starts in that recording; each scene is held long enough to read its lines at a normal pace (about 150
 words a minute). The "while it thinks" lines cover the model's answer time; on a slower machine answers take longer,
 so when presenting live, keep talking over those stretches rather than waiting in silence.
@@ -57,9 +57,14 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 > Vikram Shah, May 20th 2025: data residency and cost. And it cites the meeting note from May 14th where that was
 > discussed.
 
-## 7. Q3: VendorCo contract (1:52)
+## 7. Q3 by voice: VendorCo contract (1:52)
 
-> Now a compliance question. *Was the four lakh VendorCo contract approved correctly in March 2025?*
+> Now a compliance question, and this time Priya just asks it out loud. *Was the four lakh VendorCo contract
+> approved correctly in March 2025?*
+>
+> *(while it transcribes)* The audio never leaves this laptop. Whisper runs locally on the backend, the text goes
+> into exactly the same pipeline as a typed question. We deliberately do not use the browser's speech API: Chrome
+> sends that audio to Google.
 >
 > *(while it thinks)* Compliance is never left to the language model. Keystone runs a deterministic check against
 > the clause fields: thresholds, day counts, roles.
@@ -67,6 +72,15 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 > Yes: in March 2025 the procurement policy, version 1, let the CTO sign up to five lakh. But the policy changed in
 > July 2025. Under version 2 the CTO ceiling is two lakh, so the same contract today would need the CEO. Compliant
 > then, non-compliant now, and both clause versions are cited.
+
+## 7b. Visibility filter
+
+> Some records are restricted. DEC-008, the quarterly access-review decision, is marked restricted in its
+> front-matter. Priya asks *Why do we run quarterly access reviews?*
+>
+> She gets the ordinary refusal. The restricted node is filtered out at retrieval, before anything reaches the
+> model, so it cannot leak into an answer, and the refusal does not even hint that something is hidden. Ask the same
+> question as Ananya, the CEO, or Farhan in compliance, and it is answered with its citation.
 
 ## 8. Temporal Graph (2:24)
 
@@ -110,16 +124,28 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 > A separate executor process picks up only approved actions. Here it writes the notification email to the outbox;
 > in production that is the integration point for mail or ticketing.
 
+## 14b. Meeting audio in
+
+> A lot of decisions are made out loud. Here is the recording of today's security sync. We drop the audio file into
+> Ingest Document.
+>
+> *(while it transcribes)* Again, transcribed locally. Keystone turns the transcript into an ordinary meeting note
+> with dated front-matter, so nothing new is trusted: it goes through the same extraction, provenance and review
+> path as a written note.
+
 ## 15. Ingestion Review (4:24)
 
-> Facts extracted from meeting notes are never trusted blindly either. Each one shows the source sentence and the
-> model's confidence, and a person accepts or rejects it before it enters the graph.
+> And here it is: the model found the decision in the recording, Karthik moving all internal tools to single
+> sign-on with Keycloak, with the exact sentence it came from. Facts extracted from meeting notes are never trusted
+> blindly. Each one shows the source sentence and the model's confidence, and a person accepts or rejects it before
+> it enters the graph.
 
 ## 16. Audit trail (4:38)
 
 > Every question, ingestion, flag, approval and execution is written to an append-only audit log. Each row is
 > SHA-256 hash-chained to the previous one. Verify Full Chain recomputes every hash: if anyone edits a row, the
-> chain breaks at that point.
+> chain breaks at that point. The check runs twice, independently: in the browser, and on the server through
+> `GET /audit/verify`, which names the first broken row.
 
 ## 17. Q5: the refusal (5:00)
 
@@ -130,6 +156,10 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 
 ## 18. Close (5:16)
 
+> One more thing you cannot see on screen: Keystone is also an MCP server. Any MCP client, Claude Desktop or an IDE
+> agent, can ask it questions, check compliance, verify the audit chain, and propose an action. Propose only: the
+> proposal lands in this same review queue and waits for a human.
+>
 > Keystone: every decision linked to the rule that was in force, compliance checked deterministically, policy
 > changes traced to their impact, a human approving every action, and a tamper-evident trail. All on local hardware.
 > Thank you.

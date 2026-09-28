@@ -10,7 +10,7 @@ import {
   ShieldAlert,
   ArrowRight
 } from 'lucide-react';
-import { uploadDocument } from '../api';
+import { uploadDocument, transcribe } from '../api';
 import retV3 from '../../data/demo-upload/POL-RET-v3.md?raw';
 import procV2 from '../../data/vault/policies/POL-PROC-v2.md?raw';
 
@@ -40,13 +40,33 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
   const [ingestComplete, setIngestComplete] = useState(false);
   const [returnedFlags, setReturnedFlags] = useState([]);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [transcript, setTranscript] = useState(null);
   const fileInputRef = useRef(null);
 
   if (!isOpen) return null;
 
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setCustomFile(e.target.files[0]);
+  const handleFileChange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('audio/') && !/\.(wav|mp3|m4a|webm|ogg)$/i.test(file.name)) {
+      setCustomFile(file);
+      return;
+    }
+    // Meeting audio: transcribe locally, then upload the transcript as an ordinary meeting_note document.
+    // Meeting date comes from the filename (meeting-YYYY-MM-DD.wav), else today.
+    const meetingDate = file.name.match(/\d{4}-\d{2}-\d{2}/)?.[0] || new Date().toISOString().slice(0, 10);
+    setErrorMsg(null);
+    setIsIngesting(true);
+    setIngestStep(`Transcribing ${file.name} locally (Whisper, no network)...`);
+    try {
+      const { markdown } = await transcribe(file, file.name, meetingDate, `Meeting ${meetingDate} (audio)`);
+      setTranscript(markdown);
+      setCustomFile(new File([markdown], `MTG-${meetingDate}-AUDIO.md`, { type: 'text/markdown' }));
+    } catch (err) {
+      setErrorMsg(`Transcription failed: ${err.message}`);
+    } finally {
+      setIsIngesting(false);
+      setIngestStep('');
     }
   };
 
@@ -88,6 +108,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
     setIngestComplete(false);
     setReturnedFlags([]);
     setCustomFile(null);
+    setTranscript(null);
     setErrorMsg(null);
     onClose();
   };
@@ -172,7 +193,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
-                accept=".md,.txt,.json"
+                accept=".md,.txt,.json,.wav,.mp3,.m4a,.webm,.ogg,audio/*"
                 className="hidden"
               />
               <button
@@ -184,14 +205,14 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
                     : 'border-slate-300 hover:border-slate-400 text-[#64748B]'
                 }`}
               >
-                {customFile ? `Selected custom file: ${customFile.name}` : '+ Or click to browse custom Markdown document...'}
+                {customFile ? `Selected custom file: ${customFile.name}` : '+ Or browse a Markdown document, or meeting audio (transcribed locally)...'}
               </button>
             </div>
 
             {/* Markdown Preview with Front-matter */}
             <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[11px]">
               <pre className="text-[#334155] whitespace-pre-wrap max-h-36 overflow-y-auto leading-relaxed">
-                {customFile ? `[Custom file ready for upload: ${customFile.name}]` : PRESET_FILES[selectedPreset].content.trim()}
+                {transcript && customFile ? transcript.trim() : customFile ? `[Custom file ready for upload: ${customFile.name}]` : PRESET_FILES[selectedPreset].content.trim()}
               </pre>
             </div>
 

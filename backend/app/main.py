@@ -5,13 +5,13 @@ from datetime import date
 
 import httpx
 import openai
-from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .reasoning import ModelUnavailable
-from . import ask, compliance, config, db, extract, graph, ingest, scanner
+from . import ask, compliance, config, db, extract, graph, ingest, scanner, stt
 from . import views
 
 # ponytail: hardcoded users (§9 "hardcoded auth is fine"); real auth/RBAC is roadmap
@@ -110,6 +110,23 @@ async def get_document(doc_id: str):
             'ref_time': row['ref_time'].isoformat(), 'body': row['raw'], 'chunks': [dict(c) for c in chunks]}
 
 
+@app.post('/transcribe')
+async def transcribe(file: UploadFile, meeting_date: date | None = Form(None), title: str | None = Form(None),
+                     who: str = Depends(actor)):
+    """Local Whisper. With meeting_date the transcript comes back as a meeting_note Markdown doc ready for /documents."""
+    audio = await file.read()
+    if not audio:
+        raise HTTPException(422, 'empty audio')
+    name = file.filename or 'recording.webm'
+    text = await asyncio.to_thread(stt.transcribe, audio, '.' + name.rsplit('.', 1)[-1] if '.' in name else '.webm')
+    if not text:
+        raise HTTPException(422, 'no speech recognised')
+    out = {'text': text}
+    if meeting_date:
+        out['markdown'] = stt.meeting_markdown(text, meeting_date, title or f'Meeting {meeting_date}', name)
+    return out
+
+
 # ---- ask / graph ----
 
 class AskIn(BaseModel):
@@ -194,6 +211,28 @@ def proposal_out(r) -> dict:
 async def proposals(status: str | None = None):
     rows = await db.pool.fetch('SELECT * FROM proposals WHERE $1::text IS NULL OR status=$1 ORDER BY id', status)
     return [proposal_out(r) for r in rows]
+
+
+class ProposalIn(BaseModel):
+    decision_id: str
+    clause_id: str
+    to: str = scanner.NOTIFY
+    subject: str
+    body: str
+
+
+@app.post('/proposals', status_code=201)
+async def create_proposal(body: ProposalIn, who: str = Depends(actor)):
+    """The MCP write tool: it can only create a row in status 'proposed'. Approval stays a human click in the
+    Review Queue, and only the executor acts on approved rows."""
+    async with db.pool.acquire() as c, c.transaction():
+        row = await c.fetchrow(
+            "INSERT INTO proposals (decision_id, clause_id, impact_type, to_addr, subject, body) "
+            "VALUES ($1, $2, 'MCP_PROPOSAL', $3, $4, $5) RETURNING *",
+            body.decision_id, body.clause_id, body.to, body.subject, body.body)
+        await db.audit(f'{who}:mcp', 'proposed', 'proposal', str(row['id']), [body.decision_id, body.clause_id],
+                       {'status': 'proposed', 'via': 'mcp'}, conn=c)
+    return proposal_out(row)
 
 
 class ProposalEdit(BaseModel):
@@ -298,3 +337,20 @@ async def reject_extraction(ext_id: int, who: str = Depends(actor)):
 async def audit_log(after_id: int = 0, limit: int = 100):
     rows = await db.pool.fetch('SELECT * FROM audit_log WHERE id > $1 ORDER BY id LIMIT $2', after_id, min(limit, 500))
     return [{**dict(r), 'ts': r['ts'].isoformat()} for r in rows]
+
+
+@app.get('/audit/verify')
+async def verify_chain():
+    """Server-side chain check: recompute every row hash and link; report the first broken row."""
+    rows = await db.pool.fetch('SELECT * FROM audit_log ORDER BY id')
+    prev = '0' * 64
+    for r in rows:
+        if r['prev_hash'] != prev:
+            return {'ok': False, 'rows': len(rows), 'first_broken_id': r['id'],
+                    'message': f"Row #{r['id']}: prev_hash does not match the previous row's hash."}
+        if db.row_hash(r) != r['hash']:
+            return {'ok': False, 'rows': len(rows), 'first_broken_id': r['id'],
+                    'message': f"Row #{r['id']}: stored hash does not match its contents."}
+        prev = r['hash']
+    return {'ok': True, 'rows': len(rows), 'first_broken_id': None,
+            'message': f'Verified {len(rows)} rows on the server: every hash recomputes and every link holds.'}

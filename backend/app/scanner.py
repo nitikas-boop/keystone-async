@@ -4,7 +4,7 @@ from datetime import date
 from . import compliance, config, db, graph, llm
 
 SEVERITY = {'ONGOING_PRACTICE_BREACH': 'action_needed', 'RULE_CHANGED_SINCE': 'informational',
-            'SUPERSEDED': 'historical'}
+            'SUPERSEDED': 'historical', 'MCP_PROPOSAL': 'informational'}
 NOTIFY = 'p-farhan@nimbus-ledger.local'  # compliance lead in the synthetic org (§7.1)
 
 

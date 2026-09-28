@@ -5,6 +5,7 @@
 //   node scripts/record-demo.mjs demo-recording        (frontend on :5173, or set DEMO_URL)
 import { chromium } from 'playwright';
 import fs from 'node:fs';
+import { resolve } from 'node:path';
 
 const URL = process.env.DEMO_URL || 'http://localhost:5173';
 const W = 1536, H = 864;
@@ -15,7 +16,11 @@ let sceneStart = Date.now();
 const hold = async (sec) => { const left = sceneStart + sec * 1000 - Date.now(); if (left > 0) await page.waitForTimeout(left); };
 const mark = (label) => { sceneStart = Date.now(); const s = (Date.now() - t0) / 1000; marks.push({ s, label }); console.log(`${s.toFixed(1).padStart(6)}s  ${label}`); };
 
-const browser = await chromium.launch();
+// Fake microphone: the voice question is a TTS recording played into getUserMedia, then transcribed by the
+// backend's local Whisper exactly as a real microphone would be.
+const VOICE = resolve('data/demo-upload/voice-question.wav');  // run from the repo root
+const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
+  `--use-file-for-fake-audio-capture=${VOICE}%noloop`] });
 const ctx = await browser.newContext({ viewport: { width: W, height: H }, recordVideo: { dir: OUT, size: { width: W, height: H } } });
 // Visible cursor + scene caption (headless video has no cursor).
 await ctx.addInitScript(() => {
@@ -79,7 +84,15 @@ await hold(20); await ask('Project Atlas History', 'Q1  Show the history of Proj
 await hold(24); mark('Click a citation, graph inspector'); await caption('Every sentence cites a graph node; click to inspect');
 await click(page.locator('.citation-pill-paper').last(), 3500);
 await hold(14); await ask('Why We Left AWS', 'Q2  Why did we move off AWS in May 2025?');
-await hold(18); await ask('VendorCo Contract', 'Q3  Was the ₹4 lakh VendorCo contract approved correctly?');
+await hold(18); mark('Q3 by voice: VendorCo contract'); await caption('Q3 by voice: transcribed on this machine by local Whisper, then the same /ask pipeline');
+await click(page.getByTestId('mic-button'), 5500);
+await click(page.getByTestId('mic-button'), 300);
+await waitAnswer();
+await hold(22); mark('Visibility filter'); await caption('Visibility filter: DEC-008 is restricted, so it never reaches Priya’s retrieval');
+await click(page.locator('textarea'), 200);
+await page.keyboard.type('Why do we run quarterly access reviews?', { delay: 35 });
+await page.keyboard.press('Enter');
+await waitAnswer();
 
 // 4. Temporal graph + time travel
 await hold(32); mark('Temporal Graph view'); await caption('Temporal Graph: chat beside the graph, timeline on top');
@@ -110,11 +123,21 @@ await hold(14); mark('Executor ran'); await caption('The executor picks up the a
 await pause(3000);
 
 // 7. Ingestion review
-await hold(12); mark('Ingestion Review'); await caption('Ingestion Review: extracted facts with their source sentence');
+await hold(12); mark('Meeting audio ingest'); await caption('Meeting audio in: transcribed locally, ingested as an ordinary meeting note');
+await click(header('Ingest Document'), 1500);
+await page.locator('input[type=file]').setInputFiles('data/demo-upload/meeting-2026-09-28.wav');
+await page.getByText('Transcribed locally').waitFor({ timeout: 120000 });
+await pause(4000);
+await hold(12); await click(page.getByRole('button', { name: /Upload & Run Scanner/ }), 500);
+await page.getByText('Impact Scanner Findings').waitFor({ timeout: 300000 });
+await pause(3000);
+await click(page.locator('.paper-sheet-elevated > button').first(), 1500);
+await hold(10); mark('Ingestion Review'); await caption('Ingestion Review: the Keycloak decision extracted from the audio waits for a human');
 await click(header('Ingestion Review'), 5000);
+await page.mouse.move(W / 2, H / 2, { steps: 15 }); await wheel(200, 15); await pause(3000);
 
 // 8. Audit trail
-await hold(14); mark('Audit Trail: verify chain'); await caption('Tamper-evident audit log: verify the SHA-256 hash chain');
+await hold(14); mark('Audit Trail: verify chain'); await caption('Tamper-evident audit log: verified in the browser and by GET /audit/verify on the server');
 await click(header('Audit Trail'), 2500);
 await click(page.getByRole('button', { name: /Verify Full Chain/ }), 5000);
 

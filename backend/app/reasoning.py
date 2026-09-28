@@ -23,6 +23,7 @@ import json
 import logging
 import re
 import uuid
+from dataclasses import replace
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -112,6 +113,18 @@ class ModelUnavailable(RuntimeError):
     """The local LLM could not be reached; surfaced to the API as 503."""
 
 
+def drop_restricted(r):
+    """Retrieval-time visibility filter: restricted nodes, their edges and sources never reach the prompt, and a
+    question answered only by restricted facts gets the ordinary refusal (no hint that something is hidden)."""
+    hidden = {n.id for n in r.nodes if (n.provenance or {}).get('visibility') == 'restricted'}
+    edges = [e for e in r.edges if e.source not in hidden and e.target not in hidden
+             and (e.provenance or {}).get('visibility') != 'restricted']
+    return replace(r, nodes=[n for n in r.nodes if n.id not in hidden], edges=edges,
+                   seed_keys=[k for k in r.seed_keys if k not in hidden],
+                   sources={k: v for k, v in r.sources.items() if k not in hidden},
+                   ranked_scores=[x for x in r.ranked_scores if not hidden & set(x['keys'])])
+
+
 class ReasoningEngine:
     """Core reasoning engine decoupled from specific database/graph backend."""
 
@@ -132,6 +145,8 @@ class ReasoningEngine:
             retrieval = await self.adapter.retrieve(f"{' '.join(user_queries[-2:])} {question}", as_of)
         if retrieval is None or retrieval.is_empty:
             retrieval = await self.adapter.retrieve(question, as_of)
+        if actor.removeprefix('user:') not in config.RESTRICTED_READERS:
+            retrieval = drop_restricted(retrieval)
 
         subgraph_nodes = [n.to_dict() for n in retrieval.nodes]
         subgraph_edges = [e.to_dict() for e in retrieval.edges]
