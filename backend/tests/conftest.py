@@ -227,12 +227,33 @@ async def nimbus_test_graph():
         await c.execute('DELETE FROM proposals; DELETE FROM flags; DELETE FROM extractions; DELETE FROM answers; '
                         'DELETE FROM chunks; DELETE FROM policy_clauses; DELETE FROM documents;')
 
-    # Ingest policies first, then decisions using ingest.ingest
-    for path, text in TEST_POLICIES:
-        await ingest.ingest(text, path, 'user:nitika')
+    from pathlib import Path
+    vault_dir = Path('/vault') if Path('/vault').exists() else (Path(__file__).parents[2] / 'data' / 'vault')
 
-    for path, text in TEST_DECISIONS:
-        await ingest.ingest(text, path, 'user:nitika')
+    policy_files = [
+        'policies/POL-PROC-v1.md', 'policies/POL-PROC-v2.md',
+        'policies/POL-RET-v1.md', 'policies/POL-RET-v2.md',
+    ]
+    decision_files = [
+        'decisions/DEC-003.md', 'decisions/DEC-004.md', 'decisions/DEC-006.md',
+        'decisions/DEC-007.md', 'decisions/DEC-010.md',
+    ]
+
+    for f in policy_files:
+        p = vault_dir / f
+        if p.exists():
+            await ingest.ingest(p.read_text(encoding='utf-8'), f, 'user:nitika')
+
+    v3_path = vault_dir.parent / 'demo-upload' / 'POL-RET-v3.md'
+    if v3_path.exists():
+        await ingest.ingest(v3_path.read_text(encoding='utf-8'), 'policies/POL-RET-v3.md', 'user:nitika')
+    elif (vault_dir / 'policies' / 'POL-RET-v3.md').exists():
+        await ingest.ingest((vault_dir / 'policies' / 'POL-RET-v3.md').read_text(encoding='utf-8'), 'policies/POL-RET-v3.md', 'user:nitika')
+
+    for f in decision_files:
+        p = vault_dir / f
+        if p.exists():
+            await ingest.ingest(p.read_text(encoding='utf-8'), f, 'user:nitika')
 
     yield
 

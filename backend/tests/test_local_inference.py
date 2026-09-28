@@ -52,7 +52,7 @@ pytestmark = pytest.mark.skipif(
 # ── Session-scoped warmup: fires a tiny generation so the model is loaded
 # into VRAM before any real inference test runs.  All tests that need a warm
 # model must declare `warm_model` as a parameter.
-@pytest.fixture(scope="session")
+@pytest.fixture
 async def warm_model():
     """Ensure locked model is loaded into VRAM before inference tests."""
     payload = {

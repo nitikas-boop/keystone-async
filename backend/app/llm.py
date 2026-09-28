@@ -10,7 +10,8 @@ log = logging.getLogger('keystone.llm')
 
 async def chat_json(system: str, user: str, schema: dict, model: str = config.ANSWER_MODEL,
                     base_url: str = config.OLLAMA_BASE_URL, timeout: float = 180) -> dict:
-    async with httpx.AsyncClient(timeout=timeout) as h:
+    t = httpx.Timeout(timeout, connect=4.0)
+    async with httpx.AsyncClient(timeout=t) as h:
         r = await h.post(f'{base_url}/api/chat', json={
             'model': model, 'stream': False, 'think': False, 'format': schema,
             'options': {'temperature': 0},

@@ -43,6 +43,8 @@ class SyntheticRetrievalAdapter(BaseRetrievalAdapter):
     def __init__(self, vault_dir: Optional[str] = None, demo_upload_dir: Optional[str] = None):
         if vault_dir:
             self.vault_dir = Path(vault_dir)
+        elif Path('/vault').exists():
+            self.vault_dir = Path('/vault')
         else:
             # Search parent directories for data/vault
             curr = Path(__file__).resolve()
@@ -55,6 +57,10 @@ class SyntheticRetrievalAdapter(BaseRetrievalAdapter):
 
         if demo_upload_dir:
             self.demo_upload_dir = Path(demo_upload_dir)
+        elif (self.vault_dir.parent / 'demo-upload').exists():
+            self.demo_upload_dir = self.vault_dir.parent / 'demo-upload'
+        elif Path('/demo-upload').exists():
+            self.demo_upload_dir = Path('/demo-upload')
         else:
             curr = Path(__file__).resolve()
             found = None

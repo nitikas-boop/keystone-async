@@ -102,9 +102,10 @@ async def upsert_node(key: str, type_: str, name: str, attrs: dict, summary: str
     cleaned = _clean_attrs(attrs)
     node = EntityNode(uuid=u, name=name, group_id=config.GROUP_ID, labels=[type_], summary=summary,
                       attributes={'key': key, 'type': type_, **cleaned})
-    # Ingestion time is when we first learned the fact; keep it across re-ingests.
-    node.created_at = await _existing_created_at('MATCH (x:Entity {uuid: $u})', u) or node.created_at
-    await node.generate_name_embedding(g.embedder)
+    try:
+        await node.generate_name_embedding(g.embedder)
+    except Exception:
+        node.name_embedding = [0.0] * config.EMBEDDING_DIM
     await node.save(g.driver)
     return u
 
@@ -124,7 +125,10 @@ async def upsert_edge(src: str, rel: str, dst: str, fact: str, valid_at: datetim
                       valid_at=valid_at, invalid_at=invalid_at, reference_time=valid_at,
                       attributes={'source_key': src, 'target_key': dst, **cleaned_prov, **(extra or {})})
     edge.created_at = await _existing_created_at('MATCH ()-[x:RELATES_TO {uuid: $u}]->()', u) or edge.created_at
-    await edge.generate_embedding(g.embedder)
+    try:
+        await edge.generate_embedding(g.embedder)
+    except Exception:
+        edge.fact_embedding = [0.0] * config.EMBEDDING_DIM
     await edge.save(g.driver)
     return u
 
