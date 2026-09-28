@@ -174,7 +174,7 @@ def test_extraction_robustness_missing_quotes_and_none_fields():
 # =====================================================================
 
 @pytest.mark.asyncio
-async def test_synthetic_retrieval_temporal_filtering():
+async def test_synthetic_retrieval_temporal_filtering(nimbus_test_graph):
     adapter = SyntheticRetrievalAdapter()
 
     # 1. As of 2024-06-01: DEC-001 exists, DEC-002 (2024-07-22) does not
@@ -191,7 +191,7 @@ async def test_synthetic_retrieval_temporal_filtering():
 
 
 @pytest.mark.asyncio
-async def test_policy_clause_version_in_force():
+async def test_policy_clause_version_in_force(nimbus_test_graph):
     adapter = SyntheticRetrievalAdapter()
 
     # 2024 -> RET-2.1@v1 (365 days)
@@ -223,7 +223,7 @@ async def test_policy_clause_version_in_force():
 # 3. Deterministic Compliance Tests
 # =====================================================================
 
-def test_deterministic_compliance_all_outcomes():
+def test_deterministic_compliance_all_outcomes(nimbus_test_graph):
     ret_v2 = {'clause_id': 'RET-2.1', 'version': 'v2', 'effective_from': '2025-01-06',
               'effective_to': '2026-09-28', 'checkable': True, 'fields': {'retention_days_max': 180}}
     ret_v3 = {'clause_id': 'RET-2.1', 'version': 'v3', 'effective_from': '2026-09-28',
@@ -334,7 +334,7 @@ def test_citation_validation_and_retry():
 # =====================================================================
 
 @pytest.mark.asyncio
-async def test_demo_query_1_project_atlas_history():
+async def test_demo_query_1_project_atlas_history(nimbus_test_graph):
     adapter = SyntheticRetrievalAdapter()
     engine = ReasoningEngine(adapter)
 
@@ -346,7 +346,7 @@ async def test_demo_query_1_project_atlas_history():
 
 
 @pytest.mark.asyncio
-async def test_demo_query_2_move_off_aws():
+async def test_demo_query_2_move_off_aws(nimbus_test_graph):
     adapter = SyntheticRetrievalAdapter()
     engine = ReasoningEngine(adapter)
 
@@ -357,7 +357,7 @@ async def test_demo_query_2_move_off_aws():
 
 
 @pytest.mark.asyncio
-async def test_demo_query_3_vendorco_contract():
+async def test_demo_query_3_vendorco_contract(nimbus_test_graph):
     adapter = SyntheticRetrievalAdapter()
     engine = ReasoningEngine(adapter)
 
@@ -369,7 +369,7 @@ async def test_demo_query_3_vendorco_contract():
 
 
 @pytest.mark.asyncio
-async def test_demo_query_4_customer_log_retention_q2_2025():
+async def test_demo_query_4_customer_log_retention_q2_2025(nimbus_test_graph):
     adapter = SyntheticRetrievalAdapter()
     engine = ReasoningEngine(adapter)
 
@@ -381,7 +381,7 @@ async def test_demo_query_4_customer_log_retention_q2_2025():
 
 
 @pytest.mark.asyncio
-async def test_demo_query_5_policy_v3_impact():
+async def test_demo_query_5_policy_v3_impact(nimbus_test_graph):
     adapter = SyntheticRetrievalAdapter()
     engine = ReasoningEngine(adapter)
 
@@ -395,7 +395,7 @@ async def test_demo_query_5_policy_v3_impact():
 
 
 @pytest.mark.asyncio
-async def test_demo_query_6_no_evidence_refusal_mongodb():
+async def test_demo_query_6_no_evidence_refusal_mongodb(nimbus_test_graph):
     adapter = SyntheticRetrievalAdapter()
     engine = ReasoningEngine(adapter)
 
@@ -407,7 +407,7 @@ async def test_demo_query_6_no_evidence_refusal_mongodb():
 
 
 @pytest.mark.asyncio
-async def test_demo_query_7_anonymised_logs_not_checkable():
+async def test_demo_query_7_anonymised_logs_not_checkable(nimbus_test_graph):
     """Verify that checking anonymised log retention (24 months) against RET-2.1 results in not_checkable."""
     ret_v2 = {'clause_id': 'RET-2.1', 'version': 'v2', 'effective_from': '2025-01-06',
               'effective_to': '2026-09-28', 'checkable': True, 'fields': {'retention_days_max': 180}}
