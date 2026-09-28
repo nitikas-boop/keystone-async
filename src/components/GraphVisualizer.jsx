@@ -60,7 +60,7 @@ export default function GraphVisualizer({
   const svgRef = useRef(null);
   const canvasRef = useRef(null);
   const viewRef = useRef({ zoom, pan });
-  viewRef.current = { zoom, pan };
+  useEffect(() => { viewRef.current = { zoom, pan }; }, [zoom, pan]);
 
   // Wheel zooms toward the cursor. Native listener: React's onWheel is passive and cannot stop the page scrolling.
   useEffect(() => {
