@@ -24,6 +24,10 @@ Step 'pull nomic-embed-text' { ollama pull nomic-embed-text }
 
 Step 'build and start the stack' { docker compose up -d --build --wait }
 Step 'restore the demo data (backups/nimbus-seed)' { powershell -ExecutionPolicy Bypass -File scripts/restore.ps1 -Name nimbus-seed }
+# Whisper weights (~140 MB) are gitignored; fetch them once so voice works offline afterwards.
+Step 'download Whisper base.en weights (backend/models)' {
+    docker compose exec -T backend python -c "from faster_whisper import WhisperModel; WhisperModel('base.en', device='cpu', compute_type='int8', download_root='/app/models')"
+}
 Get-ChildItem outbox -Filter *.eml -ErrorAction SilentlyContinue | Remove-Item
 
 # `ollama list` above ran on Windows; this checks the backend container can reach Ollama too (what the chat needs).

@@ -45,6 +45,9 @@ services:
       EXTRACT_MODEL: ${EXTRACT_MODEL:-qwen2.5-7b-16k}
       EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
       EMBEDDING_DIM: ${EMBEDDING_DIM:-768}
+      # Refusal cut-off on retrieval cosine. Tune per machine in .env if on-topic questions are refused
+      # (see /ask response 'retrieval.top'); tests/calibrate_threshold.py suggests a value.
+      RELEVANCE_MIN: ${RELEVANCE_MIN:-0.80}
       GRAPHITI_TELEMETRY_ENABLED: "false"
       VAULT_DIR: /vault
       OUTBOX_DIR: /outbox

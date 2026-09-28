@@ -18,8 +18,14 @@ def _load():
     if _model is None:
         from faster_whisper import WhisperModel
         # local_files_only: a missing model is an error, never a silent download.
-        _model = WhisperModel(config.WHISPER_MODEL, device='cpu', compute_type='int8',
-                              download_root=str(MODEL_DIR), local_files_only=True)
+        try:
+            _model = WhisperModel(config.WHISPER_MODEL, device='cpu', compute_type='int8',
+                                  download_root=str(MODEL_DIR), local_files_only=True)
+        except Exception as e:
+            raise RuntimeError(
+                f'Whisper weights ({config.WHISPER_MODEL}) are not in backend/models (they are gitignored). Download once: '
+                f'docker compose exec backend python -c "from faster_whisper import WhisperModel; '
+                f"WhisperModel('{config.WHISPER_MODEL}', device='cpu', compute_type='int8', download_root='/app/models')\"") from e
     return _model
 
 
