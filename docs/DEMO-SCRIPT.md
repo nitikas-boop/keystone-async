@@ -1,6 +1,6 @@
 # Keystone demo: voice-over script
 
-Narration for the recorded walkthrough (`demo-recording/v2/keystone-demo-v2.webm`, silent). Timestamps are where
+Narration for the recorded walkthrough (`demo-recording/v2/keystone-demo-v2.webm`, silent, 6:20). Timestamps are where
 each scene starts in that recording; each scene is held long enough to read its lines at a normal pace (about 150
 words a minute). The "while it thinks" lines cover the model's answer time; on a slower machine answers take longer,
 so when presenting live, keep talking over those stretches rather than waiting in silence.
@@ -14,7 +14,7 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 
 ---
 
-## 1. Landing page (0:00)
+## 1. Landing page (0:02)
 
 > Every company makes decisions based on the rules in force at the time. A year later the rule has changed, the
 > person who decided has moved on, and nobody can say whether that decision was right *then*, or whether it is
@@ -73,7 +73,7 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 > July 2025. Under version 2 the CTO ceiling is two lakh, so the same contract today would need the CEO. Compliant
 > then, non-compliant now, and both clause versions are cited.
 
-## 7b. Visibility filter
+## 7b. Visibility filter (2:14)
 
 > Some records are restricted. DEC-008, the quarterly access-review decision, is marked restricted in its
 > front-matter. Priya asks *Why do we run quarterly access reviews?*
@@ -82,25 +82,25 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 > model, so it cannot leak into an answer, and the refusal does not even hint that something is hidden. Ask the same
 > question as Ananya, the CEO, or Farhan in compliance, and it is answered with its citation.
 
-## 8. Temporal Graph (2:24)
+## 8. Temporal Graph (2:46)
 
 > The Temporal Graph view gives the graph more room. The chat stays beside it, and the timeline across the top sets
 > the as-of date for everything.
 
-## 9. Q4: 180-day retention in Q2 2025 (2:36)
+## 9. Q4: 180-day retention in Q2 2025 (2:58)
 
 > *Was keeping customer logs for 180 days compliant in Q2 2025?*
 >
 > Yes: retention clause RET-2.1 version 2 allowed exactly 180 days from January 2025. At the limit, but compliant.
 
-## 10. Time travel (2:50)
+## 10. Time travel (3:12)
 
 > Now move the timeline back to January 2024. The graph shows what was true then: version 1 of the retention
 > clause, 365 days, and none of the later decisions exist yet. Forward to January 2025: version 2 takes over.
 > July 2025: the procurement ceiling drops. And back to today. Bi-temporal: we know both when something was true
 > and when we learned it.
 
-## 11. A policy changes: ingest RET-2.1 v3 (3:15)
+## 11. A policy changes: ingest RET-2.1 v3 (3:37)
 
 > Here is the scenario that matters. Legal publishes version 3 of the retention policy: raw logs may now be kept
 > for 90 days, not 180. We ingest the Markdown document.
@@ -108,23 +108,23 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 > *(while it runs)* It is parsed into clause versions with valid-from dates, and the impact scanner checks every
 > decision that relied on the old version.
 
-## 12. Scanner result (3:34)
+## 12. Scanner result (3:56)
 
 > The scanner flags DEC-007, the decision to keep customer logs for 180 days, as an ongoing practice breach: it was
 > compliant when made, but the practice now exceeds the new limit. DEC-002 is marked superseded, for the record
 > only. And Keystone drafts a remediation action, but does not execute it.
 
-## 13. Human-in-the-loop approval (3:58)
+## 13. Human-in-the-loop approval (4:20)
 
 > Nothing leaves Keystone without a human. The proposal sits in the review queue with its reasoning and citations.
 > The reviewer can edit, reject, or approve. We approve.
 
-## 14. Executor (4:12)
+## 14. Executor (4:34)
 
 > A separate executor process picks up only approved actions. Here it writes the notification email to the outbox;
 > in production that is the integration point for mail or ticketing.
 
-## 14b. Meeting audio in
+## 14b. Meeting audio in (4:46)
 
 > A lot of decisions are made out loud. Here is the recording of today's security sync. We drop the audio file into
 > Ingest Document.
@@ -133,28 +133,28 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 > with dated front-matter, so nothing new is trusted: it goes through the same extraction, provenance and review
 > path as a written note.
 
-## 15. Ingestion Review (4:24)
+## 15. Ingestion Review (5:12)
 
 > And here it is: the model found the decision in the recording, Karthik moving all internal tools to single
 > sign-on with Keycloak, with the exact sentence it came from. Facts extracted from meeting notes are never trusted
 > blindly. Each one shows the source sentence and the model's confidence, and a person accepts or rejects it before
 > it enters the graph.
 
-## 16. Audit trail (4:38)
+## 16. Audit trail (5:26)
 
 > Every question, ingestion, flag, approval and execution is written to an append-only audit log. Each row is
 > SHA-256 hash-chained to the previous one. Verify Full Chain recomputes every hash: if anyone edits a row, the
 > chain breaks at that point. The check runs twice, independently: in the browser, and on the server through
 > `GET /audit/verify`, which names the first broken row.
 
-## 17. Q5: the refusal (5:00)
+## 17. Q5: the refusal (5:48)
 
 > Last, a trick question. *Why did we choose MongoDB?*
 >
 > We never did. There is no such decision in the record, so Keystone says so, instead of inventing a plausible
 > answer. No evidence, no answer.
 
-## 18. Close (5:16)
+## 18. Close (6:04)
 
 > One more thing you cannot see on screen: Keystone is also an MCP server. Any MCP client, Claude Desktop or an IDE
 > agent, can ask it questions, check compliance, verify the audit chain, and propose an action. Propose only: the

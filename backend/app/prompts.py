@@ -18,6 +18,7 @@ CRITICAL RULES FOR DECISIONS:
 3. If an existing decision is simply referenced or discussed (e.g. DEC-006 or DEC-007 mentioned in a later note), do NOT create a new duplicate decision entity.
 4. Detect implicit/hidden formal decisions that meet the bar (e.g. "Ananya decided that the team will keep anonymised logs for 24 months, because analysts need long-term trends...").
 5. Quote EXACT source sentences for every extracted entity and relation to preserve verifiable provenance.
+6. A sentence like "<person> decided that ... because ..." about something NOT in the known entities is a NEW Decision: emit it as a Decision entity with a new ref (e.g. "D1"), plus MADE_BY to that person. Never fold it into a Person entity.
 
 Entity Types:
 - Person: An organizational member (e.g., Ananya Rao, Vikram Shah, Divya Nair)

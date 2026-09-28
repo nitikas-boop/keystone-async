@@ -1,4 +1,5 @@
 """Local speech-to-text (faster-whisper on CPU). Weights live in backend/models; nothing is fetched at runtime."""
+import re
 import tempfile
 from datetime import date
 from pathlib import Path
@@ -33,5 +34,7 @@ def transcribe(audio: bytes, suffix: str = '.webm') -> str:
 def meeting_markdown(text: str, meeting_date: date, title: str, source: str) -> str:
     """A transcript becomes an ordinary meeting_note: same front-matter, same ingest + extraction + review path."""
     doc_id = f'MTG-{meeting_date.isoformat()}-AUDIO'
+    # One sentence per paragraph: the 7B extractor misses decisions buried in one long transcript paragraph.
+    text = '\n\n'.join(re.split(r'(?<=[.!?])\s+', text.strip()))
     return (f'---\ndoc_type: meeting_note\ndoc_id: {doc_id}\ntitle: {title}\nmeeting_date: {meeting_date.isoformat()}\n'
-            f'source: {source}\n---\n# {title}\n\n(Transcribed locally from {source}.)\n\n{text}\n')
+            f'source: {source}\n---\n# {title}\n\nTranscript:\n\n{text}\n')

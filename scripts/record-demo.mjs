@@ -126,7 +126,7 @@ await pause(3000);
 await hold(12); mark('Meeting audio ingest'); await caption('Meeting audio in: transcribed locally, ingested as an ordinary meeting note');
 await click(header('Ingest Document'), 1500);
 await page.locator('input[type=file]').setInputFiles('data/demo-upload/meeting-2026-09-28.wav');
-await page.getByText('Transcribed locally').waitFor({ timeout: 120000 });
+await page.locator('pre', { hasText: 'Transcript:' }).waitFor({ timeout: 120000 });
 await pause(4000);
 await hold(12); await click(page.getByRole('button', { name: /Upload & Run Scanner/ }), 500);
 await page.getByText('Impact Scanner Findings').waitFor({ timeout: 300000 });
