@@ -31,4 +31,6 @@ __pycache__/
 # data volumes / snapshots, in case they are ever bind-mounted
 pgdata/
 neo4jdata/
-backups/
+backups/*
+# the demo snapshot is committed so any machine can restore the demo DB in one command
+!backups/nimbus-seed/

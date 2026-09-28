@@ -1,0 +1,9 @@
+﻿{
+    "name":  "nimbus-seed",
+    "git_commit":  "143af5cc4b8d39bb6b174ef8a5e3ace8b19263ad",
+    "audit_rows":  23,
+    "documents":  17,
+    "created":  "2026-09-28T09:58:59.6722227Z",
+    "graph_nodes":  56,
+    "extract_model":  "qwen2.5-7b-16k"
+}

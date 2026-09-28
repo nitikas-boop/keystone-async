@@ -31,7 +31,11 @@ fonts bundled: the running app makes no request off the machine.
 
 ## Run it
 
-Prerequisites: Docker Desktop, Ollama, Node 20+.
+Prerequisites: Docker Desktop, Ollama, Node 20+. **On Windows, one command does all of it** (models, stack, demo
+data, frontend packages): `powershell -ExecutionPolicy Bypass -File scripts/setup-demo.ps1`, then `npm run dev`.
+Recording the demo on another PC: [docs/DEMO-RECORDING.md](docs/DEMO-RECORDING.md).
+
+Manual steps:
 
 ```bash
 sh scripts/create_models.sh          # once per machine: qwen2.5-7b-16k (16k context) + nomic-embed-text
@@ -43,7 +47,7 @@ npm install && npm run dev           # frontend on http://localhost:5173
 Load the demo data, either from the snapshot (fast) or by seeding (~1 min on a 4070 laptop):
 
 ```bash
-powershell -File scripts/restore.ps1 -Name nimbus-seed      # needs backups/nimbus-seed from a teammate
+powershell -File scripts/restore.ps1 -Name nimbus-seed      # snapshot committed in backups/nimbus-seed
 docker compose exec backend python -m app.seed              # or: ingest data/vault/ chronologically
 ```
 
