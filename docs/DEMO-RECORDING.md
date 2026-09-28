@@ -79,7 +79,9 @@ For the sovereignty point, record one take with Wi-Fi switched off: everything a
 
 | Symptom | Fix |
 |---|---|
-| Red error in chat / "model unreachable" | Ollama is not running: start it from the Start menu, then retry |
+| Chat says "Failed to fetch" | The backend is not reachable: `curl http://localhost:8000/health` must answer. If not, `docker compose up -d --wait`. Open the app at `http://localhost:…`, not the PC's network IP |
+| Red error in chat / "local model error" | Ollama is not running or a model is missing: start Ollama, run `ollama list` (needs `qwen2.5-7b-16k` and `nomic-embed-text`), re-run the setup script |
+| A vague question ("explain the latest policy") is refused | Expected: nothing scores above the relevance cutoff. Ask specifically, e.g. "What does the current customer log retention policy say?" |
 | Page shows nothing, or API errors | `docker compose up -d --wait` (Docker Desktop must be running) |
 | After the PC slept, everything is dead | Start Docker Desktop and Ollama again, then `docker compose up -d --wait` |
 | Answers take minutes | No GPU in use: check `ollama ps` shows the model on GPU; close other GPU apps |
