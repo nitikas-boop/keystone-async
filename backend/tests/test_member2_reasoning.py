@@ -341,8 +341,10 @@ def test_only_follow_up_questions_use_session_history():
     from app.reasoning import is_follow_up
     assert not any(is_follow_up(q) for q in (
         'Show the history of Project Atlas.', 'Why did we move off AWS in May 2025?',
-        'Was keeping customer logs for 180 days compliant in Q2 2025?', 'Why did we choose MongoDB?'))
-    assert is_follow_up('Who approved that decision?') and is_follow_up('Why did he leave?')
+        'Was keeping customer logs for 180 days compliant in Q2 2025?', 'Why did we choose MongoDB?',
+        'why did joel make that face'))
+    assert all(is_follow_up(q) for q in (
+        'Who approved that decision?', 'Why did he leave?', 'Why was that?', 'Is that contract still valid?'))
 
 
 def test_citation_lead_in_left_dangling_is_removed():

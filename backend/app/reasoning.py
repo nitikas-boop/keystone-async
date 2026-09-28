@@ -96,7 +96,12 @@ def validate_citations(sentences: List[Dict[str, Any]], sources: Dict[str, Any])
 
 
 # ponytail: pronoun heuristic for "refers back to an earlier turn"; swap for a model-based check if it misfires.
-FOLLOW_UP = re.compile(r"\b(that|this|those|these|it|its|they|them|their|he|him|his|she|her|the same)\b", re.IGNORECASE)
+# "that/this" only counts when it points at a record ("that decision", "why was that?"): "why did Joel make that face"
+# is a new, unrelated question, and treating it as a follow-up re-answered the previous turn.
+FOLLOW_UP = re.compile(
+    r"\b(?:it|its|they|them|their|he|him|his|she|her|the same)\b"
+    r"|\b(?:that|this|those|these)\b(?=\s*(?:[?.!,]|$)|\s+(?:decisions?|polic(?:y|ies)|clauses?|contracts?|projects?|"
+    r"vendors?|changes?|rules?|approvals?|meetings?|choices?|moves?|deals?|ones?|was|is|were|are)\b)", re.IGNORECASE)
 
 
 def is_follow_up(question: str) -> bool:
