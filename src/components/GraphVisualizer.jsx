@@ -333,7 +333,9 @@ export default function GraphVisualizer({
       {/* SVG Canvas */}
       <div 
         ref={canvasRef}
-        className="w-full h-full relative cursor-grab active:cursor-grabbing overflow-hidden"
+        className={`w-full h-full relative cursor-grab active:cursor-grabbing overflow-hidden ${
+          inspectorOpen && activeNodeData ? 'pr-[21rem]' : ''  /* keep nodes out from under the inspector */
+        }`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

@@ -173,6 +173,15 @@ export default function ChatPanel({
     ]);
   };
 
+  // Inline **bold**; a paragraph wrapped in single *...* is italic.
+  const inline = (text) => {
+    const italic = /^\*[^*].*[^*]\*$/.test(text);
+    const body = italic ? text.slice(1, -1) : text;
+    const parts = body.split(/(\*\*[^*]+\*\*)/).map((t, i) =>
+      t.startsWith('**') && t.endsWith('**') ? <strong key={i} className="font-semibold text-[#0F172A]">{t.slice(2, -2)}</strong> : t);
+    return italic ? <em>{parts}</em> : parts;
+  };
+
   const renderMessageContent = (content) => {
     return (
       <div className="space-y-2 text-xs leading-relaxed text-[#1E293B]">
@@ -207,7 +216,7 @@ export default function ChatPanel({
           }
           return (
             <p key={pIdx}>
-              {paragraph}
+              {inline(paragraph)}
             </p>
           );
         })}
