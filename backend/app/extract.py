@@ -134,14 +134,11 @@ def parse_extraction_output(raw: str, body_start: int, out: dict, did: str, path
 
 
 async def _known(as_of: date) -> list[dict]:
-    try:
-        rows = await graph.q(f'MATCH (n:Entity {{group_id: $g}}) WHERE n.type IN $t AND {graph.node_ok("n")} '
-                             'RETURN n.key AS key, n.type AS type, n.name AS name',
-                             g=config.GROUP_ID, t=NODE_TYPES, d=as_of.isoformat())
-        return [dict(r) for r in rows]
-    except Exception as e:
-        log.warning("Graph query failed in _known(%s): %s (%s)", as_of, type(e).__name__, e)
-        return []
+    # Errors surface: extracting without the known entities would silently create duplicates.
+    rows = await graph.q(f'MATCH (n:Entity {{group_id: $g}}) WHERE n.type IN $t AND {graph.node_ok("n")} '
+                         'RETURN n.key AS key, n.type AS type, n.name AS name',
+                         g=config.GROUP_ID, t=NODE_TYPES, d=as_of.isoformat())
+    return [dict(r) for r in rows]
 
 
 async def extract(raw: str, body_start: int, did: str, path: str, ref: date, visibility: str, episode: str) -> dict:

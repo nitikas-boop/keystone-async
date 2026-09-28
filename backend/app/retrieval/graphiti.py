@@ -69,83 +69,41 @@ class GraphitiRetrievalAdapter(BaseRetrievalAdapter):
         self.relevance_min = relevance_min if relevance_min is not None else float(config.E('RELEVANCE_MIN', '0.78'))
 
     async def get_node(self, node_id: str, as_of: Optional[date] = None) -> Optional[NodeRecord]:
-        if graph.g is None or graph.g.driver is None:
-            log.debug("Graphiti driver not connected. get_node returning None.")
+        # Errors surface: a graph failure must not look like "no such node".
+        sub = await graph.read(as_of or date.today(), [node_id])
+        if not sub.get('nodes'):
             return None
-        try:
-            ref_date = as_of or date.today()
-            sub = await graph.read(ref_date, [node_id])
-            if sub and sub.get('nodes'):
-                n = sub['nodes'][0]
-                return NodeRecord(
-                    id=n['id'],
-                    type=n['type'],
-                    label=n['label'],
-                    valid_from=n.get('valid_from'),
-                    valid_to=n.get('valid_to'),
-                    created_at=n.get('created_at'),
-                    attributes=n.get('attributes', {}),
-                    provenance=n.get('provenance', {})
-                )
-        except Exception as e:
-            log.warning("Graphiti get_node failed (%s: %s)", type(e).__name__, e)
-        return None
+        n = sub['nodes'][0]
+        return NodeRecord(id=n['id'], type=n['type'], label=n['label'], valid_from=n.get('valid_from'),
+                          valid_to=n.get('valid_to'), created_at=n.get('created_at'),
+                          attributes=n.get('attributes', {}), provenance=n.get('provenance', {}))
 
     async def get_clause_in_force(self, clause_id: str, on_date: date) -> Optional[Dict[str, Any]]:
-        if db.pool is None:
-            log.debug("Database pool not connected. get_clause_in_force returning None.")
-            return None
-        try:
-            row = await db.pool.fetchrow(
-                'SELECT * FROM policy_clauses WHERE clause_id=$1 AND effective_from <= $2 '
-                'AND (effective_to IS NULL OR effective_to > $2)', clause_id, on_date)
-            return dict(row) if row else None
-        except Exception as e:
-            log.warning("get_clause_in_force DB query failed (%s: %s)", type(e).__name__, e)
-            return None
+        # Errors surface: a database failure must not look like "no clause in force".
+        row = await db.pool.fetchrow(
+            'SELECT * FROM policy_clauses WHERE clause_id=$1 AND effective_from <= $2 '
+            'AND (effective_to IS NULL OR effective_to > $2)', clause_id, on_date)
+        return dict(row) if row else None
 
     async def retrieve(self, question: str, as_of: date) -> RetrievalResult:
         d = as_of.isoformat()
         if graph.g is None or graph.g.driver is None or SEARCH is None:
-            log.warning("Graphiti/Neo4j is not connected or graphiti-core is missing. "
-                        "Cannot perform live Graphiti retrieval. Returning empty RetrievalResult.")
-            return RetrievalResult(
-                as_of=d,
-                question=question,
-                seed_keys=[],
-                nodes=[],
-                edges=[],
-                sources={},
-                ranked_scores=[],
-                relevance_threshold=self.relevance_min
-            )
-        try:
-            dt = graph.at(as_of)
-            filt = SearchFilters(
-                valid_at=[[DateFilter(date=dt, comparison_operator=ComparisonOperator.less_than_equal)]],
-                invalid_at=[[DateFilter(date=dt, comparison_operator=ComparisonOperator.greater_than)],
-                            [DateFilter(comparison_operator=ComparisonOperator.is_null)]])
-            res = await graph.g.search_(question, config=SEARCH, group_ids=[config.GROUP_ID], search_filter=filt)
-            vec = await graph.g.embedder.create(input_data=[question])
-            scored = await graph.q(
-                f'UNWIND $n AS u MATCH (n:Entity {{uuid: u}}) WHERE {graph.node_ok("n")} '
-                'RETURN [n.key] AS keys, vector.similarity.cosine(n.name_embedding, $v) AS s '
-                f'UNION UNWIND $e AS u MATCH (a)-[e:RELATES_TO {{uuid: u}}]->(b) WHERE {graph.EDGE_OK} '
-                f'AND {graph.node_ok("a")} AND {graph.node_ok("b")} '
-                'RETURN [a.key, b.key] AS keys, vector.similarity.cosine(e.fact_embedding, $v) AS s',
-                n=[x.uuid for x in res.nodes], e=[x.uuid for x in res.edges], v=vec, d=d, dt=dt)
-        except Exception as e:
-            log.warning("Graphiti search query failed (%s: %s). Returning empty result.", type(e).__name__, e)
-            return RetrievalResult(
-                as_of=d,
-                question=question,
-                seed_keys=[],
-                nodes=[],
-                edges=[],
-                sources={},
-                ranked_scores=[],
-                relevance_threshold=self.relevance_min
-            )
+            # An outage must never look like a legitimate "I have no recorded decision" refusal.
+            raise RuntimeError('graph retrieval unavailable: Neo4j/Graphiti not connected')
+        dt = graph.at(as_of)
+        filt = SearchFilters(
+            valid_at=[[DateFilter(date=dt, comparison_operator=ComparisonOperator.less_than_equal)]],
+            invalid_at=[[DateFilter(date=dt, comparison_operator=ComparisonOperator.greater_than)],
+                        [DateFilter(comparison_operator=ComparisonOperator.is_null)]])
+        res = await graph.g.search_(question, config=SEARCH, group_ids=[config.GROUP_ID], search_filter=filt)
+        vec = await graph.g.embedder.create(input_data=[question])
+        scored = await graph.q(
+            f'UNWIND $n AS u MATCH (n:Entity {{uuid: u}}) WHERE {graph.node_ok("n")} '
+            'RETURN [n.key] AS keys, vector.similarity.cosine(n.name_embedding, $v) AS s '
+            f'UNION UNWIND $e AS u MATCH (a)-[e:RELATES_TO {{uuid: u}}]->(b) WHERE {graph.EDGE_OK} '
+            f'AND {graph.node_ok("a")} AND {graph.node_ok("b")} '
+            'RETURN [a.key, b.key] AS keys, vector.similarity.cosine(e.fact_embedding, $v) AS s',
+            n=[x.uuid for x in res.nodes], e=[x.uuid for x in res.edges], v=vec, d=d, dt=dt)
         ranked = sorted(({'keys': r['keys'], 'score': round(r['s'], 3)} for r in scored), key=lambda r: -r['score'])
         seeds: List[str] = []
         for r in ranked:

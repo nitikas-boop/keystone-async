@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from .reasoning import ModelUnavailable
 from . import ask, compliance, config, db, extract, graph, ingest
 from . import views
 
@@ -96,7 +97,10 @@ class AskIn(BaseModel):
 async def ask_endpoint(body: AskIn, who: str = Depends(actor)):
     if not body.question.strip():
         raise HTTPException(422, 'question is empty')
-    return await ask.ask(body.question.strip(), body.as_of or date.today(), who, session_id=body.session_id)
+    try:
+        return await ask.ask(body.question.strip(), body.as_of or date.today(), who, session_id=body.session_id)
+    except ModelUnavailable as e:
+        raise HTTPException(503, str(e))
 
 
 @app.get('/answers/{answer_id}')

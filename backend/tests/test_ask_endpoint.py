@@ -1,3 +1,4 @@
+import httpx
 import pytest
 from datetime import date
 from fastapi.testclient import TestClient
@@ -35,10 +36,9 @@ def test_retrieval_adapter_default_graphiti(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_ask_endpoint_grounded_question(monkeypatch):
+async def test_ask_endpoint_grounded_question(api, nimbus_test_graph):
     """Test /ask endpoint end-to-end with a grounded query using synthetic adapter in test."""
-    monkeypatch.setenv('KEYSTONE_RETRIEVAL_ADAPTER', 'synthetic')
-    with TestClient(app) as client:
+    with httpx.Client(base_url=api, timeout=600) as client:
         response = client.post(
             "/ask",
             json={"question": "Why did we move off AWS and who decided it?", "as_of": "2025-06-01", "session_id": "sess-test-1"},
@@ -54,10 +54,9 @@ async def test_ask_endpoint_grounded_question(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_ask_endpoint_unsupported_refusal(monkeypatch):
+async def test_ask_endpoint_unsupported_refusal(api, nimbus_test_graph):
     """Test /ask endpoint with an unsupported question returns canonical refusal."""
-    monkeypatch.setenv('KEYSTONE_RETRIEVAL_ADAPTER', 'synthetic')
-    with TestClient(app) as client:
+    with httpx.Client(base_url=api, timeout=600) as client:
         response = client.post(
             "/ask",
             json={"question": "What database version of MongoDB was chosen in 2024?", "as_of": "2025-06-01"},
@@ -71,10 +70,9 @@ async def test_ask_endpoint_unsupported_refusal(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_ask_endpoint_compliance_returned(monkeypatch):
+async def test_ask_endpoint_compliance_returned(api, nimbus_test_graph):
     """Test /ask endpoint returns deterministic compliance checks for decision queries."""
-    monkeypatch.setenv('KEYSTONE_RETRIEVAL_ADAPTER', 'synthetic')
-    with TestClient(app) as client:
+    with httpx.Client(base_url=api, timeout=600) as client:
         response = client.post(
             "/ask",
             json={"question": "Was the VendorCo contract compliant?", "as_of": "2025-04-01"},
@@ -91,10 +89,9 @@ async def test_ask_endpoint_compliance_returned(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_ask_endpoint_session_id_passthrough(monkeypatch):
+async def test_ask_endpoint_session_id_passthrough(api, nimbus_test_graph):
     """Test /ask endpoint accepts and preserves session_id across multi-turn queries."""
-    monkeypatch.setenv('KEYSTONE_RETRIEVAL_ADAPTER', 'synthetic')
-    with TestClient(app) as client:
+    with httpx.Client(base_url=api, timeout=600) as client:
         sess_id = "sess-multiturn-123"
         # Turn 1
         r1 = client.post(

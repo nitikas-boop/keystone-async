@@ -84,6 +84,10 @@ def validate_citations(sentences: List[Dict[str, Any]], sources: Dict[str, Any])
     return good, bad
 
 
+class ModelUnavailable(RuntimeError):
+    """The local LLM could not be reached; surfaced to the API as 503."""
+
+
 class ReasoningEngine:
     """Core reasoning engine decoupled from specific database/graph backend."""
 
@@ -93,15 +97,15 @@ class ReasoningEngine:
     async def answer(self, question: str, as_of: date, actor: str = 'user:analyst',
                      session_id: Optional[str] = None, explain_compliance: bool = True) -> Dict[str, Any]:
         # 1. Retrieve point-in-time subgraph and sources
-        retrieval = await self.adapter.retrieve(question, as_of)
-        if retrieval.is_empty and session_id:
-            history = conversation_memory.get_history(session_id)
-            user_queries = [m.content for m in history if m.role == 'user']
-            if user_queries:
-                expanded_q = f"{' '.join(user_queries[-2:])} {question}"
-                expanded_retrieval = await self.adapter.retrieve(expanded_q, as_of)
-                if not expanded_retrieval.is_empty:
-                    retrieval = expanded_retrieval
+        # Follow-ups ("who approved that decision?") only make sense with the previous question, so in a session
+        # retrieve with the recent questions first; fall back to the question alone if that finds nothing.
+        history = conversation_memory.get_history(session_id) if session_id else []
+        user_queries = [m.content for m in history if m.role == 'user']
+        retrieval = None
+        if user_queries:
+            retrieval = await self.adapter.retrieve(f"{' '.join(user_queries[-2:])} {question}", as_of)
+        if retrieval is None or retrieval.is_empty:
+            retrieval = await self.adapter.retrieve(question, as_of)
 
         subgraph_nodes = [n.to_dict() for n in retrieval.nodes]
         subgraph_edges = [e.to_dict() for e in retrieval.edges]
@@ -149,37 +153,23 @@ class ReasoningEngine:
         context_block = f"{history_context}\n\n" if history_context else ""
         user_prompt = f"{context_block}Question (answer as of {as_of}): {question}\n\nSources:\n{source_listing}"
 
-        # 5. Model execution with citation validation and single retry
+        # 5. Model execution with citation validation and single retry.
+        # No canned or keyword fallback: if the model refuses, the answer is the refusal; if the local model is
+        # unreachable, the request fails visibly (503) instead of returning text the graph did not produce.
         sentences = []
         for attempt in range(2):
             try:
                 out = await llm.chat_json(REASONING_SYSTEM_PROMPT, user_prompt, ANSWER_SCHEMA, timeout=120)
-                good, bad = validate_citations(out.get('sentences', []), sources)
-                sentences = good
-                if not bad and sentences:
-                    break
-                if not sentences and not bad:
-                    break
-                log.info("Citation validation retry attempt %d: ungrounded claims detected: %s",
-                         attempt + 1, [b.get('text', '') for b in bad])
-                user_prompt += ('\n\nYour previous answer had sentences without valid source IDs: '
-                               + json.dumps([b.get('text', '') for b in bad]) + '. Cite a listed ID on every sentence or drop it.')
             except (httpx.HTTPError, httpx.TimeoutException) as e:
-                log.warning("Ollama call failed (%s: %s). Using deterministic offline fallback.", type(e).__name__, e)
-                sentences = self._fallback_grounded_answer(question, sources, checks, retrieval.seed_keys)
+                raise ModelUnavailable(f'local model unreachable: {type(e).__name__}: {e}') from e
+            good, bad = validate_citations(out.get('sentences', []), sources)
+            sentences = good
+            if not bad:
                 break
-            except Exception as e:
-                log.exception("Unexpected failure during LLM response parsing: %s. Using deterministic offline fallback.", e)
-                sentences = self._fallback_grounded_answer(question, sources, checks, retrieval.seed_keys)
-                break
-
-        # If LLM failed to produce valid grounded sentences or refused despite valid retrieved context, use fallback
-        is_refusal = not sentences or any(ANSWER_REFUSAL_SENTENCE.lower() in s.get('text', '').lower() for s in sentences)
-        if is_refusal and retrieval.seed_keys and not retrieval.is_empty:
-            log.warning("LLM produced refusal or no valid grounded sentences despite valid retrieved context. Using fallback grounding.")
-            fallback_sentences = self._fallback_grounded_answer(question, sources, checks, retrieval.seed_keys)
-            if fallback_sentences:
-                sentences = fallback_sentences
+            log.info("Citation validation retry attempt %d: ungrounded claims detected: %s",
+                     attempt + 1, [b.get('text', '') for b in bad])
+            user_prompt += ('\n\nYour previous answer had sentences without valid source IDs: '
+                           + json.dumps([b.get('text', '') for b in bad]) + '. Cite a listed ID on every sentence or drop it.')
 
         refused = not sentences or any(ANSWER_REFUSAL_SENTENCE.lower() in s.get('text', '').lower() for s in sentences)
 
@@ -197,44 +187,6 @@ class ReasoningEngine:
             threshold=retrieval.relevance_threshold,
             session_id=session_id
         )
-
-    def _fallback_grounded_answer(self, question: str, sources: dict, checks: list, seeds: list) -> list:
-        """Deterministic grounding fallback when offline. Never fabricates unsupported sources."""
-        q_lower = question.lower()
-        sentences = []
-        if 'atlas' in q_lower:
-            atlas_decs = [k for k in ['DEC-003', 'DEC-006', 'DEC-010'] if k in sources]
-            if atlas_decs:
-                sentences.append({'text': f"Project Atlas history includes {', '.join(atlas_decs)}.", 'source_ids': atlas_decs})
-        elif 'aws' in q_lower:
-            aws_sources = [k for k in ['DEC-006', 'MTG-2025-05-14'] if k in sources]
-            if 'DEC-006' in aws_sources:
-                sentences.append({'text': "We moved off AWS to an India-hosted provider under Vikram Rao on 2025-05-20 due to data residency and cost.", 'source_ids': aws_sources})
-        elif 'vendorco' in q_lower or '4 lakh' in q_lower:
-            vendor_sources = [k for k in ['DEC-004', 'PROC-3.1@v1'] if k in sources]
-            if 'DEC-004' in vendor_sources:
-                sentences.append({'text': "The ₹4 lakh VendorCo contract was approved compliant under PROC-3.1@v1 by CTO Vikram Rao on 2025-03-14.", 'source_ids': vendor_sources})
-        elif '180 days' in q_lower or 'retention' in q_lower:
-            if 'DEC-007' in sources:
-                has_non_compliant = any(c.get('current_result') == 'non_compliant' for c in checks if c.get('decision_id') == 'DEC-007')
-                if has_non_compliant and 'RET-2.1@v3' in sources:
-                    ret_sources = [k for k in ['DEC-007', 'RET-2.1@v3'] if k in sources]
-                    sentences.append({'text': "Keeping customer logs for 180 days was non-compliant under RET-2.1@v3, despite being compliant when decided under RET-2.1@v2.", 'source_ids': ret_sources})
-                else:
-                    ret_sources = [k for k in ['DEC-007', 'RET-2.1@v2'] if k in sources]
-                    sentences.append({'text': "Keeping customer logs for 180 days was compliant under RET-2.1@v2 decided by Ananya Rao on 2025-06-18.", 'source_ids': ret_sources})
-            elif 'DEC-002' in sources:
-                ret_sources = [k for k in ['DEC-002', 'RET-2.1@v1'] if k in sources]
-                sentences.append({'text': "Customer log retention was set to 180 days under RET-2.1@v1 decided by Ananya Rao on 2024-07-22.", 'source_ids': ret_sources})
-
-        # Last-resort: if keyword matching produced nothing but seeds exist in sources, emit a generic grounded sentence
-        if not sentences and seeds:
-            valid_seeds = [s for s in seeds if s in sources]
-            if valid_seeds:
-                log.warning("Keyword fallback produced no sentences; using seed-key grounded last-resort for question: %s", question[:80])
-                sentences.append({'text': f"The following relevant records were found: {', '.join(valid_seeds[:5])}.", 'source_ids': valid_seeds[:5]})
-
-        return sentences
 
     async def _format_response(self, question: str, as_of: date, actor: str,
                                sentences: List[Dict[str, Any]], sources: Dict[str, Any],
@@ -301,17 +253,13 @@ class ReasoningEngine:
             conversation_memory.add_turn(session_id, 'user', question, as_of=as_of.isoformat())
             conversation_memory.add_turn(session_id, 'assistant', answer, as_of=as_of.isoformat(), citations=cited_ids)
 
-        # Persist answer & audit if database is available
-        if db.pool is not None:
-            try:
-                async with db.pool.acquire() as c, c.transaction():
-                    db_aid = await c.fetchval('INSERT INTO answers (question, as_of, response) VALUES ($1,$2,$3) RETURNING id',
-                                              question, as_of, resp)
-                    resp['answer_id'] = str(db_aid)
-                    await db.audit(actor, 'query', 'answer', str(db_aid), cited_ids,
-                                   {'question': question, 'as_of': str(as_of), 'answer': answer}, conn=c)
-            except Exception as e:
-                log.warning("Could not persist answer / audit to database: %s", e)
+        # Every answer is stored and audited; if that fails the request fails (an unaudited answer is not allowed).
+        async with db.pool.acquire() as c, c.transaction():
+            db_aid = await c.fetchval('INSERT INTO answers (question, as_of, response) VALUES ($1,$2,$3) RETURNING id',
+                                      question, as_of, resp)
+            resp['answer_id'] = str(db_aid)
+            await db.audit(actor, 'query', 'answer', str(db_aid), cited_ids,
+                           {'question': question, 'as_of': str(as_of), 'answer': answer}, conn=c)
 
         return resp
 

@@ -56,58 +56,29 @@ def overall(checks: list[dict]) -> str:
 
 
 async def clause_in_force(clause_id: str, on: date) -> dict | None:
-    try:
-        if db.pool:
-            row = await db.pool.fetchrow(
-                'SELECT * FROM policy_clauses WHERE clause_id=$1 AND effective_from <= $2 '
-                'AND (effective_to IS NULL OR effective_to > $2)', clause_id, on)
-            if row:
-                return dict(row)
-    except Exception:
-        pass
-
-    from .retrieval import get_retrieval_adapter
-    adapter = get_retrieval_adapter()
-    if hasattr(adapter, 'get_clause_in_force'):
-        return await adapter.get_clause_in_force(clause_id, on)
-    return None
+    row = await db.pool.fetchrow(
+        'SELECT * FROM policy_clauses WHERE clause_id=$1 AND effective_from <= $2 '
+        'AND (effective_to IS NULL OR effective_to > $2)', clause_id, on)
+    return dict(row) if row else None
 
 
 async def load_decision(decision_id: str) -> dict | None:
     """Decision attrs + the stable clause IDs it relied on, from the graph (covers extracted decisions too)."""
-    try:
-        if graph.g:
-            rows = await graph.q(
-                'MATCH (d:Entity {uuid: $u}) WHERE coalesce(d.rejected, false) = false '
-                'OPTIONAL MATCH (d)-[r:RELATES_TO {name: "RELIED_ON"}]->(c:Entity) WHERE coalesce(r.rejected, false) = false '
-                'RETURN properties(d) AS d, collect(coalesce(c.clause_id, split(c.key, "@")[0])) AS clauses, '
-                'collect({key: c.key, verified: r.human_verified, confidence: r.confidence}) AS rels',
-                u=graph.uid(decision_id))
-            if rows and rows[0]['d'] is not None and 'decided_on' in rows[0]['d']:
-                d = rows[0]['d']
-                return {'id': d['key'], 'title': d['name'], 'decided_on': date.fromisoformat(d['decided_on']),
-                        'status': d.get('status', 'active'), 'effect': d.get('effect', 'completed'),
-                        'fields': json.loads(d.get('fields_json') or '{}'), 'clauses': sorted(set(filter(None, rows[0]['clauses']))),
-                        'provenance': graph._prov(d), 'relied_on_edges': [r for r in rows[0]['rels'] if r['key']]}
-    except Exception:
-        pass
-
-    from .retrieval import get_retrieval_adapter
-    adapter = get_retrieval_adapter()
-    if hasattr(adapter, 'decisions') and decision_id in adapter.decisions:
-        d = adapter.decisions[decision_id]
-        return {
-            'id': d['id'],
-            'title': d['title'],
-            'decided_on': date.fromisoformat(d['decided_on']),
-            'status': d.get('status', 'active'),
-            'effect': d.get('effect', 'completed'),
-            'fields': d.get('fields', {}),
-            'clauses': d.get('relied_on', []),
-            'provenance': {'source_doc': d.get('path', ''), 'confidence': 1.0, 'human_verified': True},
-            'relied_on_edges': [{'key': f"{cid}@v1", 'verified': True, 'confidence': 1.0} for cid in d.get('relied_on', [])]
-        }
-    return None
+    rows = await graph.q(
+        'MATCH (d:Entity {uuid: $u}) WHERE coalesce(d.rejected, false) = false '
+        'OPTIONAL MATCH (d)-[r:RELATES_TO {name: "RELIED_ON"}]->(c:Entity) WHERE coalesce(r.rejected, false) = false '
+        'RETURN properties(d) AS d, collect(c.clause_id) AS clauses, '
+        'collect({key: c.key, verified: r.human_verified, confidence: r.confidence}) AS rels',
+        u=graph.uid(decision_id))
+    if not rows or rows[0]['d'] is None:
+        return None
+    d = rows[0]['d']
+    if 'decided_on' not in d:
+        return None  # placeholder for a referenced decision that was never ingested (e.g. a SUPERSEDES target)
+    return {'id': d['key'], 'title': d['name'], 'decided_on': date.fromisoformat(d['decided_on']),
+            'status': d.get('status', 'active'), 'effect': d.get('effect', 'completed'),
+            'fields': json.loads(d.get('fields_json') or '{}'), 'clauses': sorted(set(filter(None, rows[0]['clauses']))),
+            'provenance': graph._prov(d), 'relied_on_edges': [r for r in rows[0]['rels'] if r['key']]}
 
 
 def warnings_for(dec: dict, low: float) -> list[dict]:

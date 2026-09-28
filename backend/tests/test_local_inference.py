@@ -194,7 +194,7 @@ async def test_compliance_explain_narration(warm_model):
 # ══════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.asyncio
-async def test_e2e_reasoning_aws_move(warm_model):
+async def test_e2e_reasoning_aws_move(warm_model, nimbus_test_graph):
     """E2E: 'Why did we move off AWS?' must cite DEC-006 and not be refused."""
     from app.reasoning import ReasoningEngine
     from app.retrieval.synthetic import SyntheticRetrievalAdapter
@@ -221,7 +221,7 @@ async def test_e2e_reasoning_aws_move(warm_model):
 
 
 @pytest.mark.asyncio
-async def test_e2e_reasoning_vendorco_compliance(warm_model):
+async def test_e2e_reasoning_vendorco_compliance(warm_model, nimbus_test_graph):
     """E2E: VendorCo Rs 4L contract must be cited as compliant."""
     from app.reasoning import ReasoningEngine
     from app.retrieval.synthetic import SyntheticRetrievalAdapter
@@ -248,7 +248,7 @@ async def test_e2e_reasoning_vendorco_compliance(warm_model):
 
 
 @pytest.mark.asyncio
-async def test_e2e_reasoning_no_evidence_refusal(warm_model):
+async def test_e2e_reasoning_no_evidence_refusal(warm_model, nimbus_test_graph):
     """E2E: MongoDB question must be refused, not hallucinated."""
     from app.reasoning import ReasoningEngine
     from app.retrieval.synthetic import SyntheticRetrievalAdapter

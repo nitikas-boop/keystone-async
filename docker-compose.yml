@@ -51,6 +51,8 @@ services:
     volumes:
       - ./backend:/app
       - ./data/vault:/vault
+      - ./data/demo-upload:/demo-upload:ro  # the live-demo policy; read by tests only
+      - ./data/ground-truth.json:/data/ground-truth.json:ro  # answer key; read by tests only
       - ./outbox:/outbox
     ports: ["127.0.0.1:8000:8000"]
     depends_on:

@@ -241,19 +241,17 @@ async def nimbus_test_graph():
 
     for f in policy_files:
         p = vault_dir / f
-        if p.exists():
-            await ingest.ingest(p.read_text(encoding='utf-8'), f, 'user:nitika')
+        assert p.exists(), f'test data missing: {p}'  # fail loudly, never test against a half-loaded graph
+        await ingest.ingest(p.read_text(encoding='utf-8'), f, 'user:nitika')
 
-    v3_path = vault_dir.parent / 'demo-upload' / 'POL-RET-v3.md'
-    if v3_path.exists():
-        await ingest.ingest(v3_path.read_text(encoding='utf-8'), 'policies/POL-RET-v3.md', 'user:nitika')
-    elif (vault_dir / 'policies' / 'POL-RET-v3.md').exists():
-        await ingest.ingest((vault_dir / 'policies' / 'POL-RET-v3.md').read_text(encoding='utf-8'), 'policies/POL-RET-v3.md', 'user:nitika')
+    v3_path = vault_dir.parent / 'demo-upload' / 'POL-RET-v3.md'  # /demo-upload in Docker, data/demo-upload locally
+    assert v3_path.exists(), f'test data missing: {v3_path}'
+    await ingest.ingest(v3_path.read_text(encoding='utf-8'), 'demo-upload/POL-RET-v3.md', 'user:nitika')
 
     for f in decision_files:
         p = vault_dir / f
-        if p.exists():
-            await ingest.ingest(p.read_text(encoding='utf-8'), f, 'user:nitika')
+        assert p.exists(), f'test data missing: {p}'
+        await ingest.ingest(p.read_text(encoding='utf-8'), f, 'user:nitika')
 
     yield
 

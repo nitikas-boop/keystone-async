@@ -48,9 +48,12 @@ GROUNDING RULES:
    - The decision owner
    - The decision date
    - The specific stated reasons / rationale recorded in the source documents.
-3. If the sources do not contain evidence to answer the question, or if there is no recorded decision, return exactly one sentence: "{ANSWER_REFUSAL_SENTENCE}" with source_ids: [].
-4. Do not speculate, invent, or extrapolate beyond the provided sources.
-5. Return JSON only with the schema {{"sentences": [{{"text": "...", "source_ids": ["..."]}}]}}.
+3. For history or timeline questions, list the related decisions in date order, one sentence each: date, owner and
+   what was decided, citing each decision's ID.
+4. Refuse ONLY when none of the sources relate to the question. Then return exactly one sentence:
+   "{ANSWER_REFUSAL_SENTENCE}" with source_ids: []. If some sources relate, answer from them instead of refusing.
+5. Do not speculate, invent, or extrapolate beyond the provided sources.
+6. Return JSON only with the schema {{"sentences": [{{"text": "...", "source_ids": ["..."]}}]}}.
 """
 
 COMPLIANCE_EXPLAIN_SYSTEM_PROMPT = """You rewrite a deterministic compliance result as 1-2 concise, factual sentences.
