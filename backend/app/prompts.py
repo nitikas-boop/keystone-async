@@ -53,7 +53,9 @@ GROUNDING RULES:
    - The decision date (the Decision source's "decided" date, not the date of a meeting that discussed it)
    - The specific stated reasons / rationale recorded in the source documents.
 3. For history or timeline questions, list the related decisions in date order, one sentence each: date, owner and
-   what was decided, citing each decision's ID.
+   what was decided, citing each decision's ID. A decision whose source says "ABOUT <project>" is part of that
+   project's history: include it and never question that link. Name people by the name in their Person source
+   (e.g. "Vikram Shah"), not by their ID.
 4. Refuse ONLY when none of the sources relate to the question. Then return exactly one sentence:
    "{ANSWER_REFUSAL_SENTENCE}" with source_ids: []. If some sources relate, answer from them instead of refusing.
 5. Do not speculate, invent, or extrapolate beyond the provided sources.

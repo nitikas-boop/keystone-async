@@ -55,15 +55,26 @@ ANSWER_SCHEMA = {
 }
 
 
+DANGLING_CITE = re.compile(r',?\s+(?:as (?:per|documented in|stated in|recorded in|noted in|shown in)|according to)\s*\.?$',
+                           re.IGNORECASE)
+
+
 def validate_citations(sentences: List[Dict[str, Any]], sources: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Validate that every sentence cites only existing sources from the retrieved context."""
     good, bad = [], []
     for s in sentences:
         text = re.sub(r'\s*\[[^\]]+\]', '', s.get('text', '')).strip()
+        # Removing an inline [ID] can leave its lead-in dangling ("..., as per."); drop the orphaned phrase.
+        text = DANGLING_CITE.sub('.', text)
         ids = [i.strip('[] ') for i in s.get('source_ids', [])]
         resolved_ids = []
         all_valid = True
         for i in ids:
+            # 7B models sometimes repeat a version tag ("CHECK:DEC-007:RET-2.1@v2@v2"); a known ID followed only by
+            # an extra @-suffix is that ID. Anything else unknown stays invalid.
+            known = [k for k in sources if i.startswith(k + '@')]
+            if i not in sources and known:
+                i = max(known, key=len)
             if i in sources:
                 resolved_ids.append(i.split(':')[1:] if i.startswith('CHECK:') else [i])
             else:
@@ -114,29 +125,41 @@ class ReasoningEngine:
         # 2. Deterministic compliance for retrieved decisions
         # Verdicts are spelled out in plain words and listed before the retrieved context, and every clause they
         # name carries its text: a 7B model otherwise re-derives the verdict from whichever clause text it sees.
+        # Most relevant decision first; a decision already replaced as of the query date (its SUPERSEDES edge is in
+        # the as-of retrieval) gets no "as of" verdict: judging it by today's rule is noise, not an answer.
+        best = {}
+        for r in retrieval.ranked_scores:
+            for k in r['keys']:
+                best[k] = max(best.get(k, 0), r['score'])
+        superseded_by = {e.target: e.source for e in retrieval.edges if e.relation == 'SUPERSEDES'}
+        decisions = sorted((n for n in retrieval.nodes if n.type == 'Decision'), key=lambda n: -best.get(n.id, 0))
         checks, check_sources = [], {}
-        for n in retrieval.nodes:
-            if n.type == 'Decision':
-                res = await compliance.evaluate(n.id, as_of, LOW_CONFIDENCE, explain=explain_compliance)
-                if res and res.get('result') != 'no_clause':
-                    checks.append(res)
-                    for when, cs in ((f"when it was decided on {res['decided_on']}", res['checks']),
-                                     (f'as of {as_of}', res['current'])):
-                        for c in cs:
-                            window = f"in force {c['valid_from']} to {c['valid_to'] or 'now'}"
-                            if c['source_id'] not in sources and c['source_id'] not in check_sources:
-                                text = await db.pool.fetchval('SELECT text FROM policy_clauses WHERE clause_id=$1 '
-                                                              'AND version=$2', c['clause_id'], c['version'])
-                                check_sources[c['source_id']] = {'node': None,
-                                                                 'text': f"Clause {c['source_id']} {window}: {text}"}
-                            detail = (f"decision value {c['decision_value']}, limit {c['limit']}"
-                                      if c['limit'] is not None else c['reason'])
-                            line = (f"{when}: {c['result'].upper().replace('_', ' ')} under {c['source_id']} "
-                                    f"({window}); {detail}.")
-                            key = f"CHECK:{n.id}:{c['source_id']}"
-                            prev = check_sources.get(key)
-                            check_sources[key] = {'node': None, 'text': f"{prev['text']} Also {line}" if prev else
-                                                  f"Deterministic compliance check of {n.id}, {line}"}
+        for n in decisions:
+            res = await compliance.evaluate(n.id, as_of, LOW_CONFIDENCE, explain=explain_compliance)
+            if res and res.get('result') != 'no_clause':
+                checks.append(res)
+                replaced = superseded_by.get(n.id)
+                for when, cs in ((f"when it was decided on {res['decided_on']}", res['checks']),
+                                 (f'as of {as_of}', [] if replaced else res['current'])):
+                    for c in cs:
+                        window = f"in force {c['valid_from']} to {c['valid_to'] or 'now'}"
+                        if c['source_id'] not in sources and c['source_id'] not in check_sources:
+                            text = await db.pool.fetchval('SELECT text FROM policy_clauses WHERE clause_id=$1 '
+                                                          'AND version=$2', c['clause_id'], c['version'])
+                            check_sources[c['source_id']] = {'node': None,
+                                                             'text': f"Clause {c['source_id']} {window}: {text}"}
+                        detail = (f"decision value {c['decision_value']}, limit {c['limit']}"
+                                  if c['limit'] is not None else c['reason'])
+                        line = (f"{when}: {c['result'].upper().replace('_', ' ')} under {c['source_id']} "
+                                f"({window}); {detail}.")
+                        key = f"CHECK:{n.id}:{c['source_id']}"
+                        prev = check_sources.get(key)
+                        check_sources[key] = {'node': None, 'text': f"{prev['text']} Also {line}" if prev else
+                                              f"Deterministic compliance check of {n.id}, {line}"}
+                if replaced:
+                    for c in res['checks']:
+                        check_sources[f"CHECK:{n.id}:{c['source_id']}"]['text'] += (
+                            f" {n.id} was superseded by {replaced} before {as_of}, so it is historical only.")
         sources = {**check_sources, **sources}
 
         # 3. If no relevant sources found, refuse cleanly
@@ -177,8 +200,10 @@ class ReasoningEngine:
                 break
             log.info("Citation validation retry attempt %d: ungrounded claims detected: %s",
                      attempt + 1, [b.get('text', '') for b in bad])
+            invalid = sorted({i for b in bad for i in b.get('source_ids', []) if i not in sources})
             user_prompt += ('\n\nYour previous answer had sentences without valid source IDs: '
-                           + json.dumps([b.get('text', '') for b in bad]) + '. Cite a listed ID on every sentence or drop it.')
+                           + json.dumps([b.get('text', '') for b in bad]) + f'. Invalid IDs: {json.dumps(invalid)}. '
+                           'Copy IDs exactly as listed in the sources. Cite a listed ID on every sentence or drop it.')
 
         refused = not sentences or any(ANSWER_REFUSAL_SENTENCE.lower() in s.get('text', '').lower() for s in sentences)
 

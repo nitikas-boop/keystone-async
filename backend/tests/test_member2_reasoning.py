@@ -329,6 +329,20 @@ def test_citation_validation_and_retry():
     assert bad[0]['source_ids'] == ['FABRICATED-SOURCE']
 
 
+def test_citation_with_repeated_version_tag_resolves_to_the_listed_id():
+    sources = {'CHECK:DEC-007:RET-2.1@v2': {'text': 'check'}, 'DEC-007': {'text': 'decision'}}
+    good, bad = validate_citations([{'text': 'Compliant.', 'source_ids': ['CHECK:DEC-007:RET-2.1@v2@v2']},
+                                    {'text': 'Invented.', 'source_ids': ['DEC-0071']}], sources)
+    assert good == [{'text': 'Compliant.', 'source_ids': ['DEC-007', 'RET-2.1@v2']}]
+    assert [b['source_ids'] for b in bad] == [['DEC-0071']]
+
+
+def test_citation_lead_in_left_dangling_is_removed():
+    good, _ = validate_citations([{'text': 'Atlas moved to AWS Mumbai in 2024-11-05, as per [DEC-003].',
+                                   'source_ids': ['DEC-003']}], {'DEC-003': {'text': 'd'}})
+    assert good[0]['text'] == 'Atlas moved to AWS Mumbai in 2024-11-05.'
+
+
 # =====================================================================
 # 7. Core Demo Queries (Reasoning Pipeline)
 # =====================================================================
