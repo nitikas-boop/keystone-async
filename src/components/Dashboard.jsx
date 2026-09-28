@@ -243,7 +243,7 @@ export default function Dashboard({ currentUser, onSignOut }) {
           <button
             onClick={() => setIsIngestModalOpen(true)}
             className="px-3 py-1.5 rounded-lg btn-sky-gradient text-white text-xs font-mono font-medium flex items-center gap-1.5 shadow-xs cursor-pointer hover:scale-102 transition-all"
-            title="Ingest Policy PDF or meeting transcript"
+            title="Upload a policy version, decision or meeting note (Markdown)"
           >
             <Upload size={13} />
             <span className="hidden sm:inline">Ingest Document</span>

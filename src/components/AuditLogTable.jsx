@@ -45,7 +45,7 @@ export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
           </div>
           <div>
             <div className="font-heading font-semibold text-xs tracking-tight text-[#0F172A] flex items-center gap-2">
-              <span>HASH-CHAINED IMMUTABLE AUDIT LOG</span>
+              <span>HASH-CHAINED TAMPER-EVIDENT AUDIT LOG</span>
               <span className="font-mono text-[10.5px] px-2 py-0.5 rounded-md badge-note-green font-semibold flex items-center gap-1">
                 <CheckCircle2 size={11} />
                 CHAIN VALID (SHA-256 VERIFIED)
