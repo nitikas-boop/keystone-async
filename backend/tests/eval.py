@@ -14,6 +14,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
+sys.stdout.reconfigure(encoding='utf-8')  # questions contain ₹; the Windows console default (cp1252) crashes
 URL = sys.argv[1] if len(sys.argv) > 1 else 'http://localhost:8000'
 GT = json.loads((Path(__file__).resolve().parents[2] / 'data' / 'ground-truth.json').read_text(encoding='utf-8'))
 
