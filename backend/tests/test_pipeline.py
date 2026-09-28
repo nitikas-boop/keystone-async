@@ -175,8 +175,16 @@ def test_folder_watcher_ingests_new_file_as_system_watcher(api, clean):
             time.sleep(1)
         time.sleep(6)  # one more watcher tick, to be sure policies/ was ignored
         assert [v['version'] for v in httpx.get(f'{api}/policies').json()[0]['versions']] == ['v1']
-        row = httpx.get(f'{api}/audit', params={'limit': 500}).json()[-1]
-        assert (row['actor'], row['action'], row['object_id']) == ('system:watcher', 'policy_ingested', 'T-POL-RET@v1')
+        # The test DB's audit log is append-only and grows across runs, so look the row up, don't assume it's last.
+        async def latest():
+            c = await asyncpg.connect(os.environ['TEST_DATABASE_URL'])
+            try:
+                return await c.fetchrow("SELECT actor, action FROM audit_log WHERE object_id = 'T-POL-RET@v1' "
+                                        "ORDER BY id DESC LIMIT 1")
+            finally:
+                await c.close()
+        row = asyncio.run(latest())
+        assert (row['actor'], row['action']) == ('system:watcher', 'policy_ingested')
     finally:
         shutil.rmtree(vault, ignore_errors=True)
 
