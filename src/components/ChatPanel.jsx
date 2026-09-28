@@ -66,10 +66,12 @@ export default function ChatPanel({
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
-  const chatBottomRef = useRef(null);
+  const feedRef = useRef(null);
 
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Scroll only the feed; scrollIntoView would also scroll the page and panel ancestors.
+    const el = feedRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages, isProcessing]);
 
   const handleSelectQuery = (demoQuery) => {
@@ -226,7 +228,7 @@ export default function ChatPanel({
       </div>
 
       {/* Messages Feed */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#F8FAFC]">
+      <div ref={feedRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 bg-[#F8FAFC]">
         {messages.map(msg => (
           <div 
             key={msg.id}
@@ -288,7 +290,6 @@ export default function ChatPanel({
           </div>
         )}
 
-        <div ref={chatBottomRef} />
       </div>
 
       {/* Input Bar */}

@@ -27,7 +27,6 @@ export default function LandingPage({ onLaunchConsole }) {
     healthCheck().then(h => setEngineOk(!!h && !!h.ollama && Object.values(h.ollama).every(v => v === true)));
   }, []);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState('sk-sov-nimbus-ledger-2026-prod');
 
   const workflowSteps = [
     {
@@ -533,12 +532,12 @@ export default function LandingPage({ onLaunchConsole }) {
             <div className="flex items-center gap-2 mb-4">
               <Key size={18} className="text-[#0284C7]" />
               <h3 className="font-heading font-bold text-base text-[#0F172A]">
-                Authenticate Sovereign Workspace
+                Enter Workspace
               </h3>
             </div>
 
             <p className="text-xs text-[#64748B] mb-4">
-              Select a pre-authenticated role for Nimbus Ledger:
+              Nimbus Ledger demo workspace. Pick a role to continue as:
             </p>
 
             <div className="space-y-2 mb-4">
@@ -598,15 +597,6 @@ export default function LandingPage({ onLaunchConsole }) {
             </div>
 
             <div className="pt-3 border-t border-slate-100">
-              <label className="text-[10.5px] font-mono text-[#64748B] uppercase tracking-wider block mb-1">
-                Or Connect via Sovereign API Key:
-              </label>
-              <input
-                type="text"
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                className="w-full bg-[#F8FAFC] border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono text-[#0F172A] mb-3 focus:outline-none focus:border-sky-400"
-              />
               <button
                 onClick={() => {
                   setShowLoginModal(false);
@@ -615,7 +605,7 @@ export default function LandingPage({ onLaunchConsole }) {
                 className="w-full py-2.5 rounded-lg btn-sky-gradient text-white text-xs font-mono font-medium flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Terminal size={13} />
-                <span>Initialize Console Session</span>
+                <span>Continue as Keystone Admin</span>
               </button>
             </div>
           </div>

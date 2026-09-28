@@ -70,7 +70,7 @@ export default function TemporalSlider({ asOfDate, onDateChange, refreshKey = 0 
   }, [isPlaying, activeIndex, timelineDates, onDateChange]);
 
   return (
-    <div className="w-full paper-sheet p-3.5 flex flex-col gap-2.5">
+    <div className="w-full paper-sheet px-3.5 py-2.5 flex flex-col gap-1.5">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-100 font-mono text-[11.5px] text-[#0369A1]">
@@ -108,7 +108,7 @@ export default function TemporalSlider({ asOfDate, onDateChange, refreshKey = 0 
         </button>
       </div>
 
-      <div className="relative pt-1 pb-1">
+      <div className="relative">
         <input
           type="range"
           min="0"
@@ -118,7 +118,7 @@ export default function TemporalSlider({ asOfDate, onDateChange, refreshKey = 0 
           onChange={(e) => onDateChange(timelineDates[parseInt(e.target.value)].date)}
           className="w-full accent-[#0284C7] cursor-pointer h-1.5 bg-slate-100 rounded-lg appearance-none"
         />
-        <div className="flex justify-between items-start mt-2">
+        <div className="flex justify-between items-start mt-1">
           {timelineDates.map((pt, idx) => {
             const isSelected = activeIndex === idx;
             const isPast = idx < activeIndex;
