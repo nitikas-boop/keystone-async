@@ -50,14 +50,26 @@ async def scan(policy_id: str, version: str) -> list[dict]:
     return [f for f in flags if f]
 
 
+IMPACT_MEANING = {
+    'SUPERSEDED': ' A later decision already replaced it, so this is historical only and needs no action.',
+    'ONGOING_PRACTICE_BREACH': ' The practice is still running, so it breaches the new rule until it is changed.',
+    'RULE_CHANGED_SINCE': (' It was a completed one-off act and is not retroactively wrong; the same act today '
+                           'would need the new approval.'),
+}
+
+
 async def _write_flag(dec: dict, new: dict, old: dict | None, old_version: str | None) -> dict | None:
     impact = classify(dec['status'], dec['effect'])
     old_id = old['source_id'] if old else None
     flag_id = f"FLAG-{dec['id']}-{new['source_id']}"
-    fallback = (f"[{dec['id']}] ({dec['title']}) was {old['result'].replace('_', '-') if old else 'not linked'} under "
-                f"[{old_id}] when decided on {dec['decided_on']}, but is non-compliant under [{new['source_id']}] "
-                f"({new['rule']}: value {new['decision_value']}, limit {new['limit']}). Impact: {impact}.")
-    explanation = await llm.explain(fallback, fallback)
+    facts = (f"[{dec['id']}] ({dec['title']}) was {old['result'].replace('_', '-') if old else 'not linked'} under "
+             f"[{old_id}] when decided on {dec['decided_on']}, but is non-compliant under [{new['source_id']}] "
+             f"({new['rule']}: value {new['decision_value']}, limit {new['limit']}).")
+    # State the direction and what the impact type means, so the wording model has nothing to guess.
+    if old and isinstance(old.get('limit'), (int, float)) and isinstance(new.get('limit'), (int, float))             and old['limit'] != new['limit']:
+        facts += f" The limit was {'lowered' if new['limit'] < old['limit'] else 'raised'} from {old['limit']} to {new['limit']}."
+    facts += IMPACT_MEANING[impact]
+    explanation = await llm.explain(facts, facts)
 
     async with db.pool.acquire() as c, c.transaction():
         inserted = await c.fetchval(
@@ -103,4 +115,5 @@ if __name__ == '__main__':
          'RET-4.2': {'fields': {}, 'checkable': False}}
     b = {**a, 'RET-2.1': {'fields': {'retention_days_max': 90}, 'checkable': True}}
     assert changed_clauses(a, b) == ['RET-2.1'] and changed_clauses(a, a) == []
+    assert IMPACT_MEANING.keys() == SEVERITY.keys()
     print('scanner self-check ok')

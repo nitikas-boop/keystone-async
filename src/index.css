@@ -1,4 +1,8 @@
-@import "tailwindcss";
+/* Scan only the frontend: by default Tailwind v4 watches every file in the repo, so editing backend code
+   (or anything else not gitignored) full-reloads the page and signs the user out. */
+@import "tailwindcss" source(none);
+@source "../src";
+@source "../index.html";
 
 @layer base {
   :root {

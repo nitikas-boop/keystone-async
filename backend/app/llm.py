@@ -24,10 +24,12 @@ async def explain(prompt: str, fallback: str) -> str:
     """Human-readable wording only; the outcome is already decided deterministically."""
     try:
         out = await chat_json(
-            'You rewrite a compliance result as 1-2 plain sentences. Never change the result, numbers or IDs. '
+            'You rewrite a compliance result as 1-2 plain sentences. Never change the result, numbers, IDs, or '
+            'whether a limit was raised or lowered. '
             'Keep every ID in square brackets exactly as given.',
             prompt, {'type': 'object', 'properties': {'text': {'type': 'string'}}, 'required': ['text']}, timeout=180)
         return out['text'].strip() or fallback
     except Exception as e:
-        log.debug("llm.explain failed (%s: %s), using fallback narration.", type(e).__name__, e)
+        # The deterministic statement is shown verbatim instead; say so where operators will see it.
+        log.warning("llm.explain failed (%s: %s): showing the deterministic statement unreworded.", type(e).__name__, e)
         return fallback

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .reasoning import ModelUnavailable
-from . import ask, compliance, config, db, extract, graph, ingest
+from . import ask, compliance, config, db, extract, graph, ingest, scanner
 from . import views
 
 # ponytail: hardcoded users (§9 "hardcoded auth is fine"); real auth/RBAC is roadmap
@@ -159,6 +159,7 @@ async def flags(impact_type: str | None = None):
 def proposal_out(r) -> dict:
     d = dict(r)
     d['to'] = d.pop('to_addr')
+    d['severity'] = scanner.SEVERITY[d['impact_type']]
     for k in ('created_at', 'decided_at', 'executed_at'):
         d[k] = d[k] and d[k].isoformat()
     return d

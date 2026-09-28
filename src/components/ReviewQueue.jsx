@@ -138,11 +138,10 @@ export default function ReviewQueue({
                     <td className="py-3 px-3 align-top font-mono">
                       <span className="font-bold text-[#0F172A] block text-[11px]">#{item.id}</span>
                       <span className={`inline-block mt-1 text-[9.5px] px-1.5 py-0.2 rounded-md font-semibold ${
-                        item.severity === 'CRITICAL' ? 'badge-note-rose' :
-                        item.severity === 'HIGH' ? 'badge-note-amber' :
-                        'badge-note-lavender'
+                        !isProposed ? 'badge-note-lavender' :
+                        item.severity === 'action_needed' ? 'badge-note-rose' : 'badge-note-amber'
                       }`}>
-                        {item.severity || (isProposed ? 'ACTION NEEDED' : 'RESOLVED')}
+                        {isProposed ? item.severity.replace('_', ' ').toUpperCase() : 'RESOLVED'}
                       </span>
                     </td>
 
