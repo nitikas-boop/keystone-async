@@ -1,5 +1,5 @@
 # Team model (extraction + reasoning) with a 16k context window.
 # Ollama's default num_ctx is 4096 and longer prompts are silently truncated from the front.
-# Create with: scripts/create_models.sh   (see docs/16k_context_for_hemanth.md)
+# Create with: scripts/create_models.sh   (see docs/MODEL-CONTEXT.md)
 FROM qwen2.5:7b
 PARAMETER num_ctx 16384

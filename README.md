@@ -66,7 +66,7 @@ docker compose exec backend python -m app.seed              # or: ingest data/va
 
 Write endpoints take a hardcoded user header, e.g. `X-User: priya` (real auth is out of scope).
 
-## Demo script (§8 of the team reference doc)
+## Demo script (§8 of [docs/REFERENCE.md](docs/REFERENCE.md))
 
 1. *Show the history of Project Atlas.* — DEC-003 → DEC-006 → DEC-010, in order, with owners.
 2. *Why did we move off AWS in May 2025?* — Vikram Shah, 2025-05-20, data residency and cost, cites the meeting note.

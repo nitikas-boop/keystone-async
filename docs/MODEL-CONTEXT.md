@@ -1,4 +1,4 @@
-# 16k context for `qwen2.5:7b` (for Hemanth / Member 2)
+# 16k context for `qwen2.5:7b`
 
 **Team decision:** `qwen2.5:7b` for both extraction and reasoning, run as **`qwen2.5-7b-16k`** (the same weights with `num_ctx 16384`).
 

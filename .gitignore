@@ -40,3 +40,6 @@ demo-recording/
 
 # local Whisper model weights (downloaded once, see backend/app/stt.py)
 backend/models/
+
+# personal Claude Code settings
+.claude/
