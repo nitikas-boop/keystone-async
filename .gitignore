@@ -34,3 +34,6 @@ neo4jdata/
 backups/*
 # the demo snapshot is committed so any machine can restore the demo DB in one command
 !backups/nimbus-seed/
+
+# recorded demo video (large; share it directly)
+demo-recording/
