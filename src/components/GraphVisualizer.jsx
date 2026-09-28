@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   ZoomIn, 
   ZoomOut, 
@@ -58,6 +58,29 @@ export default function GraphVisualizer({
   const [hoveredNode, setHoveredNode] = useState(null);
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const svgRef = useRef(null);
+  const canvasRef = useRef(null);
+  const viewRef = useRef({ zoom, pan });
+  viewRef.current = { zoom, pan };
+
+  // Wheel zooms toward the cursor. Native listener: React's onWheel is passive and cannot stop the page scrolling.
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return undefined;
+    const onWheel = (e) => {
+      e.preventDefault();
+      const { zoom: z, pan: p } = viewRef.current;
+      const next = Math.min(3, Math.max(0.4, z * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+      const r = el.getBoundingClientRect();
+      // transform-origin is the canvas centre: keep the point under the cursor fixed while scaling.
+      const mx = e.clientX - r.left - r.width / 2;
+      const my = e.clientY - r.top - r.height / 2;
+      const k = next / z;
+      setZoom(next);
+      setPan({ x: mx - k * (mx - p.x), y: my - k * (my - p.y) });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
   // Live graph only. An empty or unreachable backend shows an empty graph, never the mock one.
   const baseNodes = (liveGraphData?.nodes || []).map((n, idx) => {
@@ -164,6 +187,16 @@ export default function GraphVisualizer({
     };
   });
 
+  // Fit the viewBox to the nodes (plus room for labels): nodes without fixed coordinates are laid out on a grid
+  // that can extend past the old fixed 850x560 box, which cut the graph off.
+  const viewBox = (() => {
+    if (!processedNodes.length) return '0 0 850 560';
+    const xs = processedNodes.map(n => n.x), ys = processedNodes.map(n => n.y);
+    const minX = Math.min(...xs) - 90, maxX = Math.max(...xs) + 90;
+    const minY = Math.min(...ys) - 50, maxY = Math.max(...ys) + 70;
+    return `${minX} ${minY} ${maxX - minX} ${maxY - minY}`;
+  })();
+
   // A node absent from the graph as of this date has nothing to inspect: the inspector stays closed.
   const activeNodeData = processedNodes.find(n => n.id === selectedNodeId) || null;
 
@@ -264,14 +297,14 @@ export default function GraphVisualizer({
         {/* Filter & Zoom Controls */}
         <div className="pointer-events-auto flex items-center gap-1.5 p-1 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-sm">
           <button 
-            onClick={() => setZoom(z => Math.min(z + 0.15, 2))}
+            onClick={() => setZoom(z => Math.min(z + 0.15, 3))}
             className="p-1.5 rounded hover:bg-slate-100 text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
             title="Zoom In"
           >
             <ZoomIn size={14} />
           </button>
           <button 
-            onClick={() => setZoom(z => Math.max(z - 0.15, 0.6))}
+            onClick={() => setZoom(z => Math.max(z - 0.15, 0.4))}
             className="p-1.5 rounded hover:bg-slate-100 text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
             title="Zoom Out"
           >
@@ -299,6 +332,7 @@ export default function GraphVisualizer({
 
       {/* SVG Canvas */}
       <div 
+        ref={canvasRef}
         className="w-full h-full relative cursor-grab active:cursor-grabbing overflow-hidden"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -333,7 +367,7 @@ export default function GraphVisualizer({
             transformOrigin: 'center center',
             transition: isDragging ? 'none' : 'transform 0.1s ease-out'
           }}
-          viewBox="0 0 850 560"
+          viewBox={viewBox}
         >
           <defs>
             <marker id="arrow-active-light" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto">
