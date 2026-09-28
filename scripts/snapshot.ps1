@@ -12,6 +12,9 @@ function Step([string]$what, [scriptblock]$cmd) {
 
 $dir = Join-Path (Get-Location) "backups\$Name"
 New-Item -ItemType Directory -Force $dir | Out-Null
+# Delete old dumps first: overwriting a larger file through the Docker Desktop bind mount can leave trailing bytes,
+# and neo4j-admin then rejects the dump as "Not a valid Neo4j archive" at restore time.
+Remove-Item -Force -ErrorAction SilentlyContinue "$dir\keystone.dump", "$dir\neo4j.dump", "$dir\manifest.json"
 
 # Record what is being captured, so the receiving side can check the restore.
 $extract = (docker compose exec -T backend printenv EXTRACT_MODEL) -join ''
