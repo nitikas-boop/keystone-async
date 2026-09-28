@@ -1,10 +1,13 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from datetime import date
 
 import httpx
+import openai
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .reasoning import ModelUnavailable
@@ -34,7 +37,26 @@ async def lifespan(app):
 
 
 app = FastAPI(title='Keystone', lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:5173', 'http://127.0.0.1:5173'],
+log = logging.getLogger('keystone.api')
+
+
+# Registered before CORS so CORS wraps it: an unhandled error otherwise becomes a bare 500 without CORS headers,
+# and the browser shows "Failed to fetch" instead of the cause. Local model failures (Ollama down, model not
+# pulled; Graphiti reaches Ollama through the openai client) are 503 with Ollama's own message.
+@app.middleware('http')
+async def surface_errors(request, call_next):
+    try:
+        return await call_next(request)
+    except openai.APIError as e:
+        log.error('local model error on %s: %s', request.url.path, e)
+        return JSONResponse({'detail': f'local model error (is Ollama running with the models pulled?): {e}'}, 503)
+    except Exception as e:
+        log.exception('unhandled error on %s', request.url.path)
+        return JSONResponse({'detail': f'{type(e).__name__}: {e}'}, 500)
+
+
+# Any localhost port: Vite moves to 5174+ when 5173 is taken.
+app.add_middleware(CORSMiddleware, allow_origin_regex=r'http://(localhost|127\.0\.0\.1)(:\d+)?',
                    allow_methods=['*'], allow_headers=['*'])
 app.include_router(views.router)
 

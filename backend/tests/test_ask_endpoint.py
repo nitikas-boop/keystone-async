@@ -131,3 +131,24 @@ def test_ask_endpoint_unauthorized_user():
 
     r2 = client.post("/ask", json={"question": "test?"}, headers={"X-User": "unknown_intruder"})
     assert r2.status_code == 401
+
+
+def test_backend_errors_reach_the_browser_with_cors_headers(monkeypatch):
+    """An unhandled error must not become a bare 500 without CORS headers (the browser then only says
+    "Failed to fetch"): local model failures are 503, anything else 500, both with the cause and CORS headers."""
+    import openai
+    from app import ask as ask_mod
+
+    async def model_down(*a, **k):
+        raise openai.APIConnectionError(request=httpx.Request('POST', 'http://ollama/v1/embeddings'))
+
+    async def bug(*a, **k):
+        raise RuntimeError('boom')
+
+    client = TestClient(app, raise_server_exceptions=False)
+    headers = {'X-User': 'priya', 'Origin': 'http://localhost:5174'}
+    for fn, status, text in ((model_down, 503, 'local model error'), (bug, 500, 'RuntimeError: boom')):
+        monkeypatch.setattr(ask_mod, 'ask', fn)
+        r = client.post('/ask', json={'question': 'explain the latest policy'}, headers=headers)
+        assert r.status_code == status and text in r.json()['detail']
+        assert r.headers['access-control-allow-origin'] == 'http://localhost:5174'
