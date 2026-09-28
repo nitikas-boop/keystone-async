@@ -112,23 +112,32 @@ class ReasoningEngine:
         sources = {k: {'text': v.text, 'node': v.node} for k, v in retrieval.sources.items()}
 
         # 2. Deterministic compliance for retrieved decisions
-        checks = []
+        # Verdicts are spelled out in plain words and listed before the retrieved context, and every clause they
+        # name carries its text: a 7B model otherwise re-derives the verdict from whichever clause text it sees.
+        checks, check_sources = [], {}
         for n in retrieval.nodes:
             if n.type == 'Decision':
                 res = await compliance.evaluate(n.id, as_of, LOW_CONFIDENCE, explain=explain_compliance)
                 if res and res.get('result') != 'no_clause':
                     checks.append(res)
-                    for label, cs in (('when decided', res['checks']), (f'as of {as_of}', res['current'])):
+                    for when, cs in ((f"when it was decided on {res['decided_on']}", res['checks']),
+                                     (f'as of {as_of}', res['current'])):
                         for c in cs:
-                            sources.setdefault(c['source_id'], {
-                                'text': f"Clause {c['source_id']} in force {c['valid_from']} to {c['valid_to'] or 'now'}",
-                                'node': None
-                            })
-                            sources[f"CHECK:{n.id}:{c['source_id']}"] = {
-                                'node': None,
-                                'text': (f"Deterministic check of {n.id} against {c['source_id']} ({label}): {c['result']}; "
-                                         f"{c['reason']}; decision value {c['decision_value']}, limit {c['limit']}.")
-                            }
+                            window = f"in force {c['valid_from']} to {c['valid_to'] or 'now'}"
+                            if c['source_id'] not in sources and c['source_id'] not in check_sources:
+                                text = await db.pool.fetchval('SELECT text FROM policy_clauses WHERE clause_id=$1 '
+                                                              'AND version=$2', c['clause_id'], c['version'])
+                                check_sources[c['source_id']] = {'node': None,
+                                                                 'text': f"Clause {c['source_id']} {window}: {text}"}
+                            detail = (f"decision value {c['decision_value']}, limit {c['limit']}"
+                                      if c['limit'] is not None else c['reason'])
+                            line = (f"{when}: {c['result'].upper().replace('_', ' ')} under {c['source_id']} "
+                                    f"({window}); {detail}.")
+                            key = f"CHECK:{n.id}:{c['source_id']}"
+                            prev = check_sources.get(key)
+                            check_sources[key] = {'node': None, 'text': f"{prev['text']} Also {line}" if prev else
+                                                  f"Deterministic compliance check of {n.id}, {line}"}
+        sources = {**check_sources, **sources}
 
         # 3. If no relevant sources found, refuse cleanly
         if retrieval.is_empty:

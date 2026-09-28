@@ -2,6 +2,7 @@
 qwen3:14b machine): policy upload, decision upload, as-of compliance, cited /ask, refusal, live scanner flag,
 human approval, executor .eml, audit trail, and extraction review. Uses the isolated test backend."""
 import asyncio
+from datetime import date
 import os
 from pathlib import Path
 
@@ -197,3 +198,24 @@ def test_reference_to_uningested_decision_does_not_break_ask(api, clean):
     assert httpx.get(f'{api}/decisions/T-DEC-OLD/compliance', timeout=60).status_code == 404
     a = ask(api, 'Was keeping customer logs for 180 days compliant in 2025?', '2025-06-30')
     assert not a['refused'] and a['compliance'][0]['decision_id'] == 'T-DEC-7'
+
+
+async def test_extraction_does_not_redate_a_fact_another_document_recorded(nimbus_test_graph, monkeypatch):
+    """A meeting note that restates 'DEC-003 MADE_BY p-vikram' must not move that edge's valid time from the
+    decision's date to the note's date, replace its provenance, or queue it for review (it happened in the seed)."""
+    from app import extract, graph, llm
+    u = graph.uid('DEC-003|MADE_BY|p-vikram')
+    edge = 'MATCH ()-[x:RELATES_TO {uuid: $u}]->() RETURN x.valid_at AS v, x.source_doc AS d'
+    before = (await graph.q(edge, u=u))[0]
+
+    async def fake_chat_json(*a, **k):
+        return {'entities': [], 'relations': [{'source': 'DEC-003', 'relation': 'MADE_BY', 'target': 'p-vikram',
+                                               'quote': 'Vikram decided.', 'confidence': 1.0}]}
+    monkeypatch.setattr(llm, 'chat_json', fake_chat_json)
+    raw = '---\ndoc_type: meeting_note\n---\nVikram decided.\n'
+    out = await extract.extract(raw, raw.index('Vikram'), 'T-MTG', 'meeting-notes/t.md', date(2025, 5, 14),
+                                'org', graph.uid('episode:T-MTG'))
+
+    after = (await graph.q(edge, u=u))[0]
+    assert (after['v'], after['d']) == (before['v'], before['d']) == (before['v'], 'decisions/DEC-003.md')
+    assert out['extracted']['already_known'] == 1 and out['pending_review'] == 0

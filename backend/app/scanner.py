@@ -1,7 +1,7 @@
 """Policy impact scanner (§6.6). Called by ingestion the moment a PolicyVersion commits (event-driven)."""
 from datetime import date
 
-from . import compliance, db, graph, llm
+from . import compliance, config, db, graph, llm
 
 SEVERITY = {'ONGOING_PRACTICE_BREACH': 'action_needed', 'RULE_CHANGED_SINCE': 'informational',
             'SUPERSEDED': 'historical'}
@@ -34,10 +34,10 @@ async def scan(policy_id: str, version: str) -> list[dict]:
         return []
 
     hits = await graph.q(
-        'MATCH (d:Entity)-[r:RELATES_TO {name: "RELIED_ON"}]->(c:Entity) '
+        'MATCH (d:Entity {group_id: $g})-[r:RELATES_TO {name: "RELIED_ON"}]->(c:Entity) '
         'WHERE d.type = "Decision" AND coalesce(d.rejected, false) = false AND coalesce(r.rejected, false) = false '
         'AND c.clause_id IN $changed AND d.decided_on < $starts '
-        'RETURN DISTINCT d.key AS decision, c.clause_id AS clause', changed=changed, starts=starts.isoformat())
+        'RETURN DISTINCT d.key AS decision, c.clause_id AS clause', changed=changed, starts=starts.isoformat(), g=config.GROUP_ID)
     flags = []
     for h in hits:
         dec = await compliance.load_decision(h['decision'])

@@ -9,7 +9,7 @@ from . import config
 from .reasoning import LOW_CONFIDENCE, ReasoningEngine
 from .retrieval import get_retrieval_adapter
 
-RELEVANCE_MIN = float(config.E('RELEVANCE_MIN', '0.78'))
+RELEVANCE_MIN = float(config.E('RELEVANCE_MIN', '0.80'))
 
 # Engine instance
 _engine: Optional[ReasoningEngine] = None

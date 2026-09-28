@@ -299,7 +299,8 @@ export const DEMO_QUERIES = [
     id: "q-3",
     shortLabel: "VendorCo Contract Approval (Mar 2025)",
     query: "Was the ₹4 lakh VendorCo contract approved correctly in March 2025?",
-    asOfDateSuggested: "2025-03-15",
+    // Today, so the answer contrasts "compliant then" (PROC-3.1 v1) with "needs CEO sign-off now" (v2).
+    asOfDateSuggested: new Date().toLocaleDateString("en-CA"),
     answer: "### Point-in-Time Compliance: **YES (COMPLIANT WHEN MADE)**\n\nContract signed on **March 14, 2025** via [DEC-004] for ₹4,00,000 by **Vikram Shah (CTO)**.\n\n- **In Force on 14 Mar 2025:** [PROC-3.1@v1] permitted the CTO to unilaterally approve software infrastructure contracts up to **₹5,00,000**.\n- **Deterministic Check:** ₹4,00,000 <= ₹5,00,000 → **COMPLIANT**.\n\nℹ️ **Policy Impact (RULE_CHANGED_SINCE):**\nOn July 1, 2025, [PROC-3.1@v2] reduced the unilateral CTO ceiling to ₹2,00,000, requiring CEO sign-off above ₹2L. This historical decision remains valid, but any renewal or contract modification today requires co-signature by CEO Ananya Rao.",
     citations: [
       { id: "DEC-004", label: "DEC-004", type: "decision", date: "2025-03-14", title: "Sign VendorCo contract, ₹4,00,000" },

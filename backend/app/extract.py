@@ -164,7 +164,15 @@ async def extract(raw: str, body_start: int, did: str, path: str, ref: date, vis
             if r[0] == 'node' and r[3] == n['key']:
                 rows[i] = (r[0], u, r[2], r[3], r[4], r[5], r[6])
 
+    known_facts = 0
     for e in edges_to_upsert:
+        owner = await _edge_owner(graph.uid(f"{e['src']}|{e['rel']}|{e['dst']}"))
+        if owner and owner != path:
+            # Another document (e.g. a decision's front-matter) already records this fact. Re-saving it here
+            # would re-date it to this note and replace its provenance, so it is left alone and not queued.
+            rows = [r for r in rows if not (r[0] == 'edge' and (r[2], r[3], r[4]) == (e['rel'], e['src'], e['dst']))]
+            known_facts += 1
+            continue
         eu = await graph.upsert_edge(e['src'], e['rel'], e['dst'], e['fact'], graph.at(ref), e['prov'], episode)
         edges.append(eu)
         for i, r in enumerate(rows):
@@ -181,7 +189,13 @@ async def extract(raw: str, body_start: int, did: str, path: str, ref: date, vis
                 [(did, k, u, t, s, d, text, p['source_start'], p['source_end'], p['source_quote'], p['confidence'],
                   p['extracted_by'], p['visibility']) for k, u, t, s, d, text, p in rows])
 
-    return {'edge_uuids': edges, 'extracted': {'nodes': len(nodes_to_upsert), 'edges': len(edges)}, 'pending_review': len(rows)}
+    return {'edge_uuids': edges, 'extracted': {'nodes': len(nodes_to_upsert), 'edges': len(edges),
+                                               'already_known': known_facts}, 'pending_review': len(rows)}
+
+
+async def _edge_owner(u: str) -> str | None:
+    rows = await graph.q('MATCH ()-[x:RELATES_TO {uuid: $u}]->() RETURN x.source_doc AS d', u=u)
+    return rows[0]['d'] if rows else None
 
 
 # ---- ingestion review ----
@@ -219,10 +233,17 @@ async def review(ext_id: int, actor: str, decision: str, changes: dict | None = 
         await c.execute('UPDATE extractions SET status=$2, human_verified=$3, extracted_by=$4, confidence=$5 WHERE id=$1',
                         ext_id, status, decision != 'reject', props.get('extracted_by', r['extracted_by']),
                         props.get('confidence', r['confidence']))
-        await graph.set_props(r['kind'], r['graph_uuid'], props)
+        payload = {'decision': decision, 'changes': changes}
+        owner = await _edge_owner(r['graph_uuid']) if r['kind'] == 'edge' else None
+        path = await c.fetchval('SELECT path FROM documents WHERE id=$1', r['document_id'])
+        if owner and owner != path:
+            # A later document re-recorded this fact with its own provenance; reviewing this extraction
+            # must not verify or expire that fact. The review is still recorded, with the reason.
+            payload['graph_unchanged'] = f'fact now recorded by {owner}'
+        else:
+            await graph.set_props(r['kind'], r['graph_uuid'], props)
         await db.audit(actor, 'extraction_reviewed', 'extraction', str(ext_id),
-                       [x for x in (r['source_key'], r['target_key']) if x],
-                       {'decision': decision, 'changes': changes}, conn=c)
+                       [x for x in (r['source_key'], r['target_key']) if x], payload, conn=c)
         return row_out(await c.fetchrow('SELECT * FROM extractions WHERE id=$1', ext_id))
 
 

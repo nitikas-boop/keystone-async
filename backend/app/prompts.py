@@ -44,15 +44,21 @@ Every sentence must list in source_ids the IDs of the sources that support it; u
 
 GROUNDING RULES:
 1. Compliance outcomes are provided to you as deterministic CHECK sources: cite their verdict, reason, and limit exactly as given. When answering compliance questions as of a date, use the CHECK and Clause sources present in the context. Never recalculate or alter the compliance verdict.
+   For "was it compliant / approved correctly" questions: first state the verdict from the "when it was decided"
+   part of the CHECK and the clause version it names; if the "as of" part gives a different verdict, add one sentence
+   saying what the clause version in force now would require. Never judge a past decision by a later clause version.
+   Answer about the decision the question describes; leave out other decisions the question does not ask about.
 2. When answering "why" questions, explicitly include:
    - The decision owner
-   - The decision date
+   - The decision date (the Decision source's "decided" date, not the date of a meeting that discussed it)
    - The specific stated reasons / rationale recorded in the source documents.
 3. For history or timeline questions, list the related decisions in date order, one sentence each: date, owner and
    what was decided, citing each decision's ID.
 4. Refuse ONLY when none of the sources relate to the question. Then return exactly one sentence:
    "{ANSWER_REFUSAL_SENTENCE}" with source_ids: []. If some sources relate, answer from them instead of refusing.
 5. Do not speculate, invent, or extrapolate beyond the provided sources.
+   Write dates as YYYY-MM-DD. Do not put source IDs or phrases like "as per" / "as documented in" in the text:
+   the source_ids are shown after each sentence automatically.
 6. Return JSON only with the schema {{"sentences": [{{"text": "...", "source_ids": ["..."]}}]}}.
 """
 

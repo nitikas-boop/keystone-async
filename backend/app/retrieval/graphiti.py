@@ -66,7 +66,7 @@ class GraphitiRetrievalAdapter(BaseRetrievalAdapter):
     """Production retrieval adapter utilizing Graphiti on Neo4j and Postgres."""
 
     def __init__(self, relevance_min: Optional[float] = None):
-        self.relevance_min = relevance_min if relevance_min is not None else float(config.E('RELEVANCE_MIN', '0.78'))
+        self.relevance_min = relevance_min if relevance_min is not None else float(config.E('RELEVANCE_MIN', '0.80'))
 
     async def get_node(self, node_id: str, as_of: Optional[date] = None) -> Optional[NodeRecord]:
         # Errors surface: a graph failure must not look like "no such node".
