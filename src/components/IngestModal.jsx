@@ -84,10 +84,9 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
     }
 
     try {
-      setIngestStep(`Uploading ${fileToUpload.name} to POST /documents...`);
+      setIngestStep(`Uploading ${fileToUpload.name}; the server parses, extracts and scans in one request...`);
       const res = await uploadDocument(fileToUpload);
 
-      setIngestStep("Parsing front-matter & extracting structured clauses...");
       const flags = res.flags || [];
       setReturnedFlags(flags);
       setIngestComplete(true);
@@ -161,7 +160,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
                     90-Day Raw Log Ceiling
                   </div>
                   <div className="text-[10px] text-[#64748B] mt-0.5">
-                    Triggers ONGOING_PRACTICE_BREACH on DEC-007
+                    In the demo data: DEC-007 ongoing breach, DEC-002 superseded
                   </div>
                 </button>
 
@@ -181,7 +180,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
                     ₹2,00,000 CTO Ceiling
                   </div>
                   <div className="text-[10px] text-[#64748B] mt-0.5">
-                    Triggers RULE_CHANGED_SINCE on DEC-004
+                    Already in the seed data: re-upload raises no new flags
                   </div>
                 </button>
               </div>

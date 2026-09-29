@@ -3,12 +3,9 @@ import {
   ZoomIn, 
   ZoomOut, 
   RotateCcw, 
-  Clock, 
-  AlertTriangle, 
-  ShieldCheck, 
+  Clock,   
   FileText, 
   Info,
-  Layers,
   ChevronRight
 } from 'lucide-react';
 
@@ -605,9 +602,12 @@ export default function GraphVisualizer({
                   <div className="p-2.5 rounded-lg bg-sky-50/70 border border-sky-100 font-mono text-[10.5px]">
                     <div className="text-[#0284C7] font-semibold text-[10px] mb-1 uppercase tracking-wider flex items-center justify-between">
                       <span>PROVENANCE TRACE</span>
-                      {activeNodeData.provenance.confidence && (
-                        <span>{(activeNodeData.provenance.confidence * 100).toFixed(0)}% CONF</span>
-                      )}
+                      <span className="normal-case font-normal">
+                        {activeNodeData.provenance.extracted_by === 'human'
+                          ? 'from document front-matter'
+                          : `extracted by ${activeNodeData.provenance.extracted_by} · model-reported confidence ${activeNodeData.provenance.confidence}`}
+                        {' · '}{activeNodeData.provenance.human_verified ? 'human verified' : 'not yet reviewed'}
+                      </span>
                     </div>
                     <div className="text-[#334155] truncate">Doc: {activeNodeData.provenance.source_doc}</div>
                     {activeNodeData.provenance.source_span?.quote && (
@@ -757,9 +757,8 @@ export default function GraphVisualizer({
           </div>
 
           <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] font-mono text-[#64748B]">
-            <span className="flex items-center gap-1 text-emerald-600">
-              <ShieldCheck size={12} />
-              Bi-temporal Edge Verified
+            <span>
+              Valid {activeNodeData.validFrom?.slice(0, 10) || '—'} → {activeNodeData.validTo?.slice(0, 10) || 'no end date'}
             </span>
             <span>Ref: {activeNodeData.id}</span>
           </div>

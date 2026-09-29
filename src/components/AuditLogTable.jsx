@@ -1,20 +1,25 @@
-import React, { useState } from 'react';
-import { 
-  ShieldCheck, 
-  Hash, 
-  Clock, 
-  CheckCircle2, 
-  Copy, 
+import React, { useEffect, useState } from 'react';
+import {
+  ShieldCheck,
+  ShieldAlert,
+  Hash,
+  Clock,
+  Copy,
   RefreshCw,
   X
 } from 'lucide-react';
-import { formatHash, verifyAuditChain } from '../utils/crypto';
+import { verifyAuditChain } from '../utils/crypto';
 import { verifyAuditServer } from '../api';
+import { useApp } from '../context';
+import { plural, shortHash, ts } from '../utils/format';
+import { displayName } from '../utils/people';
 
 export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
+  const { team } = useApp();
   const [selectedBlock, setSelectedBlock] = useState(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [copiedHash, setCopiedHash] = useState(null);
+  const [verdict, setVerdict] = useState(null);  // {ok, at, rows, head, brokenAt, message}
 
   const handleCopy = (text) => {
     if (!text) return;
@@ -30,13 +35,20 @@ export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
     try {
       // Two independent checks: in this browser, and GET /audit/verify on the server (whole table).
       const [client, server] = await Promise.all([verifyAuditChain(auditLogs || []), verifyAuditServer()]);
-      result = { ok: client.ok && server.ok, message: `Browser: ${client.message} Server: ${server.message}` };
+      const rows = [...(auditLogs || [])].sort((a, b) => a.id - b.id);
+      const brokenAt = server.first_broken_id ?? client.brokenId ?? null;
+      result = { ok: client.ok && server.ok, message: `Browser: ${client.message} Server: ${server.message}`,
+                 rows: server.rows, head: rows.length ? rows[rows.length - 1].hash : null, brokenAt };
     } catch (err) {
-      result = { ok: false, message: `Verification could not run: ${err.message}` };
+      result = { ok: false, error: true, message: `Verification could not run: ${err.message}` };
     }
+    setVerdict({ ...result, at: new Date().toISOString() });
     setIsVerifying(false);
-    if (onVerifyChain) onVerifyChain(result);
+    return result;
   };
+
+  // The badge is only ever the result of a check that ran: verify on open and whenever the rows change.
+  useEffect(() => { if (auditLogs) runVerificationSweep(); }, [auditLogs]);
 
   return (
     <div className="flex flex-col h-full paper-sheet overflow-hidden">
@@ -49,13 +61,10 @@ export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
           <div>
             <div className="font-heading font-semibold text-xs tracking-tight text-[#0F172A] flex items-center gap-2">
               <span>HASH-CHAINED TAMPER-EVIDENT AUDIT LOG</span>
-              <span className="font-mono text-[10.5px] px-2 py-0.5 rounded-md badge-note-green font-semibold flex items-center gap-1">
-                <CheckCircle2 size={11} />
-                CHAIN VALID (SHA-256 VERIFIED)
-              </span>
+              <ChainBadge verdict={verdict} busy={isVerifying} />
             </div>
-            <div className="text-[10.5px] font-mono text-[#64748B]">
-              Tamper-Evident Architecture: Append-only log with linked SHA-256 parent hashes.
+            <div className="text-[12px] text-[#64748B]">
+              Append-only log: each block stores the SHA-256 hash of the block before it, so any edit breaks every later link.
             </div>
           </div>
         </div>
@@ -71,7 +80,7 @@ export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
             </button>
           )}
           <button
-            onClick={runVerificationSweep}
+            onClick={async () => { const r = await runVerificationSweep(); if (onVerifyChain) onVerifyChain(r); }}
             disabled={isVerifying}
             className="px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-mono text-[#0F172A] flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
           >
@@ -87,7 +96,7 @@ export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
           <thead>
             <tr className="bg-slate-50/70 border-b border-slate-100 font-mono text-[10.5px] text-[#64748B] uppercase tracking-wider">
               <th className="py-2.5 px-3">Block #</th>
-              <th className="py-2.5 px-3">Timestamp (UTC)</th>
+              <th className="py-2.5 px-3">Time (IST; hover for UTC)</th>
               <th className="py-2.5 px-3">Actor</th>
               <th className="py-2.5 px-3">Action</th>
               <th className="py-2.5 px-3">Object (Type / ID)</th>
@@ -130,13 +139,14 @@ export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
                     <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap font-mono text-[10.5px]">
                       <div className="flex items-center gap-1">
                         <Clock size={11} className="text-[#0284C7] shrink-0" />
-                        <span>{typeof timestamp === 'string' ? timestamp.replace('T', ' ').slice(0, 19) : timestamp}</span>
+                        <span title={ts(timestamp).full}>{ts(timestamp).ist}</span>
                       </div>
                     </td>
 
                     {/* Actor */}
-                    <td className="py-2.5 px-3 text-[#0F172A] font-sans font-medium whitespace-nowrap">
-                      {actorName}
+                    <td className="py-2.5 px-3 text-[#0F172A] font-sans font-medium whitespace-nowrap" title={actorName}>
+                      {displayName(actorName, team)}
+                      <span className="block font-mono text-[10.5px] text-[#64748B] font-normal">{actorName}</span>
                     </td>
 
                     {/* Action */}
@@ -171,7 +181,7 @@ export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
                     {/* Parent Hash */}
                     <td className="py-2.5 px-3 font-mono text-[10.5px] text-[#94A3B8]">
                       <span title={prevHash}>
-                        {formatHash(prevHash, 6)}
+                        {/^0+$/.test(prevHash) ? 'genesis (64 zeros)' : shortHash(prevHash)}
                       </span>
                     </td>
 
@@ -179,7 +189,7 @@ export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
                     <td className="py-2.5 px-3 font-mono text-[10.5px]">
                       <div className="flex items-center gap-1.5">
                         <span className="text-[#0F172A] font-semibold hover:text-[#0284C7] transition-colors" title={currentHash}>
-                          {formatHash(currentHash, 8)}
+                          {shortHash(currentHash)}
                         </span>
                         <button
                           onClick={(e) => {
@@ -226,12 +236,12 @@ export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
             <div className="space-y-3 font-mono text-xs">
               <div className="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
                 <div>
-                  <span className="text-[#64748B] block text-[10px]">TIMESTAMP (UTC)</span>
-                  <span className="text-[#0F172A]">{selectedBlock.ts ?? selectedBlock.timestamp}</span>
+                  <span className="text-[#64748B] block text-[10px]">TIME</span>
+                  <span className="text-[#0F172A]">{ts(selectedBlock.ts).ist}<br />{ts(selectedBlock.ts).utc}</span>
                 </div>
                 <div>
                   <span className="text-[#64748B] block text-[10px]">ACTOR</span>
-                  <span className="text-[#0F172A] font-semibold">{selectedBlock.actor}</span>
+                  <span className="text-[#0F172A] font-semibold">{displayName(selectedBlock.actor, team)} <span className="font-normal text-[#64748B]">({selectedBlock.actor})</span></span>
                 </div>
                 <div>
                   <span className="text-[#64748B] block text-[10px]">ACTION</span>
@@ -297,5 +307,27 @@ export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
         </div>
       )}
     </div>
+  );
+}
+
+// Computed only: grey until a check has run, green with time/blocks/head when both checks pass, red naming the
+// first broken block otherwise.
+function ChainBadge({ verdict, busy }) {
+  if (busy || !verdict) {
+    return <span className="text-[12px] px-2 py-0.5 rounded-md badge-note-slate font-sans font-normal">{busy ? 'Verifying…' : 'Not verified yet'}</span>;
+  }
+  if (verdict.ok) {
+    return (
+      <span className="text-[12px] px-2 py-0.5 rounded-md badge-note-green font-sans font-normal flex items-center gap-1" title={verdict.message}>
+        <ShieldCheck size={12} aria-hidden="true" />
+        Verified {ts(verdict.at).time} · {plural(verdict.rows, 'block')} · head <span className="font-mono">{shortHash(verdict.head)}</span>
+      </span>
+    );
+  }
+  return (
+    <span className="text-[12px] px-2 py-0.5 rounded-md badge-note-rose font-sans font-normal flex items-center gap-1" title={verdict.message}>
+      <ShieldAlert size={12} aria-hidden="true" />
+      {verdict.error ? 'Verification could not run' : `Broken at block ${verdict.brokenAt ?? '?'}`} · {ts(verdict.at).time}
+    </span>
   );
 }

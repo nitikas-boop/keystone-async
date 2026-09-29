@@ -57,7 +57,7 @@ export default function LandingPage({ onLaunchConsole }) {
       num: "04",
       title: "Sourced Answer",
       subtitle: "Forced Provenance",
-      desc: "Every claim cites a node ID. The system strictly refuses ungrounded questions.",
+      desc: "Every sentence cites a node ID. With no recorded evidence it answers “I have no recorded decision about that”.",
       tag: "Local Qwen, Grounded",
       color: "badge-note-green"
     },
@@ -126,7 +126,7 @@ export default function LandingPage({ onLaunchConsole }) {
         {/* Subheadline */}
         <p className="mt-5 text-base md:text-lg text-[#64748B] max-w-2xl font-sans leading-relaxed">
           Link every organizational decision to the exact policy clause version and timestamp in force. 
-          Point-in-time compliance, zero context loss, and hard human-in-the-loop execution.
+          Point-in-time compliance, cited answers, and a human approval before anything is executed.
         </p>
 
         {/* Action CTAs */}
@@ -183,11 +183,11 @@ export default function LandingPage({ onLaunchConsole }) {
 
           <div className="paper-sheet p-3.5">
             <div className="font-mono text-lg font-bold text-emerald-700 flex items-center gap-1.5">
-              <span>100% Local</span>
+              <span>Runs Locally</span>
               <Lock size={16} className="text-emerald-700" />
             </div>
             <div className="text-[11px] font-mono text-[#64748B] mt-0.5">
-              Ollama + Neo4j / Zero API egress
+              Ollama + Neo4j, no cloud APIs, telemetry off
             </div>
           </div>
         </div>
@@ -382,28 +382,27 @@ export default function LandingPage({ onLaunchConsole }) {
           <div className="paper-sheet p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
             <div className="space-y-3.5">
               <div className="inline-block px-2.5 py-0.5 rounded-md badge-note-green font-mono text-[11px] font-semibold">
-                STAGE 5 ACTION GATE
+                HUMAN APPROVAL GATE
               </div>
               <h3 className="text-lg font-heading font-bold text-[#0F172A]">
-                Structural Human-in-the-Loop Execution
+                Nothing Runs Without a Human Approval
               </h3>
               <p className="text-xs text-[#475569] leading-relaxed">
-                The AI model physically does not possess credentials or network permissions to execute tool actions. The agent drafts a proposal; a human clicks Approve; only then does the separate executor act (today it writes the notification to outbox/; MCP tools are on the roadmap) and record the SHA-256 block.
+                The local model has no tools and no credentials: the scanner (and any MCP client) can only create a proposal. A human clicks Approve; only then does the separate executor act. Today it writes the notification as an email file to outbox/. The approval and the execution are appended to the hash-chained audit log.
               </p>
               <div className="text-xs font-mono text-emerald-700 flex items-center gap-1.5">
                 <ShieldCheck size={15} />
-                <span>Zero runaway autonomy. 100% auditable liability.</span>
+                <span>Every approval and execution is an audit-log row.</span>
               </div>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs space-y-1.5">
               <div className="flex justify-between text-[10px] text-[#64748B]">
-                <span>EXECUTOR PIPELINE</span>
-                <span className="text-[#0284C7] font-semibold">GATE: LOCKED</span>
+                <span>EXAMPLE FLOW (DEMO DATA)</span>
               </div>
               <div className="text-xs text-[#334155] bg-white p-2 rounded border border-slate-200">
                 1. Scanner: flagged DEC-007 against RET-2.1@v3<br/>
-                2. Human: Farhan Qureshi approved the proposal<br/>
+                2. Human: a reviewer approves the proposal<br/>
                 3. Executor: wrote outbox/proposal-N.eml<br/>
                 4. Audit: row appended with SHA-256 hash chain
               </div>
@@ -416,7 +415,7 @@ export default function LandingPage({ onLaunchConsole }) {
       <section id="workflow" className="py-14 px-6 max-w-5xl mx-auto border-t border-slate-200/80">
         <div className="text-center mb-10">
           <span className="font-mono text-xs text-[#0284C7] uppercase tracking-wider font-semibold">
-            Official Brief 5-Stage Realization
+            The Brief's Five Stages
           </span>
           <h2 className="text-2xl md:text-3xl font-heading font-bold text-[#0F172A] mt-1">
             Data → Knowledge → Memory → Reasoning → Action
@@ -511,7 +510,7 @@ export default function LandingPage({ onLaunchConsole }) {
                 <td className="py-3 px-4 font-mono font-bold text-[#0284C7]">Keystone Sovereign Engine</td>
                 <td className="py-3 px-4 text-[#0F172A]">Decisions + Clauses + Time + Actions</td>
                 <td className="py-3 px-4 text-[#475569] font-medium">Single-tenant; extraction needs human review; demo data is synthetic</td>
-                <td className="py-3 px-4 text-[#0284C7] font-mono font-bold">100% Owned & Verifiable</td>
+                <td className="py-3 px-4 text-[#0284C7] font-mono font-bold">Self-hosted, every answer cited</td>
               </tr>
             </tbody>
           </table>

@@ -99,10 +99,10 @@ export default function IngestionReview({ onNotify }) {
                     )}
                   </td>
                   <td className="py-3 px-3 align-top font-mono text-[10.5px] text-[#475569] whitespace-nowrap">
-                    <div>confidence {p.confidence}</div>
                     <div>by {p.extracted_by}</div>
-                    <div className={p.human_verified ? 'text-emerald-700' : 'text-amber-700'}>
-                      {p.human_verified ? 'human verified' : 'not verified'}
+                    {p.extracted_by !== 'human' && <div>model-reported confidence {p.confidence}</div>}
+                    <div className={r.status === 'pending' ? 'text-amber-700' : 'text-[#334155]'}>
+                      {r.status === 'pending' ? 'awaiting review' : `reviewed · ${r.status}`}
                     </div>
                   </td>
                   <td className="py-3 px-3 align-top text-right whitespace-nowrap">

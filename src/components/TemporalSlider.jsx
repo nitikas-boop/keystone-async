@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Play, Pause, Info } from 'lucide-react';
 import { fetchPolicies, fetchFlags } from '../api';
+import { clauseRef, inr } from '../utils/format';
 
 // Everything here comes from the backend (/policies, /flags): milestones are the real policy version start dates,
 // "Active Clauses" is the version in force on the as-of date, and the staleness badge appears only when an
 // ONGOING_PRACTICE_BREACH flag exists whose triggering version is in force.
-const short = pid => pid.replace(/^POL-/, '');
 
 function summary(clause) {
   const f = clause?.fields || {};
   if (f.retention_days_max != null) return `${f.retention_days_max}d max`;
-  if (f.approver_threshold_inr?.CTO != null) return `₹${f.approver_threshold_inr.CTO / 100000}L CTO ceiling`;
+  if (f.approver_threshold_inr?.CTO != null) return `${inr(f.approver_threshold_inr.CTO)} CTO ceiling`;
   return '';
 }
 
@@ -35,7 +35,7 @@ export default function TemporalSlider({ asOfDate, onDateChange, refreshKey = 0 
     ...versions.map(v => ({
       date: v.valid_from,
       label: new Date(v.valid_from).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }),
-      policyTag: `${short(v.policy_id)} ${v.version} (${summary(mainClause(v))})`,
+      policyTag: `${clauseRef(mainClause(v).clause_id, v.version)} (${summary(mainClause(v))})`,
     })),
     { date: today, label: 'Today', policyTag: '' },
   ].sort((a, b) => a.date.localeCompare(b.date))

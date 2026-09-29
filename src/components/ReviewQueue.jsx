@@ -10,7 +10,9 @@ import {
   Clock,
   Send
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { useApp } from '../context';
+import { plural, polish, ts } from '../utils/format';
+import { displayName } from '../utils/people';
 
 export default function ReviewQueue({ 
   queueItems, 
@@ -22,19 +24,8 @@ export default function ReviewQueue({
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ to: '', subject: '', body: '' });
 
-  const triggerConfetti = () => {
-    confetti({
-      particleCount: 40,
-      spread: 60,
-      origin: { y: 0.8 },
-      colors: ['#0284C7', '#38BDF8', '#F59E0B', '#10B981']
-    });
-  };
-
-  const handleApprove = (action) => {
-    triggerConfetti();
-    onApproveAction(action.id);
-  };
+  const { team } = useApp();
+  const handleApprove = (action) => onApproveAction(action.id);
 
   const handleOpenEdit = (action) => {
     setSelectedAction(action);
@@ -80,18 +71,15 @@ export default function ReviewQueue({
           <div>
             <div className="font-heading font-semibold text-xs tracking-tight text-[#0F172A] flex items-center gap-2">
               <span>HUMAN-IN-THE-LOOP REVIEW QUEUE</span>
-              <span className="font-mono text-[10px] px-2 py-0.5 rounded-md badge-note-sky font-semibold">
-                STAGE 5: CONTROLLED EXECUTION
-              </span>
             </div>
-            <div className="text-[10.5px] font-mono text-[#64748B]">
-              Structural Enactment: Models propose actions; humans verify; executor calls tools.
+            <div className="text-[12px] text-[#64748B]">
+              The scanner and MCP clients can only propose. A human approves; then the executor writes an email file to outbox/.
             </div>
           </div>
         </div>
 
         <div className="text-[11px] font-mono px-2.5 py-0.5 rounded-lg bg-slate-50 border border-slate-200 text-[#0F172A]">
-          {pendingCount} Actions Pending Sign-off
+          {plural(pendingCount, 'proposal')} awaiting a decision
         </div>
       </div>
 
@@ -148,7 +136,7 @@ export default function ReviewQueue({
                     {/* Proposed Action / Subject */}
                     <td className="py-3 px-3 align-top max-w-[240px]">
                       <div className="font-heading font-semibold text-[#0F172A] text-[12px] leading-snug">
-                        {subjectText}
+                        {polish(subjectText)}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1 font-mono text-[10px] text-[#64748B]">
                         <span>Source:</span>
@@ -158,7 +146,7 @@ export default function ReviewQueue({
                       </div>
                       {item.created_at && (
                         <div className="text-[9.5px] font-mono text-[#94A3B8] mt-0.5">
-                          {new Date(item.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {ts(item.created_at).ist}
                         </div>
                       )}
                     </td>
@@ -166,7 +154,7 @@ export default function ReviewQueue({
                     {/* Reasoning Chain / Body */}
                     <td className="py-3 px-3 align-top max-w-[320px]">
                       <p className="text-[#334155] text-[11px] leading-relaxed whitespace-pre-line line-clamp-3">
-                        {bodyText}
+                        {polish(bodyText)}
                       </p>
                     </td>
 
@@ -178,7 +166,7 @@ export default function ReviewQueue({
                       </div>
                       {item.decided_by && (
                         <div className="text-[9.5px] text-[#64748B] mt-1 font-sans">
-                          Decided by: <span className="font-semibold text-[#0F172A]">{item.decided_by}</span>
+                          Decided by: <span className="font-semibold text-[#0F172A]" title={item.decided_by}>{displayName(item.decided_by, team)}</span>
                         </div>
                       )}
                     </td>
