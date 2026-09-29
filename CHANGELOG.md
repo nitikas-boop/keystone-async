@@ -1,5 +1,29 @@
 # Changelog
 
+## Usability pass (30 Sept 2026)
+
+- **Titles before IDs.** Records show their title first, with the ID smaller: Review Queue list and detail,
+  the Decisions register, involved-record chips, "How I got this", and scanner results. Every ID chip's
+  tooltip names the record. Impact codes read as plain words everywhere: "Still breaching the new rule",
+  "Rule changed since", "Replaced, historical only". The code stays in the tooltip.
+- **Answer-first graph.** After an answer, the graph shows only the records that answer used, laid out
+  across the date range those records span. A banner names the question. "Show full graph" returns to
+  everything. A refusal or a new conversation clears it.
+- **Simpler Workspace.** Console and graph split 50/50. The embedded review list is gone (the header badge
+  counts proposals). The timeline collapses to one line on the Workspace by default and stays open on the
+  Graph tab; the choice is remembered per view. The inspector opens when you ask to inspect something, not
+  on every answer.
+- **One date format:** `30 Sep 2026`. This applies to the as-of picker, audit filters, the graph's as-of
+  tag, the console header, and ISO dates inside model-worded text. Dates inside IDs such as
+  `MTG-2025-05-14` are left alone. "Back to today" appears when the timeline is elsewhere.
+- **Polish.**
+  - Rejected proposals show ✕.
+  - Ingestion history lists the newest document first.
+  - Graph labels avoid other labels and nodes, highest priority first.
+  - The graph's colour key sits in the toolbar.
+  - The layout works down to 1024 px: tabs become icons with tooltips, and side panels narrow.
+- `record-demo.mjs` presses "Show full graph" before the time-travel scene.
+
 ## Frontend rework, branch `frontend-rework` (29–30 Sept 2026)
 
 This pass changed the frontend only: `src/`, frontend tests, `scripts/record-demo.mjs` selectors, and docs.

@@ -337,8 +337,8 @@ Autonomous action without human approval.
 | Landing page | Pitch, features, 5-stage pipeline, architecture matrix, live engine status |
 | Enter Workspace | Pre-authenticated role picker: Priya (Ops Lead), Karthik (CTO), Ananya (CEO), or Keystone Admin. Demo roles, not real auth |
 | Header | Home button, logo, engine status (≥1760 px wide; the console always shows it), seven view tabs (short labels below 1700 px) with pending badges for proposals and extracted facts, Ingest Document, current user (name, role, ID), sign out |
-| Timeline ribbon | Workspace and Graph only. As-of date picker, clause versions in force, policy-impact badge, a slider proportional to real dates with the policy milestones, Animate Timeline |
-| Unified Workspace | Console (left) + graph and a compact review-queue list (right), one viewport, panels scroll independently |
+| Timeline ribbon | Workspace and Graph only; collapses to one line (default on the Workspace). As-of date picker, clause versions in force, policy-impact badge, a slider proportional to real dates with the policy milestones, Animate Timeline |
+| Unified Workspace | Console and graph side by side (50/50), one viewport, panels scroll independently; after an answer the graph shows only the records that answer used ("Show full graph" returns to everything) |
 | Temporal Graph | Console (collapsible to a rail, same conversation) + graph from `/graph/view` laid out by date (x) and entity type (lanes); nodes fade or grey out as the as-of date moves; docked inspector with relied-on clause and its supersession, provenance, and compliance then vs now on request |
 | Console | Cited answers with the as-of date, source chips, "How I got this" (retrieved nodes, compliance then vs now); one refusal style; elapsed time while answering; model/telemetry/service status from `/health` |
 | Review Queue | List + detail: what approving does in plain words, involved records, full scanner reasoning, the proposal as stored, its audit rows; Approve (then polls until the executor wrote the `.eml`), inline Edit, Reject with a required reason |
@@ -349,7 +349,7 @@ Autonomous action without human approval.
 | Ingest Document | Presets that know whether they are already ingested, custom Markdown or meeting audio, observable progress with Cancel, specific errors, per-stage results, jump to Review Queue or Ingestion Review |
 | Everywhere | Ctrl/Cmd+K search; every ID chip opens its record; one colour and icon per entity type |
 
-Target: 1920×1080 at 125% scaling (1536×~730 CSS px), also checked at 1366×768 and 1920×1080. No page-level
+Target: 1920×1080 at 125% scaling (1536×~730 CSS px), also checked at 1366×768, 1920×1080 and 1024×700. No page-level
 scrolling on app screens. Screenshots: `docs/screenshots/`. Logo swap: replace `public/keystone-mark.png` (also
 the favicon).
 
