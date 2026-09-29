@@ -6,7 +6,7 @@ import IdChip from './IdChip';
 import { ThenNow } from './Compliance';
 import { RELATIONS, TYPES, impactLabel, nodeTitle, typeMeta } from '../utils/entities';
 import { layout } from '../utils/graphLayout';
-import { day, inr, month, polish, todayIST } from '../utils/format';
+import { day, inr, month, polish, todayIST, ts } from '../utils/format';
 import { displayName } from '../utils/people';
 
 // The temporal graph, from GET /graph/view (server-side visibility filter). Positions come from a deterministic
@@ -49,7 +49,8 @@ function clauseSummary(fields = {}, checkable = true) {
 }
 
 export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode, highlightNodeIds = [], refreshKey = 0,
-  focus: answerFocus = null, onClearFocus, defaultInspector = true, inspectKey = 0, evidence = false, onExplore }) {
+  focus: answerFocus = null, onClearFocus, defaultInspector = true, inspectKey = 0, evidence = false, onExplore,
+  proposals = [], auditLogs = [] }) {
   const { isReader, team, openEntity } = useApp();
   const [base, setBase] = useState(null);      // every node known today: drives the layout
   const [atDate, setAtDate] = useState(null);  // the same view as of asOfDate: drives node state
@@ -389,7 +390,8 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
           {selected
             ? <Inspector node={selected} state={stateById[selected.id]} st={nodeState(selected.id)} asOfDate={asOfDate}
                          allEdges={allEdges} baseById={baseById} decisions={decisions} policies={policies} flags={flags}
-                         team={team} openEntity={openEntity} onClear={() => onSelectNode(null)} />
+                         team={team} openEntity={openEntity} onClear={() => onSelectNode(null)}
+                         proposals={proposals} auditLogs={auditLogs} />
             : <p className="p-4 text-[13px] text-[#64748B]">Select a node to inspect it. Answer citations and ID chips elsewhere in the app open here. Click empty space, click the node again, or press Esc to clear a selection.</p>}
         </aside>
       )}
@@ -435,7 +437,8 @@ function Row({ label, children }) {
   );
 }
 
-function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, policies, flags, team, openEntity, onClear }) {
+function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, policies, flags, team, openEntity, onClear,
+  proposals = [], auditLogs = [] }) {
   const [compliance, setCompliance] = useState(null);
   useEffect(() => { setCompliance(null); }, [node.id]);
   const m = typeMeta(node.type);
@@ -512,6 +515,7 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
             <p className="mt-0.5 leading-relaxed">{polish(f.explanation)}</p>
           </section>
         ))}
+        <ProposalStatus items={proposals.filter(p => p.decision_id === node.id)} auditLogs={auditLogs} team={team} openEntity={openEntity} />
         <section>
           <h4 className="text-[12px] text-[#64748B] mb-1">Recorded reason</h4>
           <p className="text-[13px] leading-relaxed text-[#334155]">{polish(a.reasons) || '—'}</p>
@@ -565,6 +569,8 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
       <>
         <h3 className="font-heading font-semibold text-[15px] text-[#0F172A]" title={f?.impact_type}>{f ? impactLabel(f.impact_type) : nodeTitle(node)}</h3>
         <p className="text-[13px] leading-relaxed">{polish(f?.explanation) || '—'}</p>
+        <ProposalStatus items={proposals.filter(p => p.flag_id === node.id)} auditLogs={auditLogs} team={team} openEntity={openEntity}
+                        emptyText={f && f.impact_type === 'SUPERSEDED' ? 'Historical only: the scanner proposed no action.' : null} />
         <Related title="Affects" ids={out('AFFECTS')} baseById={baseById} />
         <Related title="Caused by" ids={out('CAUSED_BY')} baseById={baseById} />
       </>
@@ -592,6 +598,56 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
       {body}
       {provenance}
     </div>
+  );
+}
+
+// What happened to the proposals about this record: status, when, who was notified, the outbox file and the
+// audit block. From GET /proposals and the audit log the dashboard already loads; approving never edits the graph.
+const PROPOSAL_STATE = {
+  proposed: ['badge-note-amber', 'Awaiting a decision'],
+  approved: ['badge-note-sky', 'Approved, waiting for the executor'],
+  executed: ['badge-note-green', 'Executed'],
+  rejected: ['badge-note-rose', 'Rejected'],
+};
+
+function ProposalStatus({ items, auditLogs, team, openEntity, emptyText = null }) {
+  if (!items.length) {
+    return emptyText ? <p className="text-[12.5px] text-[#475569]">{emptyText}</p> : null;
+  }
+  return (
+    <section>
+      <h4 className="text-[12px] text-[#64748B] mb-1">Review queue</h4>
+      <ul className="space-y-1.5">
+        {items.map(p => {
+          const [cls, label] = PROPOSAL_STATE[p.status] || ['badge-note-slate', p.status];
+          const row = [...auditLogs].reverse().find(r => r.object_type === 'proposal' && String(r.object_id) === String(p.id)
+            && r.action === (p.status === 'executed' ? 'executed' : p.status === 'proposed' ? 'action_proposed' : p.status));
+          const when = p.status === 'executed' ? p.executed_at : p.status === 'proposed' ? p.created_at : p.decided_at;
+          const recipient = team.find(m => m.id === (p.to || '').split('@')[0]);
+          return (
+            <li key={p.id} className="rounded-lg border border-slate-200 p-2 text-[12.5px] leading-relaxed">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <IdChip id={`#${p.id}`} type="proposal" label="Proposal" />
+                <span className={`px-1.5 py-0.5 rounded ${cls}`}>{label}</span>
+                {when && <span className="text-[#475569]">{ts(when).ist}</span>}
+              </div>
+              <div className="mt-1 text-[#334155]">
+                {p.status === 'executed' && <>Notified {recipient?.name || p.to}: <span className="font-mono">outbox/{p.outbox_file}</span>. </>}
+                {p.status === 'rejected' && <>Rejected by {displayName(p.decided_by, team)}. Nothing was sent. </>}
+                {p.status === 'approved' && <>Approved by {displayName(p.decided_by, team)}. </>}
+                {p.status === 'proposed' && <>Would notify {recipient?.name || p.to}. </>}
+                {row && (
+                  <button className="underline text-[#0369A1] cursor-pointer" onClick={() => openEntity(`block:${row.id}`, 'audit')}>
+                    Audit block {row.id}
+                  </button>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-1 text-[11.5px] text-[#64748B]">Approving a proposal records a sign-off and a notification; it does not change the graph.</p>
+    </section>
   );
 }
 

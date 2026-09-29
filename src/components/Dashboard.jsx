@@ -439,6 +439,8 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
                 onExplore={() => { setActiveView('GRAPH'); setInspectKey(k => k + 1); }}
                 defaultInspector={activeView === 'GRAPH'}
                 inspectKey={inspectKey}
+                proposals={queueItems}
+                auditLogs={auditLogs}
               />
             </div>
           </div>

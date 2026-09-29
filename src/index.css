@@ -212,3 +212,7 @@
 .kst-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%;
   background: #0284C7; border: 2px solid #FFFFFF; box-shadow: 0 0 0 1px #0284C7; }
 .kst-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #0284C7; border: 2px solid #FFFFFF; }
+
+/* Graph nodes: show keyboard focus as a ring on the node, not a square box around the SVG group. */
+svg g[role="button"]:focus { outline: none; }  /* the browser draws a square box on mouse focus too */
+svg g[role="button"]:focus-visible > circle { stroke: #0284C7; stroke-width: 3; }
