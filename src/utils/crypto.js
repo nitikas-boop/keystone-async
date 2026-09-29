@@ -33,16 +33,21 @@ function canonicalTs(ts) {
 
 // Browser-side check. Returns {ok, message, brokenId?, brokenPos?, checked}. onProgress(done, total) is called
 // as rows are hashed; the chain position of the first broken row is 1-based.
+// The exact string the audit_chain trigger hashed for a row (everything except the hash itself).
+export function canonicalRow(r) {
+  return canonicalJson({
+    id: r.id, ts: canonicalTs(r.ts), actor: r.actor, action: r.action, object_type: r.object_type,
+    object_id: r.object_id, source_ids: r.source_ids, payload_hash: r.payload_hash, prev_hash: r.prev_hash,
+  });
+}
+
 export async function verifyAuditChain(rows, onProgress) {
   const sorted = [...rows].sort((a, b) => a.id - b.id);
   if (sorted.length === 0) return { ok: true, checked: 0, message: 'Audit log is empty: nothing to verify.' };
   let prev = null;
   for (const [i, r] of sorted.entries()) {
     const fail = (message) => ({ ok: false, message, brokenId: r.id, brokenPos: i + 1, checked: i });
-    const expected = await sha256(canonicalJson({
-      id: r.id, ts: canonicalTs(r.ts), actor: r.actor, action: r.action, object_type: r.object_type,
-      object_id: r.object_id, source_ids: r.source_ids, payload_hash: r.payload_hash, prev_hash: r.prev_hash,
-    }));
+    const expected = await sha256(canonicalRow(r));
     if (expected !== r.hash) return fail(`Row #${r.id}: stored hash does not match its contents.`);
     const expectedPrev = prev ? prev.hash : (r.id === 1 ? '0'.repeat(64) : null);
     if (expectedPrev !== null && r.prev_hash !== expectedPrev) {
