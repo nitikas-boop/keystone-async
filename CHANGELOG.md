@@ -1,5 +1,16 @@
 # Changelog
 
+## Ask vs Temporal Graph (30 Sept 2026)
+
+The two tabs had become the same screen at different widths. Each now has its own job:
+- **Ask** (was "Unified Workspace") is the conversation. Next to it is the evidence for the latest answer:
+  only the records that answer used, on their own timeline. It stays empty, with a hint, until you ask.
+  "Explore in the full graph" jumps to the Temporal Graph.
+- **Temporal Graph** is the full graph, the policy timeline and the inspector. The console sits in a rail
+  and opens beside the graph when you need it. It is the same conversation, and the last answer's records
+  stay highlighted.
+- The console's submit button is now **Send**, so it no longer shares a name with the Ask tab.
+
 ## Usability pass (30 Sept 2026)
 
 - **Titles before IDs.** Records show their title first, with the ID smaller: Review Queue list and detail,

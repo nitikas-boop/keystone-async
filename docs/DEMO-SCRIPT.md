@@ -27,11 +27,11 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 
 > For the demo we sign in as one of the Nimbus Ledger team. Priya is the Ops Lead.
 
-## 3. Unified Workspace (0:36)
+## 3. Ask (0:36)
 
-> This is the workspace. On the left, the reasoning console. On the right, the temporal knowledge graph: decisions
-> in purple, policy clauses in amber, people in blue. Below it, the human review queue. Everything fits on one
-> screen, so you ask on the left and watch the evidence light up on the right.
+> This is Ask. On the left, the conversation. On the right, the evidence for each answer: only the records that
+> answer used, on a timeline, so you ask on the left and see exactly what it rests on, on the right. Decisions in
+> purple, policy clauses in amber, people in blue.
 
 ## 4. Q1: history of Project Atlas (0:56)
 
@@ -84,8 +84,8 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 
 ## 8. Temporal Graph (2:46)
 
-> The Temporal Graph view gives the graph more room. The chat stays beside it, and the timeline across the top sets
-> the as-of date for everything.
+> The Temporal Graph shows every record on one timeline, with the policy milestones across the top. The console
+> opens beside it, and it is the same conversation.
 
 ## 9. Q4: 180-day retention in Q2 2025 (2:58)
 
