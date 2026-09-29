@@ -28,8 +28,9 @@ import {
   approveProposal,
   rejectProposal,
   editProposal,
-  fetchAudit,
+  fetchAuditAll,
   fetchDecisions,
+  fetchExtractions,
   fetchTeam,
   healthCheck,
   setCurrentUser
@@ -58,7 +59,9 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   const [notification, setNotification] = useState(null);
   const [policyRefresh, setPolicyRefresh] = useState(0);
   const [restrictedIds, setRestrictedIds] = useState(() => new Set());
+  const [pendingFacts, setPendingFacts] = useState(0);
   const [queueFocus, setQueueFocus] = useState(null);
+  const [auditFocus, setAuditFocus] = useState(null);
   const [watch, setWatch] = useState({ id: null, timedOut: null });  // proposal the UI waits on for the executor
 
   const showNotification = useCallback((msg, type = "info") => {
@@ -103,16 +106,24 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   // Load audit trail from GET /audit
   const loadAudit = useCallback(async () => {
     try {
-      setAuditLogs(await fetchAudit(0, 500));
+      setAuditLogs(await fetchAuditAll());
     } catch (err) {
       showNotification(`Audit log unavailable: ${err.message}`, "warning");
     }
   }, [showNotification]);
 
+  // Pending extracted facts for the Ingestion Review badge (restricted ones are not counted for non-readers).
+  const loadPendingFacts = useCallback(() => {
+    fetchExtractions('pending')
+      .then(rows => setPendingFacts(rows.filter(r => isReader || r.provenance.visibility !== 'restricted').length))
+      .catch(() => {});
+  }, [isReader]);
+
   useEffect(() => {
     loadProposals();
     loadAudit();
-  }, [loadProposals, loadAudit]);
+    loadPendingFacts();
+  }, [loadProposals, loadAudit, loadPendingFacts]);
 
   // After an approval, poll GET /proposals every 2 s (the executor polls every ~2 s) until the row is executed,
   // then refresh the audit log so the executor's block appears. Gives up after 60 s and says so.
@@ -184,6 +195,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
     }
     loadProposals();
     loadAudit();
+    loadPendingFacts();
     setPolicyRefresh(k => k + 1);
     showNotification(`${uploadRes?.document_id ?? 'Document'} ingested. Scanner raised ${flagged.length} flag(s).`, "info");
   };
@@ -191,7 +203,8 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   // Any ID chip in the app lands here.
   const openEntity = useCallback((id, type) => {
     if (type === 'proposal') { setQueueFocus(String(id).replace(/\D/g, '')); setActiveView('QUEUE'); return; }
-    if (type === 'audit') { setActiveView('AUDIT'); return; }
+    if (type === 'audit') { setAuditFocus(String(id).replace(/\D/g, '')); setActiveView('AUDIT'); return; }
+    if (type === 'extraction') { setActiveView('EXTRACTIONS'); return; }
     setSelectedNodeId(id);
     setHighlightNodeIds([id]);
     setActiveView(v => (v === 'UNIFIED' || v === 'GRAPH' ? v : 'GRAPH'));
@@ -243,10 +256,10 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
               <Icon size={14} className={activeView === id ? 'text-[#0284C7]' : ''} aria-hidden="true" />
               <span className="hidden min-[1480px]:inline">{label}</span>
               <span className="min-[1480px]:hidden">{short}</span>
-              {id === 'QUEUE' && pendingProposals > 0 && (
+              {(id === 'QUEUE' ? pendingProposals : id === 'EXTRACTIONS' ? pendingFacts : 0) > 0 && (
                 <span className="min-w-4 h-4 px-1 rounded-full bg-[#0284C7] text-[11px] leading-none font-bold text-white flex items-center justify-center"
-                      title={`${pendingProposals} proposal(s) waiting for a human decision`}>
-                  {pendingProposals}
+                      title={id === 'QUEUE' ? `${pendingProposals} proposal(s) waiting for a human decision` : `${pendingFacts} extracted fact(s) waiting for review`}>
+                  {id === 'QUEUE' ? pendingProposals : pendingFacts}
                 </span>
               )}
             </button>
@@ -385,7 +398,8 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
         {activeView === 'EXTRACTIONS' && (
           <div className="flex-1 h-full min-h-0">
-            <IngestionReview onNotify={showNotification} />
+            <IngestionReview onNotify={showNotification} auditLogs={auditLogs} refreshKey={policyRefresh}
+                             onChanged={() => { loadAudit(); loadPendingFacts(); }} />
           </div>
         )}
 
@@ -394,7 +408,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             <AuditLogTable
               auditLogs={auditLogs}
               onRefresh={loadAudit}
-              onVerifyChain={(result) => showNotification(result.message, result.ok ? "success" : "warning")}
+              focusBlock={auditFocus}
             />
           </div>
         )}
@@ -405,7 +419,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
         isOpen={isIngestModalOpen}
         onClose={() => setIsIngestModalOpen(false)}
         onPolicyUploaded={handlePolicyUploaded}
-        onProceedToQueue={() => setActiveView('QUEUE')}
+        onProceedToQueue={(view) => setActiveView(view || 'QUEUE')}
       />
     </div>
     </AppContext.Provider>

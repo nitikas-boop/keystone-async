@@ -364,8 +364,10 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
       <div className="text-[12px] font-semibold text-[#334155]">Provenance</div>
       <div>Source: <span className="font-mono">{prov.sourceDoc || '—'}</span></div>
       <div>
-        {prov.extractedBy === 'human' ? 'Recorded in the document itself' : `Extracted by ${prov.extractedBy} · model-reported confidence ${prov.confidence}`}
-        {' · '}{prov.humanVerified ? 'human verified' : 'not yet reviewed'}
+        {prov.sourceDoc === 'system:scanner' || prov.sourceDoc === 'flags'
+          ? 'Written by the impact scanner from the deterministic check'
+          : <>{prov.extractedBy === 'human' ? 'Recorded in the document itself' : `Extracted by ${prov.extractedBy} · model-reported confidence ${prov.confidence}`}
+            {' · '}{prov.humanVerified ? 'human verified' : 'not yet reviewed'}</>}
       </div>
       {prov.sourceSpan?.quote && <blockquote className="italic text-[#475569] border-l-2 border-slate-300 pl-2">“{polish(prov.sourceSpan.quote)}”</blockquote>}
       <div className="text-[#475569]">Valid {day(node.validFrom)} → {node.validTo ? day(node.validTo) : 'no end date'}</div>
