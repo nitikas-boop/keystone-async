@@ -36,7 +36,7 @@ export default function IngestionReview({ onNotify, auditLogs = [], onChanged, r
     const all = rows || [];
     if (isReader) return all;
     const secretDocs = new Set(all.filter(r => r.provenance.visibility === 'restricted').map(r => r.document_id));
-    const secretKeys = new Set(all.filter(r => r.provenance.visibility === 'restricted').flatMap(r => [r.source, r.target]));
+    const secretKeys = new Set(all.filter(r => r.provenance.visibility === 'restricted' && r.kind === 'node').map(r => r.source));
     return all.filter(r => r.provenance.visibility !== 'restricted' && !secretDocs.has(r.document_id)
       && !secretKeys.has(r.source) && !secretKeys.has(r.target) && !restrictedIds.has(r.source) && !restrictedIds.has(r.target));
   }, [rows, isReader, restrictedIds]);

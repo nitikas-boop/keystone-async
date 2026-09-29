@@ -79,9 +79,16 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   useEffect(() => { fetchTeam().then(setTeam).catch(() => setTeam([])); }, []);
 
   // IDs of restricted decisions, so list views that the backend does not filter can hide them (KNOWN_ISSUES.md).
+  // Restricted decisions, plus the documents and nodes named by restricted extractions (e.g. MTG-2025-08-12).
   useEffect(() => {
-    fetchDecisions()
-      .then(ds => setRestrictedIds(new Set(ds.filter(d => d.provenance?.visibility === 'restricted').map(d => d.id))))
+    Promise.all([fetchDecisions(), fetchExtractions()])
+      .then(([ds, ex]) => {
+        const secret = ex.filter(x => x.provenance?.visibility === 'restricted');
+        setRestrictedIds(new Set([
+          ...ds.filter(d => d.provenance?.visibility === 'restricted').map(d => d.id),
+          ...secret.map(x => x.document_id), ...secret.map(x => x.source).filter(k => /^(DEC|MTG)-/.test(k || '')),
+        ]));
+      })
       .catch(() => {});
   }, [policyRefresh]);
 

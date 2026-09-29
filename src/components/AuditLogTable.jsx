@@ -186,9 +186,8 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
                     <td className="py-2 px-3 whitespace-nowrap"><ObjectRef r={r} masked={masked} openEntity={openEntity} /></td>
                     <td className="py-2 px-3">
                       <div className="flex flex-wrap gap-1 max-w-[16rem]">
-                        {r.source_ids.map(id => masked(id)
-                          ? <span key={id} className="px-1.5 rounded bg-slate-100 text-[12px] text-[#475569]" title="Restricted item">restricted</span>
-                          : <IdChip key={id} id={id} />)}
+                        {r.source_ids.filter(id => !masked(id)).map(id => <IdChip key={id} id={id} />)}
+                        {r.source_ids.some(masked) && <span className="px-1.5 rounded bg-slate-100 text-[12px] text-[#475569]" title="Hidden: restricted">restricted</span>}
                       </div>
                     </td>
                     <td className={`py-2 px-3 font-mono text-[12px] whitespace-nowrap ${hover === r.pos ? 'bg-amber-100' : ''}`}
@@ -268,8 +267,10 @@ function Drawer({ r, rows, team, masked, openEntity, onClose }) {
   const [recomputed, setRecomputed] = useState(null);
   const canonical = canonicalRow(r);
   useEffect(() => { sha256(canonical).then(setRecomputed).catch(() => setRecomputed('')); }, [canonical]);
+  // The hash is recomputed on the real values; restricted IDs are only masked in what is displayed.
+  const secretIds = [...r.source_ids, r.object_id].filter(masked);
+  const shownCanonical = secretIds.reduce((txt, id) => txt.split(JSON.stringify(id)).join('"[restricted]"'), canonical);
   const prev = rows.find(x => x.pos === r.pos - 1);
-  const secretIds = r.source_ids.some(masked) || masked(r.object_id);
   return (
     <aside className="w-[26rem] shrink-0 paper-sheet flex flex-col overflow-hidden" aria-label={`Audit block ${r.pos}`}>
       <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
@@ -288,8 +289,8 @@ function Drawer({ r, rows, team, masked, openEntity, onClose }) {
         )}
         <section>
           <h4 className="text-[12px] font-semibold text-[#475569] mb-1">Canonical payload that was hashed</h4>
-          {secretIds && <p className="text-[12px] text-[#475569] mb-1">Contains restricted IDs; shown because the hash is computed over them.</p>}
-          <pre className="p-2.5 rounded-lg bg-slate-900 text-slate-100 text-[11.5px] whitespace-pre-wrap break-all">{canonical}</pre>
+          {secretIds.length > 0 && <p className="text-[12px] text-[#475569] mb-1">Restricted IDs are masked here; the hash below is recomputed on the real values.</p>}
+          <pre className="p-2.5 rounded-lg bg-slate-900 text-slate-100 text-[11.5px] whitespace-pre-wrap break-all">{shownCanonical}</pre>
           <p className="text-[12px] text-[#475569] mt-1">
             <span className="font-mono">payload_hash</span> is the SHA-256 of the action's own payload; the payload itself is not stored.
           </p>
