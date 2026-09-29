@@ -15,6 +15,7 @@ import {
   Info
 } from 'lucide-react';
 import Logo from './Logo';
+import { day } from '../utils/format';
 import { healthCheck } from '../api';
 
 export default function LandingPage({ onLaunchConsole }) {
@@ -251,7 +252,7 @@ export default function LandingPage({ onLaunchConsole }) {
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs space-y-2">
                 <div className="flex justify-between text-[#64748B]">
                   <span>INTERACTIVE HORIZON SLIDER:</span>
-                  <span className="text-[#0284C7] font-bold">{sliderPreviewDate}</span>
+                  <span className="text-[#0284C7] font-bold">{day(sliderPreviewDate)}</span>
                 </div>
                 <input
                   type="range"
@@ -275,7 +276,7 @@ export default function LandingPage({ onLaunchConsole }) {
               <div className="text-xs font-mono p-2.5 rounded-lg bg-white border border-slate-200 text-[#0F172A] shadow-2xs">
                 {sliderPreviewDate === '2024-09-01' && "Policy in force: RET-2.1 v1 (max 365 days). DEC-007 does not exist yet; DEC-002 (300 days) is compliant."}
                 {sliderPreviewDate === '2025-06-30' && "Policy in force: RET-2.1 v2 (max 180 days). DEC-007 (180 days) is compliant, exactly at the limit."}
-                {sliderPreviewDate === '2026-09-28' && "Policy in force: RET-2.1 v3 (max 90 days). DEC-007 (180 days) is flagged ONGOING_PRACTICE_BREACH."}
+                {sliderPreviewDate === '2026-09-28' && "Policy in force: RET-2.1 v3 (max 90 days). DEC-007 (180 days) is flagged: still breaching the new rule."}
               </div>
             </div>
 

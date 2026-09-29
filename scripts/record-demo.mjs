@@ -100,6 +100,8 @@ await hold(32); mark('Temporal Graph view'); await caption('Temporal Graph: chat
 await click(header('Temporal Graph'), 2500);
 await hold(12); await ask('180-Day Retention', 'Q4  Was 180-day log retention compliant in Q2 2025?');
 await hold(14); mark('Time travel: Jan 2024'); await caption('Drag the timeline: the graph shows what was in force on that date');
+// After an answer the graph shows only the records it used; time travel is shown on the full graph.
+await click(page.getByRole('button', { name: /Show full graph/ }), 1200);
 await click(page.getByRole('button', { name: /Jan 2024/ }), 3500);
 await hold(7); mark('Time travel: Jan 2025'); await click(page.getByRole('button', { name: /Jan 2025/ }), 3000);
 await hold(6); mark('Time travel: Jul 2025'); await click(page.getByRole('button', { name: /Jul 2025/ }), 3000);

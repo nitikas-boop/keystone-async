@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronRight, ChevronLeft, ListTree, Loader2, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { BookOpen, ChevronRight, ChevronLeft, ListTree, Loader2, Maximize2, Network, ZoomIn, ZoomOut } from 'lucide-react';
 import { fetchDecisionCompliance, fetchDecisions, fetchFlags, fetchGraphView, fetchPolicies } from '../api';
 import { useApp } from '../context';
 import IdChip from './IdChip';
 import { ThenNow } from './Compliance';
-import { RELATIONS, TYPES, typeMeta } from '../utils/entities';
+import { RELATIONS, TYPES, impactLabel, nodeTitle, typeMeta } from '../utils/entities';
 import { layout } from '../utils/graphLayout';
 import { day, inr, month, polish, todayIST } from '../utils/format';
 import { displayName } from '../utils/people';
@@ -16,15 +16,30 @@ const LANE_LABEL = { policy_version: 'Policy versions', clause: 'Clauses', flag:
   meeting_note: 'Meeting notes', project: 'Projects', person: 'People' };
 const R = 13;
 
-const firstLine = (label) => String(label || '').split('\n')[0];
+const clip = (t) => (t.length > 34 ? `${t.slice(0, 33)}…` : t);
 
-// /graph/view labels are 'DEC-004\n(Sign VendorCo contract …)', 'RET-2.1 @ v2\n(Max 180d)', 'Ananya Rao\n(CEO)'.
-function nodeTitle(n) {
-  const [a, b] = String(n.label || n.id).split('\n');
-  const inner = b ? b.replace(/^\(|\)$/g, '') : '';
-  if ((n.type === 'decision' || n.type === 'meeting_note') && inner) return inner;
-  if (n.type === 'clause') return inner ? `${n.id} · ${inner}` : n.id;
-  return a;
+// Places node labels without overlaps: highest-priority labels first, each tries below / above / right / left of
+// its node and is dropped (the title still shows on hover) when every spot collides with a label already placed.
+function placeLabels(items, nodePts = []) {
+  // Node circles are obstacles too, so a label never sits on top of another node.
+  const placed = nodePts.map(p => ({ x0: p.x - R, x1: p.x + R, y0: p.y - R, y1: p.y + R, node: p.id }));
+  let self = null;
+  const hit = (b) => placed.some(o => o.node !== self && b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0);
+  const out = {};
+  for (const it of items) {
+    self = it.id;
+    const w = it.text.length * it.size * 0.56 + 6, h = it.size + 3;
+    const edgeAnchor = it.x > it.width - 130 ? 'end' : it.x < 130 ? 'start' : 'middle';
+    const box = (dx, dy, anchor) => {
+      const x0 = anchor === 'start' ? it.x + dx : anchor === 'end' ? it.x + dx - w : it.x + dx - w / 2;
+      return { x0, x1: x0 + w, y0: it.y + dy - h + 3, y1: it.y + dy + 3, dx, dy, anchor };
+    };
+    const edgeDx = edgeAnchor === 'start' ? -R : edgeAnchor === 'end' ? R : 0;
+    const tries = [box(edgeDx, R + 13, edgeAnchor), box(edgeDx, -R - 6, edgeAnchor), box(R + 4, 4, 'start'), box(-R - 4, 4, 'end')];
+    const ok = tries.find(b => !hit(b)) || (it.force ? tries[0] : null);
+    if (ok) { placed.push(ok); out[it.id] = ok; }
+  }
+  return out;
 }
 
 function clauseSummary(fields = {}, checkable = true) {
@@ -33,7 +48,8 @@ function clauseSummary(fields = {}, checkable = true) {
   return checkable ? '' : 'not machine-checkable';
 }
 
-export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode, highlightNodeIds = [], refreshKey = 0 }) {
+export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode, highlightNodeIds = [], refreshKey = 0,
+  focus: answerFocus = null, onClearFocus, defaultInspector = true, inspectKey = 0 }) {
   const { isReader, team, openEntity } = useApp();
   const [base, setBase] = useState(null);      // every node known today: drives the layout
   const [atDate, setAtDate] = useState(null);  // the same view as of asOfDate: drives node state
@@ -43,7 +59,7 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
   const [error, setError] = useState(null);
   const [hoverNode, setHoverNode] = useState(null);
   const [hoverEdge, setHoverEdge] = useState(null);
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(defaultInspector);
   const [view, setView] = useState({ k: 1, x: 0, y: 0 });
   const [legendOpen, setLegendOpen] = useState(false);
   const [size, setSize] = useState({ w: 900, h: 480 });
@@ -73,25 +89,44 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
     return () => { live = false; };
   }, [asOfDate, isReader, refreshKey]);
 
+  // An explicit request to inspect (citation, ID chip, node click) opens the inspector; an answer merely
+  // highlighting nodes does not, so the Workspace keeps its width.
+  // The same graph serves the Workspace (inspector closed by default) and the Graph tab (open): follow the view.
+  useEffect(() => { setInspectorOpen(defaultInspector); }, [defaultInspector]);
+  const mountedKey = useRef(inspectKey);
+  useEffect(() => { if (inspectKey !== mountedKey.current) setInspectorOpen(true); }, [inspectKey]);
+
+  // Answer-first: after an answer only the records it used are drawn, laid out on their own. "Show full graph" clears it.
+  const focusIds = useMemo(() => (answerFocus ? new Set(answerFocus.ids) : null), [answerFocus]);
+  const nodes = useMemo(() => (base?.nodes || []).filter(n => !focusIds || focusIds.has(n.id)), [base, focusIds]);
+  useEffect(() => { setView({ k: 1, x: 0, y: 0 }); }, [focusIds]);
+
   const today = todayIST();
   const L = useMemo(() => {
     if (!base) return null;
-    const pts = base.nodes.map(n => ({ id: n.id, type: n.type, date: n.date || n.validFrom }));
-    const width = Math.max(640, size.w);
-    const first = layout(pts, { today, width, padX: 90 });
+    const pts = nodes.map(n => ({ id: n.id, type: n.type, date: n.date || n.validFrom }));
+    const width = Math.max(560, size.w);
+    // The answer view spans only its own dates, so a handful of records uses the whole width.
+    const opts = focusIds ? { minGap: 130, maxNudge: 90, rowGap: 46, laneGap: 12, today: undefined } : { today };
+    const first = layout(pts, { width, padX: 90, ...opts });
+    // The answer view has few rows: spread them over the canvas height (up to 90 px apart).
+    if (focusIds && first.height + 60 < size.h) {
+      return layout(pts, { width, padX: 90, ...opts, rowGap: Math.min(90, Math.floor(46 * (size.h - 40) / (first.height + 20))) });
+    }
     // Too tall for the canvas: tighten rows (never below 30 px, which still clears two node radii).
     if (first.height + 30 <= size.h) return first;
     const rowGap = Math.max(30, Math.floor(36 * size.h / (first.height + 30)));
-    return layout(pts, { today, width, padX: 90, rowGap, laneGap: 8, top: 22 });
-  }, [base, today, size.w, size.h]);
+    return layout(pts, { width, padX: 90, ...opts, rowGap, laneGap: 8, top: 22 });
+  }, [base, nodes, focusIds, today, size.w, size.h]);
 
   const stateById = useMemo(() => Object.fromEntries((atDate?.nodes || []).map(n => [n.id, n])), [atDate]);
   const baseById = useMemo(() => Object.fromEntries((base?.nodes || []).map(n => [n.id, n])), [base]);
-  const edges = atDate?.edges || [];
+  const edges = (atDate?.edges || []).filter(e => !focusIds || (focusIds.has(e.source) && focusIds.has(e.target)));
   const allEdges = base?.edges || [];
 
   // Focus: the selected (or hovered) node and its one-hop neighbours get labels; everything else is dimmed.
-  const focus = hoverNode || (selectedNodeId && baseById[selectedNodeId] ? selectedNodeId : null);
+  // In the answer view every drawn record matters, so only hovering dims the rest.
+  const focus = hoverNode || (!focusIds && selectedNodeId && baseById[selectedNodeId] ? selectedNodeId : null);
   const neighbours = useMemo(() => {
     if (!focus) return null;
     const s = new Set([focus]);
@@ -146,7 +181,26 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
   };
 
   const selected = selectedNodeId && baseById[selectedNodeId];
-  const asOfX = L && asOfDate >= L.start ? L.x(asOfDate > L.end ? L.end : asOfDate) : null;
+  // The answer view's axis covers only its records' dates: the as-of line shows only when it falls inside.
+  const asOfX = L && asOfDate >= L.start && (!focusIds || asOfDate <= L.end) ? L.x(asOfDate > L.end ? L.end : asOfDate) : null;
+
+  // Label text and placement for every drawn node (collision-avoiding; selected and highlighted placed first).
+  const labelOf = (n) => {
+    const st = nodeState(n.id);
+    const inFocus = neighbours ? neighbours.has(n.id) : true;
+    if (st === 'absent' || (neighbours && !inFocus)) return null;
+    const full = focusIds || (neighbours && inFocus);
+    return clip(full ? polish(nodeTitle(stateById[n.id] || n)) || n.id : (n.type === 'person' ? nodeTitle(n) : n.id));
+  };
+  const labels = !L ? {} : placeLabels(nodes
+    .filter(n => L.pos[n.id] && labelOf(n))
+    .map(n => {
+      const rank = n.id === selectedNodeId ? 0 : highlighted.has(n.id) || n.id === focus ? 1 : neighbours?.has(n.id) ? 2 : 3;
+      return { id: n.id, text: labelOf(n), x: L.pos[n.id].x, y: L.pos[n.id].y, width: L.width, rank,
+               size: focusIds || (neighbours && neighbours.has(n.id)) ? 12 : 10.5, force: rank <= 1 };
+    })
+    .sort((a, b) => a.rank - b.rank || a.x - b.x),
+    nodes.filter(n => L.pos[n.id] && nodeState(n.id) !== 'absent').map(n => ({ id: n.id, ...L.pos[n.id] })));
 
   return (
     <div className="w-full h-full flex paper-sheet overflow-hidden select-none">
@@ -157,7 +211,7 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
             <ListTree size={13} /> Legend
           </button>
           <span className="text-[12px] text-[#475569] truncate min-w-0">
-            Hover a node for its neighbours · click to inspect · hover a line for its relation
+            Faded: not yet valid · grey: superseded · red !: flagged{answerFocus ? '' : ' · hover a node for its neighbours, click to inspect'}
           </span>
           <div className="flex items-center gap-1 shrink-0">
             <button className="icon-btn" onClick={() => zoomBy(1.25)} aria-label="Zoom in" title="Zoom in"><ZoomIn size={14} /></button>
@@ -170,6 +224,14 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
           </div>
         </div>
 
+        {answerFocus && (
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-sky-100 bg-sky-50 text-[12.5px] text-[#0F172A]">
+            <span className="min-w-0 truncate" title={answerFocus.question}>
+              The {nodes.length} records used to answer “{answerFocus.question}”
+            </span>
+            <button className="btn-secondary shrink-0 ml-auto" onClick={onClearFocus}><Network size={13} /> Show full graph</button>
+          </div>
+        )}
         <div ref={canvasRef} className="relative flex-1 min-h-0">
           {legendOpen && (
             <div className="absolute top-2 left-2 z-10 max-w-md rounded-lg border border-slate-200 bg-white/95 shadow-sm p-2.5">
@@ -178,7 +240,7 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
           )}
           {error && <Overlay>Graph unavailable: {error}</Overlay>}
           {!error && !L && <Overlay><Loader2 size={14} className="animate-spin inline mr-1" /> Loading graph…</Overlay>}
-          {L && base.nodes.length === 0 && <Overlay>The graph is empty. Restore the demo snapshot or ingest documents.</Overlay>}
+          {L && nodes.length === 0 && <Overlay>The graph is empty. Restore the demo snapshot or ingest documents.</Overlay>}
           {L && (
             <svg ref={svgRef} className="w-full h-full cursor-grab active:cursor-grabbing touch-none" viewBox={`0 0 ${L.width} ${L.height + 26}`}
                  preserveAspectRatio="xMidYMid meet" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
@@ -205,7 +267,7 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
                     {/* keep the date tag inside the canvas at either end */}
                     <g transform={`translate(${Math.min(Math.max(0, 62 - asOfX), L.width - 62 - asOfX)} 0)`}>
                       <rect x="-60" y={L.height + 4} width="120" height="18" rx="4" fill="#0284C7" />
-                      <text x="0" y={L.height + 17} fontSize="11" fill="#fff" textAnchor="middle" fontFamily="var(--font-mono)">as of {asOfDate}</text>
+                      <text x="0" y={L.height + 17} fontSize="11" fill="#fff" textAnchor="middle" fontFamily="var(--font-body)">as of {day(asOfDate)}</text>
                     </g>
                   </g>
                 )}
@@ -237,7 +299,7 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
                 })}
 
                 {/* Nodes */}
-                {base.nodes.map(n => {
+                {nodes.map(n => {
                   const p = L.pos[n.id];
                   if (!p) return null;
                   const st = nodeState(n.id);
@@ -247,8 +309,8 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
                   const inFocus = neighbours ? neighbours.has(n.id) : true;
                   const opacity = st === 'absent' ? 0.1 : st === 'future' ? 0.35 : neighbours && !inFocus ? 0.3 : 1;
                   const grey = st === 'superseded' || st === 'future';
-                  const showLabel = st !== 'absent' && (neighbours ? inFocus : true);
-                  const label = neighbours && inFocus ? polish(nodeTitle(stateById[n.id] || n)) : (n.type === 'person' ? nodeTitle(n) : n.id);
+                  const lb = labels[n.id];
+                  const label = lb ? labelOf(n) : null;
                   return (
                     <g key={n.id} transform={`translate(${p.x} ${p.y})`} opacity={opacity} style={{ transition: 'opacity 450ms ease' }}
                        className={st === 'absent' ? '' : 'cursor-pointer'} pointerEvents={st === 'absent' ? 'none' : 'auto'}
@@ -270,29 +332,26 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
                           <circle r="6.5" fill="#E11D48" /><text y="3.5" fontSize="10" fontWeight="700" fill="#fff" textAnchor="middle">!</text>
                         </g>
                       )}
-                      {showLabel && (
-                        <text y={R + 13} fontSize={neighbours && inFocus ? 12 : 10.5}
-                              textAnchor={p.x > L.width - 130 ? 'end' : p.x < 130 ? 'start' : 'middle'}
-                              x={p.x > L.width - 130 ? R : p.x < 130 ? -R : 0} fill={grey ? '#475569' : '#0F172A'}
+                      {lb && (
+                        <text x={lb.dx} y={lb.dy} fontSize={focusIds || (neighbours && inFocus) ? 12 : 10.5} textAnchor={lb.anchor}
+                              fill={grey ? '#475569' : '#0F172A'}
                               fontFamily={label === n.id ? 'var(--font-mono)' : 'var(--font-body)'} fontWeight={isSel ? 600 : 400}
                               paintOrder="stroke" stroke="#F8FAFC" strokeWidth="3" pointerEvents="none">
-                          {label.length > 34 ? `${label.slice(0, 33)}…` : label}
+                          {label}
                         </text>
                       )}
+                      <title>{polish(nodeTitle(n)) || n.id}</title>
                     </g>
                   );
                 })}
               </g>
             </svg>
           )}
-          <div className="absolute top-2 right-2 text-[11.5px] text-[#475569] bg-white/90 rounded px-2 py-1 border border-slate-200 pointer-events-none">
-            Faded: not yet valid · grey: superseded · red !: flagged
-          </div>
         </div>
       </div>
 
       {inspectorOpen && (
-        <aside className="w-80 shrink-0 border-l border-slate-200 bg-white overflow-y-auto" aria-label="Inspector">
+        <aside className="w-72 xl:w-80 shrink-0 border-l border-slate-200 bg-white overflow-y-auto" aria-label="Inspector">
           {selected
             ? <Inspector node={selected} state={stateById[selected.id]} st={nodeState(selected.id)} asOfDate={asOfDate}
                          allEdges={allEdges} baseById={baseById} decisions={decisions} policies={policies} flags={flags}
@@ -415,7 +474,7 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
         </section>
         {nodeFlags.map(f => (
           <section key={f.id} className="rounded-lg badge-note-rose p-2.5 text-[12.5px]">
-            <div className="font-semibold">Policy impact: {f.impact_type}</div>
+            <div className="font-semibold" title={f.impact_type}>Policy impact: {impactLabel(f.impact_type)}</div>
             <p className="mt-0.5 leading-relaxed">{polish(f.explanation)}</p>
           </section>
         ))}
@@ -458,7 +517,7 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
     const p = team.find(x => x.id === node.id);
     body = (
       <>
-        <h3 className="font-heading font-semibold text-[15px] text-[#0F172A]">{p?.name || firstLine(node.label)}</h3>
+        <h3 className="font-heading font-semibold text-[15px] text-[#0F172A]">{p?.name || nodeTitle(node)}</h3>
         <dl className="grid grid-cols-2 gap-2">
           <Row label="Role">{p?.role || '—'}</Row>
           <Row label="Tenure">{day(p?.joined)} → {p?.left ? day(p.left) : 'present'}</Row>
@@ -470,7 +529,7 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
     const f = flags.find(x => x.id === node.id);
     body = (
       <>
-        <h3 className="font-heading font-semibold text-[15px] text-[#0F172A]">{f?.impact_type || firstLine(node.label)}</h3>
+        <h3 className="font-heading font-semibold text-[15px] text-[#0F172A]" title={f?.impact_type}>{f ? impactLabel(f.impact_type) : nodeTitle(node)}</h3>
         <p className="text-[13px] leading-relaxed">{polish(f?.explanation) || '—'}</p>
         <Related title="Affects" ids={out('AFFECTS')} baseById={baseById} />
         <Related title="Caused by" ids={out('CAUSED_BY')} baseById={baseById} />

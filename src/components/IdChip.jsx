@@ -16,25 +16,28 @@ export function TypeGlyph({ type, size }) {
   return <Glyph paths={m.icon} color={m.stroke} size={size} />;
 }
 
-// Every record ID in the app renders through this: the entity's colour and icon, monospace ID, and a click that
-// opens the record (graph node, proposal, policy, audit block). `label` adds readable text after the ID.
-export default function IdChip({ id, type, label, onClick, className = '', title }) {
-  const { openEntity } = useApp();
+// Every record ID in the app renders through this: the entity's colour and icon, and a click that opens the record
+// (graph node, proposal, policy, audit block). The record's title (from the shared title lookup) is always in the
+// tooltip; with `withTitle` (or an explicit `label`) the readable text leads and the ID follows, smaller.
+export default function IdChip({ id, type, label, withTitle = false, onClick, className = '', title }) {
+  const { openEntity, titles } = useApp();
   if (!id) return <span className="text-[#64748B]">—</span>;
   const t = type || typeOfId(id);
   const m = typeMeta(t);
+  const known = titles?.get(id);
+  const text = label || (withTitle ? known : null);
   return (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); (onClick || openEntity)(id, t); }}
-      title={title || `Open ${m.label.toLowerCase()} ${id}`}
+      title={title || `${known ? `${known} (${id})` : id}. Open this ${m.label.toLowerCase()}`}
       className={`inline-flex items-center gap-1 max-w-full px-1.5 py-0.5 rounded-md border text-[12px] leading-tight align-middle cursor-pointer hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-sky-600 ${className}`}
       style={{ background: m.fill, borderColor: `${m.stroke}40`, color: m.text }}
     >
       <Glyph paths={m.icon} color={m.stroke} />
-      {label && t === 'person'
-        ? <><span className="font-sans truncate">{label}</span><span className="font-mono text-[11px] opacity-75 shrink-0">{id}</span></>
-        : <><span className="font-mono truncate shrink-0">{id}</span>{label && <span className="font-sans truncate">{label}</span>}</>}
+      {text
+        ? <><span className="font-sans truncate">{text}</span><span className="font-mono text-[11px] opacity-75 shrink-0">{id}</span></>
+        : <span className="font-mono truncate shrink-0">{id}</span>}
     </button>
   );
 }

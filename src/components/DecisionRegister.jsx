@@ -6,11 +6,11 @@ import IdChip from './IdChip';
 import { ThenNow } from './Compliance';
 import { day, polish } from '../utils/format';
 import { displayName } from '../utils/people';
+import { IMPACT } from '../utils/entities';
 
 // Decision register: GET /decisions (as of today) + GET /flags. Compliance (then vs now) is loaded only when a row
 // is opened, from GET /decisions/{id}/compliance, so the table itself makes no model calls.
 const COLS = [
-  { key: 'id', label: 'ID' },
   { key: 'title', label: 'Decision' },
   { key: 'ownerName', label: 'Owner' },
   { key: 'project', label: 'Project' },
@@ -19,11 +19,6 @@ const COLS = [
   { key: 'flagCount', label: 'Policy impact' },
 ];
 
-const IMPACT = {
-  ONGOING_PRACTICE_BREACH: { label: 'Ongoing breach', cls: 'badge-note-rose' },
-  RULE_CHANGED_SINCE: { label: 'Rule changed since', cls: 'badge-note-amber' },
-  SUPERSEDED: { label: 'Superseded (historical)', cls: 'badge-note-slate' },
-};
 
 export default function DecisionRegister({ refreshKey = 0, focus }) {
   const { team, isReader, openEntity } = useApp();
@@ -112,16 +107,16 @@ export default function DecisionRegister({ refreshKey = 0, focus }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {error && <tr><td colSpan={7} className="p-6 text-center text-rose-700">Could not load decisions: {error}</td></tr>}
-              {!error && !decisions && <tr><td colSpan={7} className="p-6 text-center text-[#64748B]">Loading…</td></tr>}
-              {decisions && shown.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-[#64748B]">No decisions match these filters.</td></tr>}
+              {error && <tr><td colSpan={6} className="p-6 text-center text-rose-700">Could not load decisions: {error}</td></tr>}
+              {!error && !decisions && <tr><td colSpan={6} className="p-6 text-center text-[#64748B]">Loading…</td></tr>}
+              {decisions && shown.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-[#64748B]">No decisions match these filters.</td></tr>}
               {shown.map(r => (
                 <tr key={r.id} onClick={() => setOpenId(r.id)} tabIndex={0}
                   onKeyDown={e => e.key === 'Enter' && setOpenId(r.id)}
                   className={`cursor-pointer hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-sky-600 ${openId === r.id ? 'bg-sky-50/60' : ''}`}>
-                  <td className="py-2 px-3 whitespace-nowrap"><IdChip id={r.id} type="decision" onClick={() => setOpenId(r.id)} /></td>
                   <td className="py-2 px-3 text-[#0F172A]">
-                    {r.title}
+                    <span className="font-medium">{r.title}</span>
+                    <span className="block font-mono text-[11.5px] text-[#64748B]">{r.id}</span>
                     {r.restricted && <span className="ml-1.5 text-[11.5px] px-1 rounded badge-note-slate">restricted</span>}
                     {r.extracted && <span className="ml-1.5 text-[11.5px] px-1 rounded badge-note-slate">extracted from a meeting note</span>}
                   </td>
@@ -147,7 +142,7 @@ export default function DecisionRegister({ refreshKey = 0, focus }) {
       </div>
 
       {open && (
-        <aside className="w-[26rem] shrink-0 paper-sheet flex flex-col overflow-hidden" aria-label={`Decision ${open.id}`}>
+        <aside className="w-[21rem] xl:w-[26rem] shrink-0 paper-sheet flex flex-col overflow-hidden" aria-label={`Decision ${open.id}`}>
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
             <IdChip id={open.id} type="decision" />
             <div className="flex items-center gap-1.5">

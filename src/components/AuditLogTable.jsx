@@ -4,6 +4,7 @@ import { canonicalRow, sha256, verifyAuditChain } from '../utils/crypto';
 import { verifyAuditServer } from '../api';
 import { useApp } from '../context';
 import IdChip from './IdChip';
+import DateField from './DateField';
 import { plural, shortHash, ts } from '../utils/format';
 import { displayName } from '../utils/people';
 
@@ -131,8 +132,8 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
               <option value="">All actions</option>
               {ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
-            <label className="flex items-center gap-1 text-[#475569]">From <input type="date" className="field" value={filters.from} onChange={e => setFilters(f => ({ ...f, from: e.target.value }))} /></label>
-            <label className="flex items-center gap-1 text-[#475569]">to <input type="date" className="field" value={filters.to} onChange={e => setFilters(f => ({ ...f, to: e.target.value }))} /></label>
+            <span className="flex items-center gap-1 text-[#475569]">From <DateField label="From date" placeholder="Start" value={filters.from} onChange={v => setFilters(f => ({ ...f, from: v }))} /></span>
+            <span className="flex items-center gap-1 text-[#475569]">to <DateField label="To date" placeholder="End" value={filters.to} onChange={v => setFilters(f => ({ ...f, to: v }))} /></span>
             <input className="field w-44" placeholder="Object or source ID" value={filters.q} onChange={e => setFilters(f => ({ ...f, q: e.target.value }))} aria-label="Filter by object or source ID" />
             {filtered && <button className="text-[#0369A1] underline cursor-pointer" onClick={() => setFilters({ actor: '', action: '', from: '', to: '', q: '' })}>Clear</button>}
             <span className="ml-auto text-[#475569]">{filtered ? `${shown.length} of ${plural(rows.length, 'block')}` : plural(rows.length, 'block')}</span>
@@ -272,7 +273,7 @@ function Drawer({ r, rows, team, masked, openEntity, onClose }) {
   const shownCanonical = secretIds.reduce((txt, id) => txt.split(JSON.stringify(id)).join('"[restricted]"'), canonical);
   const prev = rows.find(x => x.pos === r.pos - 1);
   return (
-    <aside className="w-[26rem] shrink-0 paper-sheet flex flex-col overflow-hidden" aria-label={`Audit block ${r.pos}`}>
+    <aside className="w-[21rem] xl:w-[26rem] shrink-0 paper-sheet flex flex-col overflow-hidden" aria-label={`Audit block ${r.pos}`}>
       <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
         <h3 className="font-heading font-semibold text-[14px]">Block {r.pos} <span className="font-normal text-[#475569] text-[12.5px]">(database id {r.id})</span></h3>
         <button className="icon-btn" onClick={onClose} aria-label="Close block details"><X size={14} /></button>

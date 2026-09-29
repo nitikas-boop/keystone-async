@@ -26,7 +26,7 @@ const REFUSAL = 'I have no recorded decision about that';
 // itself: cited sentences, the as-of date used, and "how I got this" (retrieved nodes, clause versions, the
 // deterministic compliance result then vs now). A refusal, whether there is no evidence or the evidence is
 // restricted for this viewer, is the same exact sentence and looks identical.
-export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, onQueryExecuted, onNodeHighlight }) {
+export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, onQueryExecuted, onNodeHighlight, onAnswer, onReset }) {
   const [messages, setMessages] = useState([]);
   const [sessionId, setSessionId] = useState(() => 'sess-' + Math.random().toString(36).substring(2, 10));
   const [inputValue, setInputValue] = useState('');
@@ -60,6 +60,7 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
     try {
       const res = await ask(queryText, asOf, sessionId);
       if (onNodeHighlight && res.highlight_nodes) onNodeHighlight(res.highlight_nodes);
+      if (onAnswer) onAnswer(res, queryText);
       push({ role: 'assistant', res, seconds: (Date.now() - startedAt) / 1000 });
     } catch (err) {
       // Never substitute a canned answer: an answer that did not come from the graph must not look like one.
@@ -104,6 +105,7 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
   const clearChat = () => {
     setSessionId('sess-' + Math.random().toString(36).substring(2, 10));
     setMessages([]);
+    if (onReset) onReset();
   };
 
   const modelDown = health === null || (health && !(health.ollama && Object.values(health.ollama).every(v => v === true)));
@@ -115,7 +117,7 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
         <div className="min-w-0">
           <h2 className="font-heading font-semibold text-[13px] text-[#0F172A]">Ask the decision record</h2>
           <div className="text-[12.5px] text-[#475569] truncate">
-            As of <span className="text-[#0F172A] font-semibold font-mono">{asOfDate}</span>
+            As of <span className="text-[#0F172A] font-semibold">{day(asOfDate)}</span>
             {viewer && <> · Viewing as <span className="text-[#0F172A] font-semibold">{viewer.name}</span> ({viewer.role})</>}
           </div>
         </div>
@@ -131,7 +133,7 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
         </span>
         {DEMO_QUERIES.map(q => (
           <button key={q.id} onClick={() => { setInputValue(q.query); executeQuestion(q.query, q); }} disabled={!!pending}
-            title={`${q.query} (as of ${q.asOfDateSuggested})`}
+            title={`${q.query} (as of ${day(q.asOfDateSuggested)})`}
             className="px-2 py-0.5 text-[12px] rounded-md bg-white hover:bg-sky-50 text-[#334155] hover:text-[#0369A1] border border-slate-200 hover:border-sky-300 cursor-pointer disabled:opacity-50">
             {q.shortLabel}
           </button>
@@ -267,10 +269,10 @@ function Answer({ res, onCitationClick }) {
           <ChevronDown size={13} className="group-open:rotate-180 transition-transform" aria-hidden="true" /> How I got this
         </summary>
         <div className="mt-2 space-y-2.5">
-          <p>Evaluated as of <span className="font-mono">{res.as_of}</span>: only facts valid on that date were retrieved.</p>
+          <p>Evaluated as of {day(res.as_of)}: only facts valid on that date were retrieved.</p>
           <div>
             <div className="text-[#475569] mb-1">{plural(nodes.length, 'node')} retrieved from the graph</div>
-            <div className="flex flex-wrap gap-1">{nodes.map(n => <IdChip key={n.id} id={n.id} type={n.type?.toLowerCase().replace('policyversion', 'policy_version').replace('meetingnote', 'meeting_note')} />)}</div>
+            <div className="flex flex-wrap gap-1">{nodes.map(n => <IdChip key={n.id} id={n.id} withTitle type={n.type?.toLowerCase().replace('policyversion', 'policy_version').replace('meetingnote', 'meeting_note')} />)}</div>
           </div>
           {checks.length > 0 ? checks.map(c => (
             <div key={c.decision_id} className="rounded-lg border border-slate-200 p-2">

@@ -29,6 +29,7 @@ import CommandPalette from './CommandPalette';
 import { AppContext } from '../context';
 import { RESTRICTED_READERS, userKey as toUserKey } from '../utils/people';
 import { todayIST } from '../utils/format';
+import { nodeTitle } from '../utils/entities';
 import {
   fetchProposals,
   approveProposal,
@@ -37,6 +38,7 @@ import {
   fetchAuditAll,
   fetchDecisions,
   fetchExtractions,
+  fetchGraphView,
   fetchTeam,
   healthCheck,
   setCurrentUser
@@ -72,6 +74,19 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   const [auditFocus, setAuditFocus] = useState(null);
   const [policyFocus, setPolicyFocus] = useState(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [titles, setTitles] = useState(() => new Map());
+  const [answerFocus, setAnswerFocus] = useState(null);  // {ids, question}: graph shows only what the answer used
+  const [inspectKey, setInspectKey] = useState(0);        // bumped on an explicit "inspect this" (not on answer highlights)
+  // Timeline ribbon collapsed per view (remembered in this browser): compact on the Workspace, open on the Graph.
+  const [ribbonCollapsed, setRibbonCollapsed] = useState(() => {
+    try { return { UNIFIED: true, GRAPH: false, ...JSON.parse(localStorage.getItem('kst.ribbon') || '{}') }; }
+    catch { return { UNIFIED: true, GRAPH: false }; }
+  });
+  const toggleRibbon = (view) => setRibbonCollapsed(r => {
+    const next = { ...r, [view]: !r[view] };
+    try { localStorage.setItem('kst.ribbon', JSON.stringify(next)); } catch { /* storage unavailable: keep in memory */ }
+    return next;
+  });
 
   // Ctrl/Cmd+K opens record search from anywhere in the workspace.
   useEffect(() => {
@@ -96,6 +111,13 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   useEffect(() => { setCurrentUser(userKey); }, [userKey]);
 
   useEffect(() => { fetchTeam().then(setTeam).catch(() => setTeam([])); }, []);
+
+  // One title per record ID (from /graph/view, so restricted titles never reach non-readers): chips lead with it.
+  useEffect(() => {
+    fetchGraphView(todayIST(), isReader)
+      .then(g => setTitles(new Map(g.nodes.map(n => [n.id, nodeTitle(n)]).filter(([, t]) => t))))
+      .catch(() => {});
+  }, [isReader, policyRefresh]);
 
   // IDs of restricted decisions, so list views that the backend does not filter can hide them (KNOWN_ISSUES.md).
   // Restricted decisions, plus the documents and nodes named by restricted extractions (e.g. MTG-2025-08-12).
@@ -234,11 +256,12 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
     if (type === 'extraction') { setActiveView('EXTRACTIONS'); return; }
     setSelectedNodeId(id);
     setHighlightNodeIds([id]);
+    setInspectKey(k => k + 1);
     setActiveView(v => (opts.view || (v === 'UNIFIED' || v === 'GRAPH' ? v : 'GRAPH')));
   }, []);
 
-  const ctx = useMemo(() => ({ userKey, isReader, team, openEntity, notify: showNotification, restrictedIds }),
-    [userKey, isReader, team, openEntity, showNotification, restrictedIds]);
+  const ctx = useMemo(() => ({ userKey, isReader, team, openEntity, notify: showNotification, restrictedIds, titles }),
+    [userKey, isReader, team, openEntity, showNotification, restrictedIds, titles]);
   const pendingProposals = queueItems.filter(i => i.status === 'proposed').length;
 
   return (
@@ -282,7 +305,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             >
               <Icon size={14} className={activeView === id ? 'text-[#0284C7]' : ''} aria-hidden="true" />
               <span className="hidden min-[1700px]:inline">{label}</span>
-              <span className="min-[1700px]:hidden">{short}</span>
+              <span className="hidden min-[1280px]:inline min-[1700px]:hidden">{short}</span>
               {(id === 'QUEUE' ? pendingProposals : id === 'EXTRACTIONS' ? pendingFacts : 0) > 0 && (
                 <span className="min-w-4 h-4 px-1 rounded-full bg-[#0284C7] text-[11px] leading-none font-bold text-white flex items-center justify-center"
                       title={id === 'QUEUE' ? `${pendingProposals} proposal(s) waiting for a human decision` : `${pendingFacts} extracted fact(s) waiting for review`}>
@@ -304,13 +327,14 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             title="Upload a policy version, decision or meeting note (Markdown or meeting audio)"
           >
             <Upload size={14} />
-            <span>Ingest Document</span>
+            <span className="hidden min-[1280px]:inline">Ingest Document</span>
+            <span className="min-[1280px]:hidden">Ingest</span>
           </button>
 
           <div className="h-8 flex items-center gap-2 pl-3 border-l border-slate-200">
             <div className="flex flex-col justify-center text-right leading-tight" title={`Signed in (demo role picker) as ${currentUser.id}`}>
               <span className="text-[#0F172A] font-semibold text-[13px]">{displayUser}</span>
-              <span className="text-[#64748B] text-[11.5px]">{currentUser.role} · <span className="font-mono">{currentUser.id}</span></span>
+              <span className="hidden min-[1280px]:inline text-[#64748B] text-[11.5px]">{currentUser.role} · <span className="font-mono">{currentUser.id}</span></span>
             </div>
             <button
               onClick={onSignOut}
@@ -331,6 +355,8 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             refreshKey={policyRefresh}
             asOfDate={asOfDate}
             onDateChange={setAsOfDate}
+            collapsed={!!ribbonCollapsed[activeView]}
+            onToggleCollapsed={() => toggleRibbon(activeView)}
           />
         </div>
       )}
@@ -361,7 +387,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
                 <span className="text-[12px] text-[#334155] [writing-mode:vertical-rl]">Console</span>
               </button>
             )}
-            <div className={`${activeView === 'GRAPH' ? (chatCollapsed ? 'hidden' : 'w-[31%]') : 'w-[41%]'} shrink-0 min-h-0 relative`}>
+            <div className={`${activeView === 'GRAPH' ? (chatCollapsed ? 'hidden' : 'w-[31%]') : 'w-1/2'} shrink-0 min-h-0 relative`}>
               {activeView === 'GRAPH' && (
                 <button onClick={() => setChatCollapsed(true)} className="icon-btn absolute top-2.5 right-11 z-10 bg-white"
                         title="Collapse the console to widen the graph" aria-label="Collapse the console">
@@ -375,6 +401,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
                 onCitationClick={(citId) => {
                   setSelectedNodeId(citId);
                   setHighlightNodeIds([citId]);
+                  setInspectKey(k => k + 1);
                 }}
                 onQueryExecuted={(query) => {
                   if (query?.asOfDateSuggested) {
@@ -386,26 +413,27 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
                   // Inspect what the answer cited; the previous selection may not be in the answer's subgraph.
                   if (nodeIds.length) setSelectedNodeId(nodeIds[0]);
                 }}
+                onAnswer={(res, question) => {
+                  const ids = (res.subgraph?.nodes || []).map(n => n.id);
+                  // Answer-first graph: only the records this answer used; a refusal returns to the full graph.
+                  setAnswerFocus(!res.refused && ids.length ? { ids, question } : null);
+                }}
+                onReset={() => setAnswerFocus(null)}
               />
             </div>
 
-            {/* Graph (plus the review queue preview on the unified view) */}
-            <div className="flex-1 min-w-0 flex flex-col gap-4 min-h-0">
-              <div className={activeView === 'GRAPH' ? 'flex-1 min-h-0' : 'flex-[7] min-h-0'}>
-                <GraphVisualizer
-                  asOfDate={asOfDate}
-                  selectedNodeId={selectedNodeId}
-                  onSelectNode={(id) => setSelectedNodeId(id)}
-                  highlightNodeIds={highlightNodeIds}
-                  refreshKey={policyRefresh}
-                />
-              </div>
-
-              {activeView === 'UNIFIED' && (
-                <div className="flex-[3] min-h-0">
-                  <ReviewQueue compact queueItems={queueItems} watchingId={watch.id} />
-                </div>
-              )}
+            <div className="flex-1 min-w-0 min-h-0">
+              <GraphVisualizer
+                asOfDate={asOfDate}
+                selectedNodeId={selectedNodeId}
+                onSelectNode={(id) => { setSelectedNodeId(id); setInspectKey(k => k + 1); }}
+                highlightNodeIds={highlightNodeIds}
+                refreshKey={policyRefresh}
+                focus={answerFocus}
+                onClearFocus={() => setAnswerFocus(null)}
+                defaultInspector={activeView === 'GRAPH'}
+                inspectKey={inspectKey}
+              />
             </div>
           </div>
         )}

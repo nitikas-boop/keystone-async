@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2, Clock, Edit3, Inbox, Loader2, Lock, Mail, XCi
 import { fetchFlags, fetchPolicies } from '../api';
 import { useApp } from '../context';
 import IdChip from './IdChip';
+import { impactLabel } from '../utils/entities';
 import { clauseRef, day, inr, plural, polish, shortHash, ts } from '../utils/format';
 import { displayName } from '../utils/people';
 
@@ -49,7 +50,7 @@ export default function ReviewQueue({
   queueItems, auditLogs = [], onApproveAction, onRejectAction, onEditAction, compact = false,
   focusId, watchingId, watchTimedOut, refreshKey = 0,
 }) {
-  const { team, openEntity, restrictedIds, isReader } = useApp();
+  const { team, openEntity, restrictedIds, isReader, titles } = useApp();
   const [flags, setFlags] = useState([]);
   const [policies, setPolicies] = useState([]);
   const [showAll, setShowAll] = useState(true);
@@ -104,9 +105,11 @@ export default function ReviewQueue({
                 <span className={`text-[11.5px] px-1.5 py-0.5 rounded ${sev.cls}`}>{sev.label}</span>
                 <StatusChip p={p} watching={watchingId === p.id} />
               </div>
-              <div className="text-[13px] text-[#0F172A] mt-1 leading-snug">
-                <span className="font-mono">{p.decision_id}</span> vs <span className="font-mono">{clauseRef(p.clause_id, flag?.new_version)}</span>
-                <span className="text-[#475569]"> · {IMPACT[p.impact_type] || p.impact_type}</span>
+              <div className="text-[13px] text-[#0F172A] mt-1 leading-snug font-medium">
+                {polish(titles.get(p.decision_id)) || p.decision_id}
+              </div>
+              <div className="text-[12px] text-[#475569] mt-0.5">
+                {impactLabel(p.impact_type)} · <span className="font-mono">{p.decision_id}</span> vs <span className="font-mono">{clauseRef(p.clause_id, flag?.new_version)}</span>
               </div>
               <div className="text-[12px] text-[#64748B] mt-0.5">Proposed {ts(p.created_at).ist}</div>
             </button>
@@ -138,7 +141,7 @@ export default function ReviewQueue({
     <div className="flex flex-col h-full paper-sheet overflow-hidden">
       {header}
       <div className="flex-1 flex min-h-0">
-        <div className="w-[22rem] shrink-0 border-r border-slate-100 flex flex-col min-h-0">
+        <div className="w-[18rem] xl:w-[22rem] shrink-0 border-r border-slate-100 flex flex-col min-h-0">
           <div className="px-4 py-2 border-b border-slate-100 flex items-center gap-1 text-[12.5px]" role="tablist">
             {[['Open', false], ['All', true]].map(([label, all]) => (
               <button key={label} role="tab" aria-selected={showAll === all} onClick={() => setShowAll(all)}
@@ -175,6 +178,7 @@ function clauseValue(policies, clauseId, version) {
 }
 
 function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onApprove, onReject, onEdit }) {
+  const { titles } = useApp();
   const [mode, setMode] = useState('view');  // view | edit | reject
   const [draft, setDraft] = useState({ to: p.to, subject: p.subject, body: p.body });
   const [reason, setReason] = useState('');
@@ -200,9 +204,12 @@ function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onAppr
       <header className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-heading font-semibold text-[16px] text-[#0F172A]">Proposal #{p.id}</h3>
+            <h3 className="font-heading font-semibold text-[16px] text-[#0F172A]">
+              {polish(titles.get(p.decision_id)) || p.decision_id}
+              <span className="ml-2 font-normal text-[13px] text-[#475569]">Proposal #{p.id}</span>
+            </h3>
             <span className={`text-[12px] px-1.5 py-0.5 rounded ${sev.cls}`}>{sev.label}</span>
-            <span className="text-[12px] font-mono text-[#475569]">{p.impact_type}</span>
+            <span className="text-[12px] text-[#334155]" title={p.impact_type}>{impactLabel(p.impact_type)}</span>
           </div>
           <Stepper p={p} stage={stage} team={team} />
         </div>
@@ -230,7 +237,7 @@ function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onAppr
       <section>
         <h4 className="text-[12px] font-semibold uppercase tracking-wide text-[#475569] mb-2">Involved records</h4>
         <div className="flex items-center gap-2 flex-wrap">
-          <IdChip id={p.decision_id} type="decision" />
+          <IdChip id={p.decision_id} type="decision" withTitle />
           <span className="text-[12px] text-[#475569] flex items-center gap-1">relied on <ArrowRight size={12} /></span>
           {flag?.old_version
             ? <IdChip id={clauseRef(p.clause_id, flag.old_version)} type="clause" label={then?.text} />
@@ -242,7 +249,7 @@ function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onAppr
         </div>
         {flag && (
           <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <IdChip id={flag.id} type="flag" />
+            <IdChip id={flag.id} type="flag" label={impactLabel(flag.impact_type)} />
             <span className="text-[12px] text-[#475569]">
               then: {flag.old_result?.replace('_', '-') || 'n/a'} · now: {flag.new_result.replace('_', '-')}
             </span>
@@ -371,7 +378,7 @@ function Stepper({ p, stage, team }) {
             {i > 0 && <span className={`w-5 h-px ${done ? 'bg-[#0F766E]' : 'bg-slate-300'}`} aria-hidden="true" />}
             <span className={`text-[12px] px-1.5 py-0.5 rounded-md border ${done ? (label === 'Rejected' ? 'badge-note-rose' : 'border-teal-300 bg-teal-50 text-[#115E59]') : current ? 'badge-note-sky' : 'border-slate-200 text-[#64748B]'}`}
                   title={when ? ts(when).full : undefined}>
-              {done ? '✓ ' : current ? '… ' : ''}{label}{when && done ? ` · ${ts(when).time}` : ''}
+              {done ? (label === 'Rejected' ? '✕ ' : '✓ ') : current ? '… ' : ''}{label}{when && done ? ` · ${ts(when).time}` : ''}
               {label === 'Approved' && done && p.decided_by ? ` · ${displayName(p.decided_by, team)}` : ''}
             </span>
           </li>

@@ -93,7 +93,9 @@ export default function IngestionReview({ onNotify, auditLogs = [], onChanged, r
       if (!s) g.sentences.push(s = { key, span: q, facts: [] });
       s.facts.push(r);
     }
-    return out;
+    // Newest document first (extraction ids grow with each ingest).
+    const newest = (g) => Math.max(...g.sentences.flatMap(x => x.facts.map(f => f.id)));
+    return out.sort((a, b) => newest(b) - newest(a));
   }, [shown]);
 
   // Names for extracted nodes, so edges read "Reduce customer log retention … · made by Ananya Rao".

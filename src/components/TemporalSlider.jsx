@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Play, Pause, Info } from 'lucide-react';
+import { ChevronDown, ChevronUp, Play, Pause, Info } from 'lucide-react';
 import { fetchPolicies, fetchFlags } from '../api';
+import DateField from './DateField';
 import { addDays, clauseRef, day, daysBetween, inr, month, todayIST } from '../utils/format';
 
 // Everything here comes from the backend (/policies, /flags): milestones are the real policy version start dates,
@@ -18,7 +19,7 @@ const mainClause = v => v.clauses.find(c => c.checkable && Object.keys(c.fields 
 const inForce = (v, d) => v.valid_from <= d && (!v.valid_to || d < v.valid_to);
 const THUMB = 16;  // px; matches .kst-range thumb in index.css so markers line up with the thumb centre
 
-export default function TemporalSlider({ asOfDate, onDateChange, refreshKey = 0 }) {
+export default function TemporalSlider({ asOfDate, onDateChange, refreshKey = 0, collapsed = false, onToggleCollapsed }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [policies, setPolicies] = useState([]);
   const [breaches, setBreaches] = useState([]);
@@ -83,12 +84,11 @@ export default function TemporalSlider({ asOfDate, onDateChange, refreshKey = 0 
     <div className="w-full paper-sheet px-3.5 py-2 flex flex-col gap-1">
       <div className="flex flex-wrap items-center justify-between gap-2 text-[13px]">
         <div className="flex items-center gap-2 flex-wrap">
-          <label className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-sky-50 border border-sky-100 text-[#0369A1]">
-            <Clock size={13} className="text-[#0284C7]" aria-hidden="true" />
-            <span className="text-[#475569]">As of</span>
-            <input type="date" value={asOfDate} min={start} max={end} onChange={e => e.target.value && onDateChange(e.target.value)}
-                   className="font-mono font-semibold text-[#0F172A] bg-transparent text-[13px]" aria-label="As-of date" />
-          </label>
+          <span className="text-[#475569]">As of</span>
+          <DateField value={asOfDate} min={start} max={end} label="As-of date" onChange={d => d && onDateChange(d)} />
+          {asOfDate !== today && (
+            <button className="text-[12.5px] text-[#0369A1] underline cursor-pointer" onClick={() => onDateChange(today)}>Back to today</button>
+          )}
           <span className="text-[#475569]">In force:</span>
           {error && <span className="text-rose-700">policies unavailable: {error}</span>}
           {!error && active.length === 0 && <span className="text-[#475569]">no policy version</span>}
@@ -101,17 +101,28 @@ export default function TemporalSlider({ asOfDate, onDateChange, refreshKey = 0 
             </span>
           )}
         </div>
-        <button
-          onClick={() => setIsPlaying(!isPlaying)}
-          className="btn-secondary"
-          title={isPlaying ? 'Pause' : 'Step through each policy change'}
-        >
-          {isPlaying ? <Pause size={12} /> : <Play size={12} />}
-          <span>{isPlaying ? 'Pause' : 'Animate Timeline'}</span>
-        </button>
+        <div className="flex items-center gap-1.5">
+          {!collapsed && (
+            <button
+              onClick={() => setIsPlaying(!isPlaying)}
+              className="btn-secondary"
+              title={isPlaying ? 'Pause' : 'Step through each policy change'}
+            >
+              {isPlaying ? <Pause size={12} /> : <Play size={12} />}
+              <span>{isPlaying ? 'Pause' : 'Animate Timeline'}</span>
+            </button>
+          )}
+          {onToggleCollapsed && (
+            <button onClick={onToggleCollapsed} className="btn-secondary" aria-expanded={!collapsed}
+                    title={collapsed ? 'Show the policy timeline' : 'Hide the policy timeline'}>
+              {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+              <span>{collapsed ? 'Timeline' : 'Hide timeline'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="relative pt-1">
+      {!collapsed && <div className="relative pt-1">
         <input
           type="range" min={0} max={span} step={1} value={Math.round(pct(asOfDate) * span)}
           onChange={(e) => onDateChange(addDays(start, Number(e.target.value)))}
@@ -139,7 +150,7 @@ export default function TemporalSlider({ asOfDate, onDateChange, refreshKey = 0 
             );
           })}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

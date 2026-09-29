@@ -3,18 +3,12 @@ import { Search } from 'lucide-react';
 import { fetchGraphView, fetchProposals } from '../api';
 import { useApp } from '../context';
 import { TypeGlyph } from './IdChip';
-import { typeMeta } from '../utils/entities';
+import { nodeTitle, typeMeta } from '../utils/entities';
 import { polish, todayIST } from '../utils/format';
 
 // Ctrl/Cmd+K: search decisions, clauses, policy versions, people, projects, meeting notes and proposals.
 // Records come from GET /graph/view (server-side visibility filter, so restricted items are not listed for
 // non-readers) and GET /proposals (proposals about restricted decisions hidden).
-function title(n) {
-  const [a, b] = String(n.label || n.id).split('\n');
-  const inner = b ? b.replace(/^\(|\)$/g, '') : '';
-  if (n.type === 'person') return inner ? `${a} · ${inner}` : a;
-  return inner || (a === n.id ? '' : a);
-}
 
 export default function CommandPalette({ open, onClose }) {
   const { isReader, restrictedIds, openEntity } = useApp();
@@ -30,7 +24,7 @@ export default function CommandPalette({ open, onClose }) {
     setTimeout(() => inputRef.current?.focus(), 0);
     Promise.all([fetchGraphView(todayIST(), isReader), fetchProposals()])
       .then(([g, ps]) => setItems([
-        ...g.nodes.map(n => ({ id: n.id, type: n.type, title: polish(title(n)) })),
+        ...g.nodes.map(n => ({ id: n.id, type: n.type, title: polish(nodeTitle(n)) })),
         ...ps.filter(p => isReader || !restrictedIds.has(p.decision_id))
           .map(p => ({ id: `#${p.id}`, type: 'proposal', title: `${p.decision_id} vs ${p.clause_id} · ${p.status}` })),
       ]))

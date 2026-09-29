@@ -1,7 +1,7 @@
 // Run: node --test "src/**/*.test.js"
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { day, fixClauseRefs, fixRupees, inr, polish, ts } from './format.js';
+import { day, fixClauseRefs, fixIsoDates, fixRupees, inr, polish, ts } from './format.js';
 
 test('inr uses Indian grouping', () => {
   assert.equal(inr(400000), '₹4,00,000');
@@ -27,6 +27,12 @@ test('fixClauseRefs normalises clause versions', () => {
   assert.equal(fixClauseRefs('PROC-3.1 v1 and RET-2.1 @ v2 and RET-2.1-v3'), 'PROC-3.1@v1 and RET-2.1@v2 and RET-2.1@v3');
   assert.equal(fixClauseRefs('[PROC-3.1@v2] unchanged'), '[PROC-3.1@v2] unchanged');
   assert.equal(fixClauseRefs('POL-RET v1 and DEC-004'), 'POL-RET v1 and DEC-004');
+});
+
+test('fixIsoDates rewrites prose dates but not IDs', () => {
+  assert.equal(fixIsoDates('decided 2025-03-14, as of 2026-09-30.'), 'decided 14 Mar 2025, as of 30 Sep 2026.');
+  assert.equal(fixIsoDates('cites MTG-2025-05-14 and DEC-004'), 'cites MTG-2025-05-14 and DEC-004');
+  assert.equal(fixIsoDates('[MTG-2025-08-12-DEC-008]'), '[MTG-2025-08-12-DEC-008]');
 });
 
 test('polish applies both', () => {

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { fetchDecisions, fetchPolicies, transcribe, uploadDocument } from '../api';
 import IdChip from './IdChip';
+import { impactLabel } from '../utils/entities';
 import { day, plural } from '../utils/format';
 import retV3 from '../../data/demo-upload/POL-RET-v3.md?raw';
 import procV2 from '../../data/vault/policies/POL-PROC-v2.md?raw';
@@ -326,8 +327,8 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
                     {flags.map(flag => (
                       <li key={flag.id} className="p-3 rounded-lg border bg-rose-50/60 border-rose-200">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="px-2 py-0.5 rounded badge-note-rose text-[12px] font-mono">{flag.impact_type}</span>
-                          <IdChip id={flag.decision_id} type="decision" />
+                          <span className="px-2 py-0.5 rounded badge-note-rose text-[12px]" title={flag.impact_type}>{impactLabel(flag.impact_type)}</span>
+                          <IdChip id={flag.decision_id} type="decision" withTitle />
                         </div>
                         <p className="mt-1.5 flex items-center gap-1 flex-wrap text-[#334155]">
                           <ArrowRight size={12} className="text-[#0284C7]" aria-hidden="true" />

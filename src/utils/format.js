@@ -30,8 +30,15 @@ export function fixClauseRefs(text) {
   return typeof text === 'string' ? text.replace(CLAUSE, '$1@$2') : text;
 }
 
+// Stand-alone ISO dates in prose -> '14 Mar 2025'. Dates inside IDs (MTG-2025-05-14) are left alone.
+const ISO_DATE = /(?<![\w-])(\d{4})-(\d{2})-(\d{2})(?![\w-])/g;
+
+export function fixIsoDates(text) {
+  return typeof text === 'string' ? text.replace(ISO_DATE, (m) => day(m)) : text;
+}
+
 // For any text the backend or the local model worded (answers, flag explanations, proposal bodies).
-export const polish = (text) => fixClauseRefs(fixRupees(text));
+export const polish = (text) => fixIsoDates(fixClauseRefs(fixRupees(text)));
 
 export const clauseRef = (clauseId, version) => (version ? `${clauseId}@${version}` : clauseId);
 

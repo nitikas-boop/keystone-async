@@ -38,6 +38,30 @@ export function typeOfId(id) {
 
 export const typeMeta = (type) => TYPES[type] || TYPES.document;
 
+// Plain-language names for the scanner's impact types (the codes stay in tooltips and the audit log).
+export const IMPACT = {
+  ONGOING_PRACTICE_BREACH: { label: 'Still breaching the new rule', cls: 'badge-note-rose' },
+  RULE_CHANGED_SINCE: { label: 'Rule changed since', cls: 'badge-note-amber' },
+  SUPERSEDED: { label: 'Replaced, historical only', cls: 'badge-note-slate' },
+  MCP_PROPOSAL: { label: 'Proposed via MCP', cls: 'badge-note-sky' },
+};
+export const impactLabel = (code) => IMPACT[code]?.label || code;
+
+// Human title of a /graph/view node. Labels look like 'DEC-004\n(Sign VendorCo contract …)',
+// 'RET-2.1 @ v2\n(Max 180d)', 'Ananya Rao\n(CEO)', 'RULE_CHANGED_SINCE: DEC-004'.
+export function nodeTitle(n) {
+  const [a, b] = String(n.label || n.id).split('\n');
+  const inner = b ? b.replace(/^\(|\)$/g, '') : '';
+  if ((n.type === 'decision' || n.type === 'meeting_note') && inner) return inner;
+  if (n.type === 'clause') return inner ? `${n.id} · ${inner}` : n.id;
+  if (n.type === 'flag') {
+    const m = /^([A-Z_]+):\s*(.+)$/.exec(a);
+    return m ? `${impactLabel(m[1])}: ${m[2]}` : a;
+  }
+  if (n.type === 'person') return a;
+  return a === n.id ? '' : a;
+}
+
 // Relation line styles (graph + legend): encoded by dash pattern, not colour alone.
 export const RELATIONS = {
   MADE_BY: { label: 'made by', dash: '1 3', width: 1.2 },
