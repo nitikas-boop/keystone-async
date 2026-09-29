@@ -49,7 +49,7 @@ function clauseSummary(fields = {}, checkable = true) {
 }
 
 export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode, highlightNodeIds = [], refreshKey = 0,
-  focus: answerFocus = null, onClearFocus, defaultInspector = true, inspectKey = 0 }) {
+  focus: answerFocus = null, onClearFocus, defaultInspector = true, inspectKey = 0, evidence = false, onExplore }) {
   const { isReader, team, openEntity } = useApp();
   const [base, setBase] = useState(null);      // every node known today: drives the layout
   const [atDate, setAtDate] = useState(null);  // the same view as of asOfDate: drives node state
@@ -229,7 +229,9 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
             <span className="min-w-0 truncate" title={answerFocus.question}>
               The {nodes.length} records used to answer “{answerFocus.question}”
             </span>
-            <button className="btn-secondary shrink-0 ml-auto" onClick={onClearFocus}><Network size={13} /> Show full graph</button>
+            {evidence
+              ? <button className="btn-secondary shrink-0 ml-auto" onClick={onExplore}><Network size={13} /> Explore in the full graph</button>
+              : <button className="btn-secondary shrink-0 ml-auto" onClick={onClearFocus}><Network size={13} /> Show full graph</button>}
           </div>
         )}
         <div ref={canvasRef} className="relative flex-1 min-h-0">
@@ -241,7 +243,18 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
           {error && <Overlay>Graph unavailable: {error}</Overlay>}
           {!error && !L && <Overlay><Loader2 size={14} className="animate-spin inline mr-1" /> Loading graph…</Overlay>}
           {L && nodes.length === 0 && <Overlay>The graph is empty. Restore the demo snapshot or ingest documents.</Overlay>}
-          {L && (
+          {/* Ask tab: this panel is the evidence for the latest answer, so it stays empty until there is one. */}
+          {L && evidence && !answerFocus && (
+            <div className="absolute inset-0 flex items-center justify-center p-6">
+              <div className="max-w-sm text-center text-[13px] text-[#334155] space-y-2">
+                <Network size={28} className="mx-auto text-[#94A3B8]" aria-hidden="true" />
+                <p className="font-semibold text-[#0F172A]">The records behind each answer appear here</p>
+                <p>Ask a question: the decisions, clauses and people it cites are drawn here on a timeline, and you can inspect each one.</p>
+                <button className="btn-secondary" onClick={onExplore}>Explore the full graph instead</button>
+              </div>
+            </div>
+          )}
+          {L && !(evidence && !answerFocus) && (
             <svg ref={svgRef} className="w-full h-full cursor-grab active:cursor-grabbing touch-none" viewBox={`0 0 ${L.width} ${L.height + 26}`}
                  preserveAspectRatio="xMidYMid meet" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
                  role="img" aria-label={`Decision graph as of ${asOfDate}`}>

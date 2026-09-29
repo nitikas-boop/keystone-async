@@ -6,11 +6,11 @@ import {
   ListChecks,
   LogOut,
   Bell,
-  LayoutGrid,
   FileSearch,
   Home,
   PanelLeftClose,
   PanelLeftOpen,
+  MessageSquare,
   Table2,
   BookOpen,
   Search
@@ -45,7 +45,7 @@ import {
 } from '../api';
 
 const VIEWS = [
-  { id: 'UNIFIED', label: 'Unified Workspace', short: 'Workspace', Icon: LayoutGrid },
+  { id: 'UNIFIED', label: 'Ask', short: 'Ask', Icon: MessageSquare },
   { id: 'GRAPH', label: 'Temporal Graph', short: 'Graph', Icon: GitBranch },
   { id: 'QUEUE', label: 'Review Queue', short: 'Review', Icon: ListChecks },
   { id: 'EXTRACTIONS', label: 'Ingestion Review', short: 'Ingestion', Icon: FileSearch },
@@ -59,7 +59,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   const [activeView, setActiveView] = useState('UNIFIED');
   const [selectedNodeId, setSelectedNodeId] = useState('DEC-007');
   const [highlightNodeIds, setHighlightNodeIds] = useState(['DEC-007', 'RET-2.1@v2']);
-  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(true);  // Temporal Graph opens graph-first; Ask always shows the console
   // Only ever backend data: an empty list is shown as empty, never padded with mock rows.
   const [queueItems, setQueueItems] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -379,7 +379,8 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
       <div className="flex-1 p-4 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-[#F8FAFC]">
         {(activeView === 'UNIFIED' || activeView === 'GRAPH') && (
           <div className="flex-1 flex gap-4 min-h-0">
-            {/* Chat: same element in both views (only hidden when collapsed), so the conversation survives. */}
+            {/* Ask = conversation + evidence for the latest answer. Temporal Graph = the full graph to explore, console
+                on demand. The console is the same element in both (only hidden), so the conversation survives. */}
             {activeView === 'GRAPH' && chatCollapsed && (
               <button onClick={() => setChatCollapsed(false)} className="shrink-0 w-9 paper-sheet flex flex-col items-center gap-2 py-3 cursor-pointer hover:bg-slate-50"
                       title="Show the console" aria-label="Show the console">
@@ -387,7 +388,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
                 <span className="text-[12px] text-[#334155] [writing-mode:vertical-rl]">Console</span>
               </button>
             )}
-            <div className={`${activeView === 'GRAPH' ? (chatCollapsed ? 'hidden' : 'w-[31%]') : 'w-1/2'} shrink-0 min-h-0 relative`}>
+            <div className={`${activeView === 'GRAPH' ? (chatCollapsed ? 'hidden' : 'w-[31%]') : 'w-[56%]'} shrink-0 min-h-0 relative`}>
               {activeView === 'GRAPH' && (
                 <button onClick={() => setChatCollapsed(true)} className="icon-btn absolute top-2.5 right-11 z-10 bg-white"
                         title="Collapse the console to widen the graph" aria-label="Collapse the console">
@@ -429,8 +430,9 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
                 onSelectNode={(id) => { setSelectedNodeId(id); setInspectKey(k => k + 1); }}
                 highlightNodeIds={highlightNodeIds}
                 refreshKey={policyRefresh}
-                focus={answerFocus}
-                onClearFocus={() => setAnswerFocus(null)}
+                focus={activeView === 'UNIFIED' ? answerFocus : null}
+                evidence={activeView === 'UNIFIED'}
+                onExplore={() => { setActiveView('GRAPH'); setInspectKey(k => k + 1); }}
                 defaultInspector={activeView === 'GRAPH'}
                 inspectKey={inspectKey}
               />

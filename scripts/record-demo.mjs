@@ -79,7 +79,7 @@ await click(page.getByRole('button', { name: /Sign In \/ Launch Console/ }), 150
 await click(page.locator('button', { hasText: 'Priya Menon' }), 2500);
 
 // 3. Unified workspace + questions
-await hold(6); mark('Unified Workspace overview'); await caption('Unified Workspace: chat, temporal graph and review queue in one view');
+await hold(6); mark('Ask overview'); await caption('Ask: the conversation, and the records behind each answer');
 await pause(4000);
 await hold(20); await ask('Project Atlas History', 'Q1  Show the history of Project Atlas');
 await hold(24); mark('Click a citation, graph inspector'); await caption('Every sentence cites a graph node; click to inspect');
@@ -96,12 +96,11 @@ await page.keyboard.press('Enter');
 await waitAnswer();
 
 // 4. Temporal graph + time travel
-await hold(32); mark('Temporal Graph view'); await caption('Temporal Graph: chat beside the graph, timeline on top');
+await hold(32); mark('Temporal Graph view'); await caption('Temporal Graph: every record on a timeline; the console opens beside it');
 await click(header('Temporal Graph'), 2500);
+await click(page.getByRole('button', { name: 'Show the console' }), 1500);
 await hold(12); await ask('180-Day Retention', 'Q4  Was 180-day log retention compliant in Q2 2025?');
 await hold(14); mark('Time travel: Jan 2024'); await caption('Drag the timeline: the graph shows what was in force on that date');
-// After an answer the graph shows only the records it used; time travel is shown on the full graph.
-await click(page.getByRole('button', { name: /Show full graph/ }), 1200);
 await click(page.getByRole('button', { name: /Jan 2024/ }), 3500);
 await hold(7); mark('Time travel: Jan 2025'); await click(page.getByRole('button', { name: /Jan 2025/ }), 3000);
 await hold(6); mark('Time travel: Jul 2025'); await click(page.getByRole('button', { name: /Jul 2025/ }), 3000);
@@ -146,7 +145,7 @@ await click(header('Audit Trail'), 2500);
 await click(page.getByRole('button', { name: /Verify Full Chain/ }), 5000);
 
 // 9. Refusal
-await hold(20); await click(header('Unified Workspace'), 1500);
+await hold(20); await click(header('Ask'), 1500);
 await ask('Trick Query', 'Q5  Why did we choose MongoDB? (not in the record)');
 await caption('No evidence, no answer: Keystone refuses instead of guessing');
 

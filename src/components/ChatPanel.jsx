@@ -214,7 +214,7 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
               disabled={!inputValue.trim() || !!pending}
               className="px-3 py-1.5 rounded-md btn-sky-gradient text-white text-[13px] font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer"
             >
-              <span>Ask</span>
+              <span>Send</span>
               <CornerDownLeft size={12} aria-hidden="true" />
             </button>
           </div>
