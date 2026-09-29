@@ -26,7 +26,7 @@ const REFUSAL = 'I have no recorded decision about that';
 // itself: cited sentences, the as-of date used, and "how I got this" (retrieved nodes, clause versions, the
 // deterministic compliance result then vs now). A refusal, whether there is no evidence or the evidence is
 // restricted for this viewer, is the same exact sentence and looks identical.
-export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, onQueryExecuted, onNodeHighlight, onAnswer, onReset }) {
+export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, onQueryExecuted, onNodeHighlight, onAnswer, onReset, headerAction }) {
   const [messages, setMessages] = useState([]);
   const [sessionId, setSessionId] = useState(() => 'sess-' + Math.random().toString(36).substring(2, 10));
   const [inputValue, setInputValue] = useState('');
@@ -121,9 +121,12 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
             {viewer && <> · Viewing as <span className="text-[#0F172A] font-semibold">{viewer.name}</span> ({viewer.role})</>}
           </div>
         </div>
-        <button onClick={clearChat} className="icon-btn shrink-0" title="Start a new conversation" aria-label="Start a new conversation">
-          <RotateCcw size={13} />
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {headerAction}
+          <button onClick={clearChat} className="icon-btn" title="Start a new conversation" aria-label="Start a new conversation">
+            <RotateCcw size={13} />
+          </button>
+        </div>
       </div>
 
       {/* Demo questions: wrap instead of scrolling sideways */}

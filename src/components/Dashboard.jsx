@@ -389,13 +389,13 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
               </button>
             )}
             <div className={`${activeView === 'GRAPH' ? (chatCollapsed ? 'hidden' : 'w-[31%]') : 'w-[56%]'} shrink-0 min-h-0 relative`}>
-              {activeView === 'GRAPH' && (
-                <button onClick={() => setChatCollapsed(true)} className="icon-btn absolute top-2.5 right-11 z-10 bg-white"
-                        title="Collapse the console to widen the graph" aria-label="Collapse the console">
-                  <PanelLeftClose size={14} />
-                </button>
-              )}
               <ChatPanel
+                headerAction={activeView === 'GRAPH' && (
+                  <button onClick={() => setChatCollapsed(true)} className="icon-btn"
+                          title="Collapse the console to widen the graph" aria-label="Collapse the console">
+                    <PanelLeftClose size={13} />
+                  </button>
+                )}
                 asOfDate={asOfDate}
                 health={health}
                 viewer={{ name: displayUser, role: currentUser.role }}
