@@ -117,8 +117,9 @@ await click(page.getByRole('button', { name: /Proceed to Review Queue/ }), 2500)
 // 6. Human-in-the-loop approval
 await hold(20); mark('Review Queue: approve'); await caption('Nothing executes without a human: approve the proposal');
 await pause(2500);
-const row = page.locator('tr', { hasText: 'DEC-007' }).filter({ has: page.getByRole('button', { name: /Approve/ }) });
-await click(row.getByRole('button', { name: /Approve/ }), 6000);
+// Review Queue is a list + detail: open the DEC-007 proposal, then approve it in the detail pane.
+await click(page.locator('ul[aria-label="Proposals"] button', { hasText: 'DEC-007' }), 2500);
+await click(page.getByRole('button', { name: /^Approve/ }), 6000);
 await hold(14); mark('Executor ran'); await caption('The executor picks up the approved action (writes outbox/proposal-N.eml)');
 await pause(3000);
 

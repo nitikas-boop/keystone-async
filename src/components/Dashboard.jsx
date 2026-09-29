@@ -28,6 +28,7 @@ import {
   rejectProposal,
   editProposal,
   fetchAudit,
+  fetchDecisions,
   fetchTeam,
   healthCheck,
   setCurrentUser
@@ -55,6 +56,9 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   const [isIngestModalOpen, setIsIngestModalOpen] = useState(false);
   const [notification, setNotification] = useState(null);
   const [policyRefresh, setPolicyRefresh] = useState(0);
+  const [restrictedIds, setRestrictedIds] = useState(() => new Set());
+  const [queueFocus, setQueueFocus] = useState(null);
+  const [watch, setWatch] = useState({ id: null, timedOut: null });  // proposal the UI waits on for the executor
 
   const showNotification = useCallback((msg, type = "info") => {
     setNotification({ msg, type });
@@ -69,6 +73,13 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   useEffect(() => { setCurrentUser(userKey); }, [userKey]);
 
   useEffect(() => { fetchTeam().then(setTeam).catch(() => setTeam([])); }, []);
+
+  // IDs of restricted decisions, so list views that the backend does not filter can hide them (KNOWN_ISSUES.md).
+  useEffect(() => {
+    fetchDecisions()
+      .then(ds => setRestrictedIds(new Set(ds.filter(d => d.provenance?.visibility === 'restricted').map(d => d.id))))
+      .catch(() => {});
+  }, [policyRefresh]);
 
   // Load graph valid as of asOfDate
   useEffect(() => {
@@ -120,15 +131,35 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
     loadAudit();
   }, [loadProposals, loadAudit]);
 
+  // After an approval, poll GET /proposals every 2 s (the executor polls every ~2 s) until the row is executed,
+  // then refresh the audit log so the executor's block appears. Gives up after 60 s and says so.
+  useEffect(() => {
+    if (watch.id == null) return undefined;
+    const started = Date.now();
+    const t = setInterval(async () => {
+      const items = await fetchProposals().catch(() => null);
+      if (items) setQueueItems(items);
+      const p = items?.find(i => i.id === watch.id);
+      if (p && p.status !== 'approved') {
+        clearInterval(t);
+        loadAudit();
+        setWatch({ id: null, timedOut: null });
+        if (p.status === 'executed') showNotification(`Executor wrote outbox/${p.outbox_file} for proposal #${p.id}.`, 'success');
+      } else if (Date.now() - started > 60000) {
+        clearInterval(t);
+        setWatch({ id: null, timedOut: watch.id });
+      }
+    }, 2000);
+    return () => clearInterval(t);
+  }, [watch.id, loadAudit, showNotification]);
+
   // Human Review Actions
   const handleApproveAction = async (actionId) => {
     try {
       await approveProposal(actionId);
-      showNotification(`Proposal #${actionId} approved. The executor writes its email file to outbox/ within seconds.`, "success");
-      loadProposals();
+      await loadProposals();
       loadAudit();
-      // The executor is a separate process polling every ~2s; refresh so the row flips to executed.
-      setTimeout(() => { loadProposals(); loadAudit(); }, 4000);
+      setWatch({ id: actionId, timedOut: null });
     } catch (err) {
       // No local fallback: an approval the backend did not record must not look approved.
       showNotification(`Approval failed, nothing was approved: ${err.message}`, "warning");
@@ -179,14 +210,15 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
   // Any ID chip in the app lands here.
   const openEntity = useCallback((id, type) => {
-    if (type === 'proposal') { setActiveView('QUEUE'); return; }
+    if (type === 'proposal') { setQueueFocus(String(id).replace(/\D/g, '')); setActiveView('QUEUE'); return; }
+    if (type === 'audit') { setActiveView('AUDIT'); return; }
     setSelectedNodeId(id);
     setHighlightNodeIds([id]);
     setActiveView(v => (v === 'UNIFIED' || v === 'GRAPH' ? v : 'GRAPH'));
   }, []);
 
-  const ctx = useMemo(() => ({ userKey, isReader, team, openEntity, notify: showNotification }),
-    [userKey, isReader, team, openEntity, showNotification]);
+  const ctx = useMemo(() => ({ userKey, isReader, team, openEntity, notify: showNotification, restrictedIds }),
+    [userKey, isReader, team, openEntity, showNotification, restrictedIds]);
   const pendingProposals = queueItems.filter(i => i.status === 'proposed').length;
 
   return (
@@ -345,12 +377,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
               {activeView === 'UNIFIED' && (
                 <div className="flex-[4] min-h-0">
-                  <ReviewQueue
-                    queueItems={queueItems}
-                    onApproveAction={handleApproveAction}
-                    onRejectAction={handleRejectAction}
-                    onEditAction={handleEditAction}
-                  />
+                  <ReviewQueue compact queueItems={queueItems} watchingId={watch.id} />
                 </div>
               )}
             </div>
@@ -361,6 +388,11 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
           <div className="flex-1 h-full min-h-0">
             <ReviewQueue
               queueItems={queueItems}
+              auditLogs={auditLogs}
+              focusId={queueFocus}
+              watchingId={watch.id}
+              watchTimedOut={watch.timedOut}
+              refreshKey={policyRefresh}
               onApproveAction={handleApproveAction}
               onRejectAction={handleRejectAction}
               onEditAction={handleEditAction}
