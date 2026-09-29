@@ -32,8 +32,9 @@ export default function IdChip({ id, type, label, onClick, className = '', title
       style={{ background: m.fill, borderColor: `${m.stroke}40`, color: m.text }}
     >
       <Glyph paths={m.icon} color={m.stroke} />
-      <span className="font-mono truncate">{id}</span>
-      {label && <span className="font-sans truncate">{label}</span>}
+      {label && t === 'person'
+        ? <><span className="font-sans truncate">{label}</span><span className="font-mono text-[11px] opacity-75 shrink-0">{id}</span></>
+        : <><span className="font-mono truncate shrink-0">{id}</span>{label && <span className="font-sans truncate">{label}</span>}</>}
     </button>
   );
 }

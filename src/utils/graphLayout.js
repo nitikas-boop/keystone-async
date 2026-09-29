@@ -1,12 +1,13 @@
 // Deterministic graph layout: x is proportional to the node's date (valid-from / decided-on), y is one lane per
-// entity type. Nodes in a lane that would sit closer than `minGap` are moved to a sub-row, so no two nodes
-// overlap. Same input -> same positions, and positions depend only on the node set, not on the as-of date,
-// so nodes stay put while the timeline moves.
+// entity type. A node closer than `minGap` to its lane neighbour is nudged right by up to `maxNudge` px (so x
+// stays close to its date); if that is not enough it moves to a sub-row. No two nodes overlap. Same input ->
+// same positions, and positions depend only on the node set, not on the as-of date, so nodes stay put while
+// the timeline moves.
 import { addDays, daysBetween } from './format.js';
 
 export const LANE_ORDER = ['policy_version', 'clause', 'flag', 'decision', 'meeting_note', 'project', 'person'];
 
-export function layout(nodes, { width = 1200, padX = 70, top = 40, rowGap = 58, laneGap = 26, minGap = 96, today } = {}) {
+export function layout(nodes, { width = 1200, padX = 70, top = 28, rowGap = 36, laneGap = 14, minGap = 42, maxNudge = 40, today } = {}) {
   const dated = nodes.map(n => n.date).filter(Boolean).sort();
   const start = dated[0] || today || '2024-01-01';
   let end = [dated[dated.length - 1], today].filter(Boolean).sort().pop() || start;
@@ -31,10 +32,11 @@ export function layout(nodes, { width = 1200, padX = 70, top = 40, rowGap = 58, 
     items.sort((a, b) => a.x - b.x || a.id.localeCompare(b.id));
     const rowsLastX = [];
     for (const it of items) {
-      let r = rowsLastX.findIndex(last => it.x - last >= minGap);
+      let r = rowsLastX.findIndex(last => last + minGap - it.x <= maxNudge);
       if (r === -1) { r = rowsLastX.length; rowsLastX.push(-Infinity); }
-      rowsLastX[r] = it.x;
-      pos[it.id] = { x: Math.round(it.x), y: Math.round(y + r * rowGap) };
+      const px = Math.max(it.x, rowsLastX[r] + minGap);
+      rowsLastX[r] = px;
+      pos[it.id] = { x: Math.round(px), y: Math.round(y + r * rowGap) };
     }
     const rows = Math.max(rowsLastX.length, 1);
     lanes.push({ type, y0: y - rowGap / 2, y1: y + (rows - 1) * rowGap + rowGap / 2 });

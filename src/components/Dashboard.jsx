@@ -8,7 +8,9 @@ import {
   Bell,
   LayoutGrid,
   FileSearch,
-  Home
+  Home,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
 import Logo from './Logo';
 import TemporalSlider from './TemporalSlider';
@@ -22,7 +24,6 @@ import { AppContext } from '../context';
 import { RESTRICTED_READERS, userKey as toUserKey } from '../utils/people';
 import { todayIST } from '../utils/format';
 import {
-  fetchGraph,
   fetchProposals,
   approveProposal,
   rejectProposal,
@@ -47,7 +48,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   const [activeView, setActiveView] = useState('UNIFIED');
   const [selectedNodeId, setSelectedNodeId] = useState('DEC-007');
   const [highlightNodeIds, setHighlightNodeIds] = useState(['DEC-007', 'RET-2.1@v2']);
-  const [liveGraphData, setLiveGraphData] = useState(null);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
   // Only ever backend data: an empty list is shown as empty, never padded with mock rows.
   const [queueItems, setQueueItems] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -80,24 +81,6 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
       .then(ds => setRestrictedIds(new Set(ds.filter(d => d.provenance?.visibility === 'restricted').map(d => d.id))))
       .catch(() => {});
   }, [policyRefresh]);
-
-  // Load graph valid as of asOfDate
-  useEffect(() => {
-    let active = true;
-    fetchGraph(asOfDate)
-      .then(res => {
-        if (active && res && res.nodes) {
-          setLiveGraphData(res);
-        }
-      })
-      .catch(err => {
-        if (active) {
-          setLiveGraphData({ nodes: [], edges: [] });
-          showNotification(`Graph unavailable: ${err.message}`, "warning");
-        }
-      });
-    return () => { active = false; };
-  }, [asOfDate, showNotification]);
 
   // GET /health every 15 s: model names, telemetry flag, and whether Ollama, Postgres and Neo4j answer.
   useEffect(() => {
@@ -202,9 +185,6 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
     loadProposals();
     loadAudit();
     setPolicyRefresh(k => k + 1);
-    fetchGraph(asOf)
-      .then(res => { if (res && res.nodes) setLiveGraphData(res); })
-      .catch(err => showNotification(`Graph unavailable: ${err.message}`, "warning"));
     showNotification(`${uploadRes?.document_id ?? 'Document'} ingested. Scanner raised ${flagged.length} flag(s).`, "info");
   };
 
@@ -301,14 +281,16 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
         </div>
       </header>
 
-      {/* Global "As-Of" Date Slider Ribbon */}
-      <div className="px-4 pt-3 bg-[#F8FAFC] shrink-0">
-        <TemporalSlider
-          refreshKey={policyRefresh}
-          asOfDate={asOfDate}
-          onDateChange={(newDate) => setAsOfDate(newDate)}
-        />
-      </div>
+      {/* As-of ribbon: only on the views that are evaluated as of a date (chat and graph). */}
+      {(activeView === 'UNIFIED' || activeView === 'GRAPH') && (
+        <div className="px-4 pt-3 bg-[#F8FAFC] shrink-0">
+          <TemporalSlider
+            refreshKey={policyRefresh}
+            asOfDate={asOfDate}
+            onDateChange={setAsOfDate}
+          />
+        </div>
+      )}
 
       {/* Toast */}
       {notification && (
@@ -327,9 +309,22 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
       {/* Main Workspace Body with Generous Padding */}
       <div className="flex-1 p-4 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-[#F8FAFC]">
         {(activeView === 'UNIFIED' || activeView === 'GRAPH') && (
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-1 gap-4 min-h-0">
-            {/* Chat: same element in both views, so the conversation survives switching tabs */}
-            <div className={`${activeView === 'GRAPH' ? 'lg:col-span-4' : 'lg:col-span-5'} h-[560px] lg:h-auto min-h-0`}>
+          <div className="flex-1 flex gap-4 min-h-0">
+            {/* Chat: same element in both views (only hidden when collapsed), so the conversation survives. */}
+            {activeView === 'GRAPH' && chatCollapsed && (
+              <button onClick={() => setChatCollapsed(false)} className="shrink-0 w-9 paper-sheet flex flex-col items-center gap-2 py-3 cursor-pointer hover:bg-slate-50"
+                      title="Show the console" aria-label="Show the console">
+                <PanelLeftOpen size={15} className="text-[#0284C7]" />
+                <span className="text-[12px] text-[#334155] [writing-mode:vertical-rl]">Console</span>
+              </button>
+            )}
+            <div className={`${activeView === 'GRAPH' ? (chatCollapsed ? 'hidden' : 'w-[31%]') : 'w-[41%]'} shrink-0 min-h-0 relative`}>
+              {activeView === 'GRAPH' && (
+                <button onClick={() => setChatCollapsed(true)} className="icon-btn absolute top-2.5 right-11 z-10 bg-white"
+                        title="Collapse the console to widen the graph" aria-label="Collapse the console">
+                  <PanelLeftClose size={14} />
+                </button>
+              )}
               <ChatPanel
                 asOfDate={asOfDate}
                 health={health}
@@ -338,12 +333,9 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
                   setSelectedNodeId(citId);
                   setHighlightNodeIds([citId]);
                 }}
-                onQueryExecuted={(query, res) => {
+                onQueryExecuted={(query) => {
                   if (query?.asOfDateSuggested) {
                     setAsOfDate(query.asOfDateSuggested);
-                  }
-                  if (res?.subgraph?.nodes?.length) {
-                    setLiveGraphData(res.subgraph);
                   }
                 }}
                 onNodeHighlight={(nodeIds) => {
@@ -351,32 +343,23 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
                   // Inspect what the answer cited; the previous selection may not be in the answer's subgraph.
                   if (nodeIds.length) setSelectedNodeId(nodeIds[0]);
                 }}
-                onSubgraph={(subgraph) => {
-                  if (subgraph && subgraph.nodes && subgraph.nodes.length > 0) {
-                    setLiveGraphData(subgraph);
-                  }
-                }}
               />
             </div>
 
             {/* Graph (plus the review queue preview on the unified view) */}
-            <div className={`${activeView === 'GRAPH' ? 'lg:col-span-8' : 'lg:col-span-7'} flex flex-col gap-4 h-[800px] lg:h-auto min-h-0`}>
-              <div className={activeView === 'GRAPH' ? 'flex-1 min-h-0' : 'flex-[6] min-h-0'}>
+            <div className="flex-1 min-w-0 flex flex-col gap-4 min-h-0">
+              <div className={activeView === 'GRAPH' ? 'flex-1 min-h-0' : 'flex-[7] min-h-0'}>
                 <GraphVisualizer
                   asOfDate={asOfDate}
                   selectedNodeId={selectedNodeId}
                   onSelectNode={(id) => setSelectedNodeId(id)}
                   highlightNodeIds={highlightNodeIds}
-                  liveGraphData={liveGraphData}
-                  onOpenCitation={(citId) => {
-                    setSelectedNodeId(citId);
-                    setHighlightNodeIds([citId]);
-                  }}
+                  refreshKey={policyRefresh}
                 />
               </div>
 
               {activeView === 'UNIFIED' && (
-                <div className="flex-[4] min-h-0">
+                <div className="flex-[3] min-h-0">
                   <ReviewQueue compact queueItems={queueItems} watchingId={watch.id} />
                 </div>
               )}

@@ -35,7 +35,12 @@ test('no two nodes overlap and lanes do not interleave', () => {
   assert.ok(pos['RET-2.1@v1'].y < pos['DEC-001'].y && pos['DEC-001'].y < pos['p-ananya'].y);
 });
 
-test('close dates stack into sub-rows instead of overlapping', () => {
+test('close dates are nudged apart, then stacked into sub-rows', () => {
   const { pos } = layout(nodes, { today: '2026-09-29' });
-  assert.notEqual(pos['DEC-001'].y, pos['DEC-002'].y);
+  assert.ok(Math.abs(pos['DEC-001'].x - pos['DEC-002'].x) >= 42 || pos['DEC-001'].y !== pos['DEC-002'].y);
+  const same = Array.from({ length: 5 }, (_, i) => ({ id: `D${i}`, type: 'decision', date: '2025-01-01' }));
+  const l = layout(same, { today: '2026-09-29' });
+  const rows = new Set(Object.values(l.pos).map(p => p.y));
+  assert.ok(rows.size > 1, 'five nodes on one date need more than one row');
+  for (const p of Object.values(l.pos)) assert.ok(p.x - l.x('2025-01-01') <= 40, 'nudge stays within 40px of the date');
 });

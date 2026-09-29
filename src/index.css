@@ -204,3 +204,11 @@
 /* Keyboard focus is always visible. */
 :focus-visible { outline: 2px solid #0284C7; outline-offset: 2px; }
 
+
+/* As-of slider: a 16px thumb (TemporalSlider positions its milestone markers against this width). */
+.kst-range { -webkit-appearance: none; appearance: none; height: 16px; background: transparent; cursor: pointer; }
+.kst-range::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: #CBD5E1; }
+.kst-range::-moz-range-track { height: 4px; border-radius: 4px; background: #CBD5E1; }
+.kst-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%;
+  background: #0284C7; border: 2px solid #FFFFFF; box-shadow: 0 0 0 1px #0284C7; }
+.kst-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #0284C7; border: 2px solid #FFFFFF; }

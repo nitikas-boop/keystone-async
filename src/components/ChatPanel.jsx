@@ -349,9 +349,10 @@ Keystone answers from the organization's own decision graph, as of the date on t
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Keystone (e.g., 'Was keeping customer logs for 180 days compliant in Q2 2025?')..."
-            rows={1}
-            className="w-full bg-[#F8FAFC] border border-slate-200 rounded-lg pl-3 pr-28 py-2.5 text-xs text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-300 resize-none font-sans"
+            placeholder="Ask about a decision, a policy or who decided what…"
+            aria-label="Question for Keystone"
+            rows={Math.min(4, Math.max(1, Math.ceil(inputValue.length / 60)))}
+            className="w-full bg-[#F8FAFC] border border-slate-300 rounded-lg pl-3 pr-28 py-2.5 text-[13px] leading-snug text-[#0F172A] placeholder-[#64748B] placeholder:truncate focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-300 resize-none overflow-hidden font-sans"
           />
           <div className="absolute right-2 flex items-center gap-1.5">
             <button

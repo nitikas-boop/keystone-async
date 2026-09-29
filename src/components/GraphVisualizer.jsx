@@ -1,769 +1,510 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  ZoomIn, 
-  ZoomOut, 
-  RotateCcw, 
-  Clock,   
-  FileText, 
-  Info,
-  ChevronRight
-} from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BookOpen, ChevronRight, ChevronLeft, ListTree, Loader2, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { fetchDecisionCompliance, fetchDecisions, fetchFlags, fetchGraphView, fetchPolicies } from '../api';
+import { useApp } from '../context';
+import IdChip from './IdChip';
+import { ThenNow } from './Compliance';
+import { RELATIONS, TYPES, typeMeta } from '../utils/entities';
+import { layout } from '../utils/graphLayout';
+import { day, inr, month, polish, todayIST } from '../utils/format';
+import { displayName } from '../utils/people';
 
-const NODE_COORDINATES = {
-  "DEC-001": { x: 100, y: 150 },
-  "DEC-002": { x: 260, y: 150 },
-  "DEC-003": { x: 120, y: 280 },
-  "DEC-004": { x: 380, y: 280 },
-  "DEC-005": { x: 200, y: 400 },
-  "DEC-006": { x: 500, y: 220 },
-  "DEC-007": { x: 620, y: 150 },
-  "DEC-008": { x: 520, y: 400 },
-  "DEC-009": { x: 680, y: 300 },
-  "DEC-010": { x: 740, y: 400 },
+// The temporal graph, from GET /graph/view (server-side visibility filter). Positions come from a deterministic
+// layout over every node known today (x = date, one lane per type), so nodes stay put while the as-of date moves;
+// the as-of view then only changes each node's state: not yet valid (faded), superseded (grey), in force, flagged.
+const LANE_LABEL = { policy_version: 'Policy versions', clause: 'Clauses', flag: 'Impact flags', decision: 'Decisions',
+  meeting_note: 'Meeting notes', project: 'Projects', person: 'People' };
+const R = 13;
 
-  "RET-2.1@v1": { x: 260, y: 60 },
-  "RET-2.1-v1": { x: 260, y: 60 },
-  "RET-2.1@v2": { x: 620, y: 60 },
-  "RET-2.1-v2": { x: 620, y: 60 },
-  "RET-2.1@v3": { x: 800, y: 60 },
-  "RET-2.1-v3": { x: 800, y: 60 },
-  "PROC-3.1@v1": { x: 380, y: 450 },
-  "PROC-3.1-v1": { x: 380, y: 450 },
-  "PROC-3.1@v2": { x: 680, y: 450 },
-  "PROC-3.1-v2": { x: 680, y: 450 },
+const firstLine = (label) => String(label || '').split('\n')[0];
 
-  "p-ananya": { x: 420, y: 150 },
-  "p-vikram": { x: 280, y: 240 },
-  "p-karthik": { x: 680, y: 220 },
-  "p-priya": { x: 520, y: 320 },
-  "p-farhan": { x: 380, y: 370 },
-  "p-divya": { x: 180, y: 340 }
-};
+// /graph/view labels are 'DEC-004\n(Sign VendorCo contract …)', 'RET-2.1 @ v2\n(Max 180d)', 'Ananya Rao\n(CEO)'.
+function nodeTitle(n) {
+  const [a, b] = String(n.label || n.id).split('\n');
+  const inner = b ? b.replace(/^\(|\)$/g, '') : '';
+  if ((n.type === 'decision' || n.type === 'meeting_note') && inner) return inner;
+  if (n.type === 'clause') return inner ? `${n.id} · ${inner}` : n.id;
+  return a;
+}
 
-export default function GraphVisualizer({ 
-  asOfDate, 
-  selectedNodeId, 
-  onSelectNode, 
-  highlightNodeIds = [],
-  onOpenCitation,
-  liveGraphData = null
-}) {
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [hoveredNode, setHoveredNode] = useState(null);
+function clauseSummary(fields = {}, checkable = true) {
+  if (fields.retention_days_max != null) return `${fields.retention_days_max}-day retention ceiling`;
+  if (fields.approver_threshold_inr?.CTO != null) return `${inr(fields.approver_threshold_inr.CTO)} CTO ceiling`;
+  return checkable ? '' : 'not machine-checkable';
+}
+
+export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode, highlightNodeIds = [], refreshKey = 0 }) {
+  const { isReader, team, openEntity } = useApp();
+  const [base, setBase] = useState(null);      // every node known today: drives the layout
+  const [atDate, setAtDate] = useState(null);  // the same view as of asOfDate: drives node state
+  const [decisions, setDecisions] = useState([]);
+  const [policies, setPolicies] = useState([]);
+  const [flags, setFlags] = useState([]);
+  const [error, setError] = useState(null);
+  const [hoverNode, setHoverNode] = useState(null);
+  const [hoverEdge, setHoverEdge] = useState(null);
   const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [view, setView] = useState({ k: 1, x: 0, y: 0 });
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [size, setSize] = useState({ w: 900, h: 480 });
   const svgRef = useRef(null);
   const canvasRef = useRef(null);
-  const viewRef = useRef({ zoom, pan });
-  useEffect(() => { viewRef.current = { zoom, pan }; }, [zoom, pan]);
+  const drag = useRef(null);
 
-  // Wheel zooms toward the cursor. Native listener: React's onWheel is passive and cannot stop the page scrolling.
+  // Lay out for the canvas's real size, so the graph fills the width instead of shrinking to fit a fixed box.
   useEffect(() => {
     const el = canvasRef.current;
     if (!el) return undefined;
+    const ro = new ResizeObserver(([e]) => setSize({ w: Math.round(e.contentRect.width), h: Math.round(e.contentRect.height) }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const today = todayIST();
+    Promise.all([fetchGraphView(today, isReader), fetchDecisions(), fetchPolicies(), fetchFlags()])
+      .then(([g, d, p, f]) => { setBase(g); setDecisions(d); setPolicies(p); setFlags(f); setError(null); })
+      .catch(e => setError(e.message));
+  }, [isReader, refreshKey]);
+
+  useEffect(() => {
+    let live = true;
+    fetchGraphView(asOfDate, isReader).then(g => live && setAtDate(g)).catch(e => live && setError(e.message));
+    return () => { live = false; };
+  }, [asOfDate, isReader, refreshKey]);
+
+  const today = todayIST();
+  const L = useMemo(() => {
+    if (!base) return null;
+    const pts = base.nodes.map(n => ({ id: n.id, type: n.type, date: n.date || n.validFrom }));
+    const width = Math.max(640, size.w);
+    const first = layout(pts, { today, width, padX: 90 });
+    // Too tall for the canvas: tighten rows (never below 30 px, which still clears two node radii).
+    if (first.height + 30 <= size.h) return first;
+    const rowGap = Math.max(30, Math.floor(36 * size.h / (first.height + 30)));
+    return layout(pts, { today, width, padX: 90, rowGap, laneGap: 8, top: 22 });
+  }, [base, today, size.w, size.h]);
+
+  const stateById = useMemo(() => Object.fromEntries((atDate?.nodes || []).map(n => [n.id, n])), [atDate]);
+  const baseById = useMemo(() => Object.fromEntries((base?.nodes || []).map(n => [n.id, n])), [base]);
+  const edges = atDate?.edges || [];
+  const allEdges = base?.edges || [];
+
+  // Focus: the selected (or hovered) node and its one-hop neighbours get labels; everything else is dimmed.
+  const focus = hoverNode || (selectedNodeId && baseById[selectedNodeId] ? selectedNodeId : null);
+  const neighbours = useMemo(() => {
+    if (!focus) return null;
+    const s = new Set([focus]);
+    for (const e of edges) {
+      if (e.source === focus) s.add(e.target);
+      if (e.target === focus) s.add(e.source);
+    }
+    return s;
+  }, [focus, edges]);
+  const highlighted = new Set(highlightNodeIds);
+
+  // Wheel zooms toward the cursor (native listener: React's onWheel is passive).
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return undefined;
     const onWheel = (e) => {
       e.preventDefault();
-      const { zoom: z, pan: p } = viewRef.current;
-      const next = Math.min(3, Math.max(0.4, z * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
-      const r = el.getBoundingClientRect();
-      // transform-origin is the canvas centre: keep the point under the cursor fixed while scaling.
-      const mx = e.clientX - r.left - r.width / 2;
-      const my = e.clientY - r.top - r.height / 2;
-      const k = next / z;
-      setZoom(next);
-      setPan({ x: mx - k * (mx - p.x), y: my - k * (my - p.y) });
+      const pt = el.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+      const p = pt.matrixTransform(el.getScreenCTM().inverse());
+      setView(v => {
+        const k = Math.min(4, Math.max(0.5, v.k * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+        return { k, x: p.x - (p.x - v.x) * (k / v.k), y: p.y - (p.y - v.y) * (k / v.k) };
+      });
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, []);
+  }, [L]);
 
-  // Live graph only. An empty or unreachable backend shows an empty graph, never the mock one.
-  const baseNodes = (liveGraphData?.nodes || []).map((n, idx) => {
-        const id = n.id;
-        const type = (n.type || 'decision').toLowerCase();
-        const coords = NODE_COORDINATES[id] || {
-          x: 140 + (idx % 5) * 140,
-          y: 120 + Math.floor(idx / 5) * 120
-        };
-        return {
-          id,
-          label: n.label || id,
-          type,
-          date: n.valid_from || n.attributes?.decided_on,
-          validFrom: n.valid_from,
-          validTo: n.valid_to,
-          attributes: n.attributes || {},
-          provenance: n.provenance || {},
-          x: coords.x,
-          y: coords.y
-        };
-      });
-
-  const baseEdges = (liveGraphData?.edges || []).map(e => ({
-        source: e.source,
-        target: e.target,
-        relation: e.relation || 'RELATES_TO',
-        validFrom: e.valid_from,
-        validTo: e.valid_to,
-        isConflict: e.relation === 'AFFECTS',
-        provenance: e.provenance
-      }));
-
-  // Staleness comes from the scanner: a decision is stale when a Flag AFFECTS it as of the chosen date.
-  const nodeById = Object.fromEntries(baseNodes.map(n => [n.id, n]));
-  const flagsFor = (decisionId) => baseEdges
-    .filter(e => e.relation === 'AFFECTS' && e.target === decisionId && (!e.validFrom || e.validFrom.slice(0, 10) <= asOfDate))
-    .map(e => {
-      const cause = baseEdges.find(c => c.source === e.source && c.relation === 'CAUSED_BY');
-      return { id: e.source, impactType: nodeById[e.source]?.attributes?.impact_type, clause: cause?.target };
-    });
-  const targetsOf = (id, relation) => baseEdges.filter(e => e.source === id && e.relation === relation).map(e => e.target);
-
-  // Compute node active states based on asOfDate
-  const processedNodes = baseNodes.map(node => {
-    let isActiveAtDate = true;
-    let isStaleAtDate = false;
-
-    if (node.type === 'clause') {
-      if (node.validFrom && asOfDate < node.validFrom) {
-        isActiveAtDate = false;
-      }
-      if (node.validTo && asOfDate > node.validTo) {
-        isActiveAtDate = false;
-      }
-    } else if (node.type === 'decision') {
-      if (node.date && asOfDate < node.date) {
-        isActiveAtDate = false;
-      }
-      if (flagsFor(node.id).length > 0) {
-        isStaleAtDate = true;
-      }
-    }
-
-    // Modern calm pastel colors
-    let fillColor = '#EEF2FF';
-    let strokeColor = '#6366F1';
-    let textColor = '#3730A3';
-
-    if (node.type === 'clause') {
-      fillColor = '#FEF3C7';
-      strokeColor = '#D97706';
-      textColor = '#92400E';
-    } else if (node.type === 'person') {
-      fillColor = '#E0F2FE';
-      strokeColor = '#0284C7';
-      textColor = '#0369A1';
-    }
-
-    return {
-      ...node,
-      fillColor,
-      strokeColor,
-      textColor,
-      isActiveAtDate,
-      isStaleAtDate
-    };
+  const svgPoint = (e) => {
+    const pt = svgRef.current.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    return pt.matrixTransform(svgRef.current.getScreenCTM().inverse());
+  };
+  const onPointerDown = (e) => { if (e.target.dataset.bg) { drag.current = { p: svgPoint(e), v: view }; e.currentTarget.setPointerCapture(e.pointerId); } };
+  const onPointerMove = (e) => {
+    if (!drag.current) return;
+    const p = svgPoint(e);
+    setView(v => ({ ...v, x: drag.current.v.x + (p.x - drag.current.p.x), y: drag.current.v.y + (p.y - drag.current.p.y) }));
+  };
+  const onPointerUp = () => { drag.current = null; };
+  const zoomBy = (f) => setView(v => {
+    const cx = (L?.width || 0) / 2, cy = (L?.height || 0) / 2;
+    const k = Math.min(4, Math.max(0.5, v.k * f));
+    return { k, x: cx - (cx - v.x) * (k / v.k), y: cy - (cy - v.y) * (k / v.k) };
   });
 
-  // Compute edges state based on asOfDate
-  const processedEdges = baseEdges.map(edge => {
-    let status = 'active';
-    if (edge.validFrom && asOfDate < edge.validFrom) {
-      status = 'future';
-    } else if (edge.validTo && asOfDate > edge.validTo) {
-      status = 'expired';
-    } else if (edge.isConflict && asOfDate >= edge.validFrom) {
-      status = 'conflict';
-    }
-
-    return {
-      ...edge,
-      status
-    };
-  });
-
-  // Fit the viewBox to the nodes (plus room for labels): nodes without fixed coordinates are laid out on a grid
-  // that can extend past the old fixed 850x560 box, which cut the graph off.
-  const viewBox = (() => {
-    if (!processedNodes.length) return '0 0 850 560';
-    const xs = processedNodes.map(n => n.x), ys = processedNodes.map(n => n.y);
-    const minX = Math.min(...xs) - 90, maxX = Math.max(...xs) + 90;
-    const minY = Math.min(...ys) - 50, maxY = Math.max(...ys) + 70;
-    return `${minX} ${minY} ${maxX - minX} ${maxY - minY}`;
-  })();
-
-  // A node absent from the graph as of this date has nothing to inspect: the inspector stays closed.
-  const activeNodeData = processedNodes.find(n => n.id === selectedNodeId) || null;
-
-  // Inspector shows exactly what the graph holds; missing fields stay visibly missing ("—").
-  const attrs = activeNodeData?.attributes || {};
-  const activeDecision = activeNodeData?.type === 'decision'
-    ? {
-        id: activeNodeData.id,
-        title: activeNodeData.label,
-        decidedOn: attrs.decided_on || activeNodeData.validFrom || '—',
-        owner: attrs.owner || '—',
-        project: attrs.project || '—',
-        rationale: attrs.reasons || '—',
-        reliedOnClause: targetsOf(activeNodeData.id, 'RELIED_ON')[0] || null,
-        flags: flagsFor(activeNodeData.id)
-      }
-    : null;
-
-  const activeClause = activeNodeData?.type === 'clause'
-    ? (() => {
-        let fields = {};
-        try { fields = JSON.parse(attrs.fields_json || '{}'); } catch { fields = {}; }
-        const policyVersion = targetsOf(activeNodeData.id, 'BELONGS_TO')[0];
-        return {
-          policy: { title: nodeById[policyVersion]?.label || policyVersion || attrs.policy_id || '—' },
-          version: {
-            clauseName: activeNodeData.label,
-            clauseId: activeNodeData.id,
-            effectiveFrom: activeNodeData.validFrom || '—',
-            effectiveTo: activeNodeData.validTo,
-            limitDays: fields.retention_days_max,
-            limitInr: fields.approver_threshold_inr?.CTO,
-            description: attrs.text || '—'
-          }
-        };
-      })()
-    : null;
-
-  const activePerson = activeNodeData?.type === 'person'
-    ? {
-        id: activeNodeData.id,
-        name: activeNodeData.label,
-        role: attrs.role || '—',
-        joined: attrs.joined || '—',
-        left: attrs.left
-      }
-    : null;
-
-  const handleMouseDown = (e) => {
-    if (e.target.tagName === 'svg' || e.target.classList.contains('canvas-bg')) {
-      setIsDragging(true);
-      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-    }
+  const nodeState = (id) => {
+    const s = stateById[id];
+    if (!s) return 'absent';                                   // not yet valid on the as-of date
+    if (s.validFrom && s.validFrom > asOfDate) return 'future'; // policy lifecycle shown ahead of time
+    if (!s.isActive) return 'superseded';
+    return s.isStale ? 'flagged' : 'active';
   };
 
-  const handleMouseMove = (e) => {
-    if (isDragging) {
-      setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
-    }
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  const resetView = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
+  const selected = selectedNodeId && baseById[selectedNodeId];
+  const asOfX = L && asOfDate >= L.start ? L.x(asOfDate > L.end ? L.end : asOfDate) : null;
 
   return (
-    <div className="relative w-full h-full flex flex-col paper-sheet overflow-hidden select-none bg-[#F8FAFC]">
-      {/* Top Controls Toolbar */}
-      <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
-        {/* Graph Legend */}
-        <div className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-sm text-xs text-[#0F172A]">
-          <div className="flex items-center gap-1.5 font-mono text-[11px]">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#6366F1]"></span>
-            <span>Decisions</span>
-          </div>
-          <span className="text-slate-300">|</span>
-          <div className="flex items-center gap-1.5 font-mono text-[11px]">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#D97706]"></span>
-            <span>Clauses</span>
-          </div>
-          <span className="text-slate-300">|</span>
-          <div className="flex items-center gap-1.5 font-mono text-[11px]">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#0284C7]"></span>
-            <span>People</span>
-          </div>
-          <span className="text-slate-300">|</span>
-          <div className="flex items-center gap-1.5 font-mono text-[11px] text-[#991B1B]">
-            <span className="w-2 h-2 rounded-full bg-rose-400"></span>
-            <span>Staleness Flag</span>
+    <div className="w-full h-full flex paper-sheet overflow-hidden select-none">
+      <div className="relative flex-1 min-w-0 flex flex-col bg-[#F8FAFC]">
+        {/* Toolbar: legend by type and by line style, zoom controls */}
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-white">
+          <button className="btn-secondary" onClick={() => setLegendOpen(o => !o)} aria-expanded={legendOpen}>
+            <ListTree size={13} /> Legend
+          </button>
+          <span className="text-[12px] text-[#475569] truncate min-w-0">
+            Hover a node for its neighbours · click to inspect · hover a line for its relation
+          </span>
+          <div className="flex items-center gap-1 shrink-0">
+            <button className="icon-btn" onClick={() => zoomBy(1.25)} aria-label="Zoom in" title="Zoom in"><ZoomIn size={14} /></button>
+            <button className="icon-btn" onClick={() => zoomBy(0.8)} aria-label="Zoom out" title="Zoom out"><ZoomOut size={14} /></button>
+            <button className="icon-btn" onClick={() => setView({ k: 1, x: 0, y: 0 })} aria-label="Fit graph to view" title="Fit to view"><Maximize2 size={13} /></button>
+            <button className="icon-btn" onClick={() => setInspectorOpen(o => !o)} aria-label={inspectorOpen ? 'Hide inspector' : 'Show inspector'}
+                    title={inspectorOpen ? 'Hide inspector' : 'Show inspector'}>
+              {inspectorOpen ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            </button>
           </div>
         </div>
 
-        {/* Filter & Zoom Controls */}
-        <div className="pointer-events-auto flex items-center gap-1.5 p-1 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-sm">
-          <button 
-            onClick={() => setZoom(z => Math.min(z + 0.15, 3))}
-            className="p-1.5 rounded hover:bg-slate-100 text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
-            title="Zoom In"
-          >
-            <ZoomIn size={14} />
-          </button>
-          <button 
-            onClick={() => setZoom(z => Math.max(z - 0.15, 0.4))}
-            className="p-1.5 rounded hover:bg-slate-100 text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
-            title="Zoom Out"
-          >
-            <ZoomOut size={14} />
-          </button>
-          <button 
-            onClick={resetView}
-            className="p-1.5 rounded hover:bg-slate-100 text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
-            title="Reset View"
-          >
-            <RotateCcw size={14} />
-          </button>
-          <div className="h-4 w-px bg-slate-200 mx-0.5"></div>
-          <button 
-            onClick={() => setInspectorOpen(!inspectorOpen)}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
-              inspectorOpen ? 'bg-sky-50 text-[#0284C7] font-semibold border border-sky-200' : 'text-[#64748B] hover:bg-slate-100'
-            }`}
-          >
-            <Info size={12} />
-            <span>Inspector</span>
-          </button>
-        </div>
-      </div>
-
-      {/* SVG Canvas */}
-      <div 
-        ref={canvasRef}
-        className={`w-full h-full relative cursor-grab active:cursor-grabbing overflow-hidden ${
-          inspectorOpen && activeNodeData ? 'pr-[21rem]' : ''  /* keep nodes out from under the inspector */
-        }`}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-      >
-        {/* Subtle dot pattern background */}
-        <div 
-          className="absolute inset-0 canvas-bg opacity-35 pointer-events-none"
-          style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, #CBD5E1 1px, transparent 0)`,
-            backgroundSize: '20px 20px'
-          }}
-        />
-
-        {processedNodes.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="max-w-xs text-center p-4 rounded-xl bg-white/90 border border-slate-200 shadow-xs">
-              <div className="font-heading font-semibold text-xs text-[#0F172A]">No graph data as of {asOfDate}</div>
-              <p className="text-[11px] text-[#64748B] mt-1 leading-relaxed">
-                The knowledge graph is empty or nothing was valid on this date. Seed the vault or restore a
-                snapshot, or move the as-of date.
-              </p>
+        <div ref={canvasRef} className="relative flex-1 min-h-0">
+          {legendOpen && (
+            <div className="absolute top-2 left-2 z-10 max-w-md rounded-lg border border-slate-200 bg-white/95 shadow-sm p-2.5">
+              <Legend />
             </div>
-          </div>
-        )}
-
-        <svg
-          ref={svgRef}
-          className="w-full h-full"
-          style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            transformOrigin: 'center center',
-            transition: isDragging ? 'none' : 'transform 0.1s ease-out'
-          }}
-          viewBox={viewBox}
-        >
-          <defs>
-            <marker id="arrow-active-light" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M 0 1 L 9 5 L 0 9 z" fill="#64748B" />
-            </marker>
-            <marker id="arrow-clause-light" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M 0 1 L 9 5 L 0 9 z" fill="#D97706" />
-            </marker>
-            <marker id="arrow-conflict-light" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M 0 1 L 9 5 L 0 9 z" fill="#E11D48" />
-            </marker>
-          </defs>
-
-          {/* Render Graph Edges */}
-          <g className="edges">
-            {processedEdges.map((edge, idx) => {
-              const sourceNode = processedNodes.find(n => n.id === edge.source);
-              const targetNode = processedNodes.find(n => n.id === edge.target);
-              if (!sourceNode || !targetNode) return null;
-
-              const isHighlighted = highlightNodeIds.includes(edge.source) && highlightNodeIds.includes(edge.target);
-              const isSelectedConnected = selectedNodeId === edge.source || selectedNodeId === edge.target;
-
-              const dx = targetNode.x - sourceNode.x;
-              const dy = targetNode.y - sourceNode.y;
-              const cx = (sourceNode.x + targetNode.x) / 2 - dy * 0.12;
-              const cy = (sourceNode.y + targetNode.y) / 2 + dx * 0.12;
-              const pathData = `M ${sourceNode.x} ${sourceNode.y} Q ${cx} ${cy} ${targetNode.x} ${targetNode.y}`;
-
-              let strokeColor = '#94A3B8';
-              let strokeWidth = 1.5;
-              let strokeDash = 'none';
-              let markerEnd = 'url(#arrow-active-light)';
-              let opacity = 0.75;
-
-              if (edge.status === 'conflict') {
-                strokeColor = '#F43F5E';
-                strokeWidth = 2.2;
-                strokeDash = '5 4';
-                markerEnd = 'url(#arrow-conflict-light)';
-                opacity = 1;
-              } else if (edge.status === 'expired') {
-                strokeColor = '#CBD5E1';
-                strokeWidth = 1.2;
-                strokeDash = '3 3';
-                opacity = 0.4;
-              } else if (edge.status === 'future') {
-                strokeColor = '#E2E8F0';
-                strokeWidth = 1;
-                opacity = 0.25;
-              } else if (edge.relation === 'SUPERSEDES') {
-                strokeColor = '#D97706';
-                markerEnd = 'url(#arrow-clause-light)';
-                strokeWidth = 2;
-              }
-
-              if (isSelectedConnected || isHighlighted) {
-                strokeWidth = Math.max(strokeWidth, 2.5);
-                strokeColor = '#0284C7';
-                opacity = 1;
-              }
-
-              return (
-                <g key={`edge-${idx}`}>
-                  <path
-                    d={pathData}
-                    fill="none"
-                    stroke={strokeColor}
-                    strokeWidth={strokeWidth}
-                    strokeDasharray={strokeDash}
-                    markerEnd={markerEnd}
-                    opacity={opacity}
-                  />
-                  <text
-                    x={cx}
-                    y={cy - 4}
-                    fill={edge.status === 'conflict' ? '#E11D48' : '#64748B'}
-                    fontSize="8.5"
-                    fontFamily="var(--font-mono)"
-                    textAnchor="middle"
-                    className="select-none pointer-events-none font-medium"
-                  >
-                    {edge.relation}
-                  </text>
-                </g>
-              );
-            })}
-          </g>
-
-          {/* Render Graph Nodes */}
-          <g className="nodes">
-            {processedNodes.map((node) => {
-              const isSelected = selectedNodeId === node.id;
-              const isHighlighted = highlightNodeIds.includes(node.id);
-              const isHovered = hoveredNode === node.id;
-              
-              const r = node.type === 'decision' ? 24 : node.type === 'clause' ? 22 : 20;
-
-              return (
-                <g 
-                  key={node.id}
-                  transform={`translate(${node.x}, ${node.y})`}
-                  className="cursor-pointer transition-all duration-150"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectNode(node.id);
-                  }}
-                  onMouseEnter={() => setHoveredNode(node.id)}
-                  onMouseLeave={() => setHoveredNode(null)}
-                >
-                  {/* Subtle ring if selected or hovered */}
-                  {(isSelected || isHighlighted || isHovered) && (
-                    <circle
-                      r={r + 6}
-                      fill="none"
-                      stroke={node.isStaleAtDate ? '#F43F5E' : '#38BDF8'}
-                      strokeWidth="2"
-                      opacity="0.8"
-                    />
-                  )}
-
-                  {/* Main Node Body */}
-                  <circle
-                    r={r}
-                    fill={node.isStaleAtDate ? '#FFF1F2' : node.fillColor}
-                    stroke={node.isStaleAtDate ? '#E11D48' : node.strokeColor}
-                    strokeWidth={isSelected ? 2.5 : 1.75}
-                    className="transition-colors"
-                  />
-
-                  {/* Icon glyph inside node */}
-                  {node.type === 'decision' && (
-                    <g transform="translate(-7, -7) scale(0.65)" fill="none" stroke="#4F46E5" strokeWidth="2">
-                      <polygon points="12 2 2 7 12 12 22 7 12 2" />
-                      <polyline points="2 17 12 22 22 17" />
-                    </g>
-                  )}
-                  {node.type === 'clause' && (
-                    <g transform="translate(-7, -7) scale(0.65)" fill="none" stroke="#D97706" strokeWidth="2">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                    </g>
-                  )}
-                  {node.type === 'person' && (
-                    <g transform="translate(-7, -7) scale(0.65)" fill="none" stroke="#0284C7" strokeWidth="2">
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                      <circle cx="12" cy="7" r="4" />
-                    </g>
-                  )}
-
-                  {/* Gentle warning badge on conflicted node */}
-                  {node.isStaleAtDate && (
-                    <g transform="translate(10, -18)">
-                      <circle cx="6" cy="6" r="7.5" fill="#E11D48" />
-                      <text x="6" y="9.5" fill="#FFFFFF" fontSize="10" fontWeight="bold" textAnchor="middle">!</text>
-                    </g>
-                  )}
-
-                  {/* Node Multi-Line Label */}
-                  <g transform={`translate(0, ${r + 14})`}>
-                    {node.label.split('\n').map((line, lIdx) => (
-                      <text
-                        key={lIdx}
-                        x="0"
-                        y={lIdx * 11}
-                        fill={lIdx === 0 ? '#0F172A' : '#64748B'}
-                        fontSize={lIdx === 0 ? "10" : "8.5"}
-                        fontFamily="var(--font-heading)"
-                        fontWeight={lIdx === 0 ? "600" : "normal"}
-                        textAnchor="middle"
-                        className="select-none pointer-events-none"
-                      >
-                        {line}
-                      </text>
-                    ))}
+          )}
+          {error && <Overlay>Graph unavailable: {error}</Overlay>}
+          {!error && !L && <Overlay><Loader2 size={14} className="animate-spin inline mr-1" /> Loading graph…</Overlay>}
+          {L && base.nodes.length === 0 && <Overlay>The graph is empty. Restore the demo snapshot or ingest documents.</Overlay>}
+          {L && (
+            <svg ref={svgRef} className="w-full h-full cursor-grab active:cursor-grabbing touch-none" viewBox={`0 0 ${L.width} ${L.height + 26}`}
+                 preserveAspectRatio="xMidYMid meet" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+                 role="img" aria-label={`Decision graph as of ${asOfDate}`}>
+              <rect data-bg="1" x="-5000" y="-5000" width="10000" height="10000" fill="transparent" />
+              <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
+                {/* Lanes */}
+                {L.lanes.map((ln, i) => (
+                  <g key={ln.type} pointerEvents="none">
+                    <rect x="0" y={ln.y0} width={L.width} height={ln.y1 - ln.y0} fill={i % 2 ? '#F8FAFC' : '#F1F5F9'} opacity="0.7" />
+                    <text x="6" y={ln.y0 + 13} fontSize="11" fill="#475569" fontFamily="var(--font-body)">{LANE_LABEL[ln.type] || ln.type}</text>
                   </g>
-                </g>
-              );
-            })}
-          </g>
-        </svg>
-      </div>
-
-      {/* Slide-out Paper Sheet Inspector */}
-      {inspectorOpen && activeNodeData && (
-        <div className="absolute right-3 bottom-3 top-16 w-80 z-20 paper-sheet-elevated p-4 flex flex-col justify-between overflow-y-auto">
-          <div>
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
-              <div className="flex items-center gap-2">
-                <span 
-                  className="w-2.5 h-2.5 rounded-full" 
-                  style={{ backgroundColor: activeNodeData.strokeColor }}
-                />
-                <span className="font-mono text-xs uppercase tracking-wider text-[#0F172A] font-bold">
-                  {activeNodeData.type} Details
-                </span>
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-[#475569]">
-                {activeNodeData.id}
-              </span>
-            </div>
-
-            {/* Decision Inspector Content */}
-            {activeDecision && (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <h4 className="font-heading font-semibold text-sm text-[#0F172A] leading-snug">
-                    {activeDecision.title}
-                  </h4>
-                  <div className="flex items-center gap-1.5 text-[10.5px] font-mono text-[#64748B] mt-1">
-                    <Clock size={11} className="text-[#0284C7]" />
-                    <span>Decided: {activeDecision.decidedOn}</span>
-                  </div>
-                </div>
-
-                {/* Staleness Note */}
-                {activeDecision.flags.map(flag => (
-                  <div key={flag.id} className="p-2.5 rounded-lg badge-note-rose flex items-start gap-2">
-                    <Info size={14} className="text-[#991B1B] shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-[11px] font-bold uppercase font-mono">
-                        Policy Impact: {flag.impactType || 'flagged'}
-                      </div>
-                      <p className="text-[11px] mt-0.5 leading-snug">
-                        Flagged by the impact scanner against <span className="font-mono font-bold">{flag.clause || 'a changed clause'}</span>.
-                      </p>
-                    </div>
-                  </div>
                 ))}
-
-                {/* Provenance trace if available */}
-                {activeNodeData.provenance?.source_doc && (
-                  <div className="p-2.5 rounded-lg bg-sky-50/70 border border-sky-100 font-mono text-[10.5px]">
-                    <div className="text-[#0284C7] font-semibold text-[10px] mb-1 uppercase tracking-wider flex items-center justify-between">
-                      <span>PROVENANCE TRACE</span>
-                      <span className="normal-case font-normal">
-                        {activeNodeData.provenance.extracted_by === 'human'
-                          ? 'from document front-matter'
-                          : `extracted by ${activeNodeData.provenance.extracted_by} · model-reported confidence ${activeNodeData.provenance.confidence}`}
-                        {' · '}{activeNodeData.provenance.human_verified ? 'human verified' : 'not yet reviewed'}
-                      </span>
-                    </div>
-                    <div className="text-[#334155] truncate">Doc: {activeNodeData.provenance.source_doc}</div>
-                    {activeNodeData.provenance.source_span?.quote && (
-                      <div className="text-[#64748B] italic mt-1 bg-white/90 p-1.5 rounded border border-slate-100 text-[10px]">
-                        "{activeNodeData.provenance.source_span.quote}"
-                      </div>
-                    )}
-                  </div>
+                {/* Time axis */}
+                {L.ticks.map(t => (
+                  <g key={t.date} pointerEvents="none">
+                    <line x1={t.x} x2={t.x} y1={L.lanes[0]?.y0 || 0} y2={L.height} stroke="#E2E8F0" strokeDasharray="2 4" />
+                    <text x={t.x} y={L.height + 18} fontSize="11" fill="#475569" textAnchor="middle" fontFamily="var(--font-mono)">{month(t.date)}</text>
+                  </g>
+                ))}
+                {asOfX != null && (
+                  <g style={{ transform: `translateX(${asOfX}px)`, transition: 'transform 500ms ease' }} pointerEvents="none">
+                    <line x1="0" x2="0" y1={L.lanes[0]?.y0 || 0} y2={L.height} stroke="#0284C7" strokeWidth="1.5" />
+                    {/* keep the date tag inside the canvas at either end */}
+                    <g transform={`translate(${Math.min(Math.max(0, 62 - asOfX), L.width - 62 - asOfX)} 0)`}>
+                      <rect x="-60" y={L.height + 4} width="120" height="18" rx="4" fill="#0284C7" />
+                      <text x="0" y={L.height + 17} fontSize="11" fill="#fff" textAnchor="middle" fontFamily="var(--font-mono)">as of {asOfDate}</text>
+                    </g>
+                  </g>
                 )}
 
-                {/* Metadata Grid */}
-                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100 font-mono text-[11px]">
-                  <div>
-                    <span className="text-[#64748B] block text-[9.5px]">OWNER</span>
-                    <span className="text-[#0F172A] font-medium">{activeDecision.owner}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#64748B] block text-[9.5px]">PROJECT</span>
-                    <span className="text-[#0F172A] font-medium">{activeDecision.project}</span>
-                  </div>
-                  <div className="col-span-2 pt-1 border-t border-slate-200">
-                    <span className="text-[#64748B] block text-[9.5px]">RELIED ON CLAUSE</span>
-                    {activeDecision.reliedOnClause ? (
-                      <button
-                        onClick={() => onOpenCitation && onOpenCitation(activeDecision.reliedOnClause)}
-                        className="citation-pill-paper mt-1"
-                      >
-                        <FileText size={10} />
-                        {activeDecision.reliedOnClause}
-                      </button>
-                    ) : (
-                      <span className="text-[#0F172A] font-medium block mt-1">None in force as of {asOfDate}</span>
-                    )}
-                  </div>
-                </div>
+                {/* Edges (as of the date), styled by relation; label on hover only */}
+                {edges.map(e => {
+                  const a = L.pos[e.source], b = L.pos[e.target];
+                  if (!a || !b) return null;
+                  const rel = RELATIONS[e.relation] || { dash: '', width: 1 };
+                  const inFocus = neighbours ? neighbours.has(e.source) && neighbours.has(e.target) && (e.source === focus || e.target === focus) : false;
+                  const dim = neighbours && !inFocus;
+                  const color = rel.danger ? '#E11D48' : inFocus ? '#0369A1' : '#64748B';
+                  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - Math.abs(a.x - b.x) * 0.08;
+                  const d = `M ${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}`;
+                  return (
+                    <g key={e.id} onPointerEnter={() => setHoverEdge(e.id)} onPointerLeave={() => setHoverEdge(null)}>
+                      <path d={d} fill="none" stroke="transparent" strokeWidth="10" />
+                      <path d={d} fill="none" stroke={color} strokeWidth={rel.width * (inFocus ? 1.6 : 1)} strokeDasharray={rel.dash}
+                            opacity={!e.isActive && !rel.danger ? 0.25 : dim ? 0.12 : inFocus ? 0.95 : 0.45}
+                            style={{ transition: 'opacity 400ms' }} />
+                      {(hoverEdge === e.id) && (
+                        <text x={mx} y={my - 4} fontSize="11" textAnchor="middle" fill="#0F172A" fontFamily="var(--font-body)"
+                              paintOrder="stroke" stroke="#fff" strokeWidth="3">
+                          {RELATIONS[e.relation]?.label || e.relation}{e.isActive ? '' : ' (not in force)'}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
 
-                {/* Rationale */}
-                <div>
-                  <span className="text-[10px] font-mono text-[#64748B] uppercase tracking-wider block mb-1">
-                    Recorded Rationale:
-                  </span>
-                  <p className="text-[11px] text-[#334155] bg-slate-50 p-2.5 rounded-lg border border-slate-100 italic leading-relaxed">
-                    "{activeDecision.rationale}"
-                  </p>
-                </div>
-
-                {/* Historical Trace Matrix */}
-                {activeDecision.historicalCompliance && (
-                  <div>
-                    <span className="text-[10px] font-mono text-[#64748B] uppercase tracking-wider block mb-1.5">
-                      Point-in-Time Trace Matrix:
-                    </span>
-                    <div className="space-y-1.5 font-mono text-[10px]">
-                      {activeDecision.historicalCompliance.map((row, idx) => (
-                        <div 
-                          key={idx} 
-                          className={`p-2 rounded-lg border ${
-                            row.compliant 
-                              ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' 
-                              : 'bg-rose-50/70 border-rose-200 text-rose-900'
-                          }`}
-                        >
-                          <div className="flex justify-between font-semibold">
-                            <span>{row.period}</span>
-                            <span className={row.compliant ? 'text-emerald-700' : 'text-rose-700'}>
-                              {row.compliant ? '✓ Compliant' : '⚠ Stale'}
-                            </span>
-                          </div>
-                          <div className="text-[9.5px] text-[#64748B] mt-0.5">{row.reason}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Clause Inspector Content */}
-            {activeClause && (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <h4 className="font-heading font-semibold text-sm text-[#D97706]">
-                    {activeClause.version.clauseName}
-                  </h4>
-                  <div className="text-[10.5px] font-mono text-[#64748B] mt-0.5">
-                    Doc: {activeClause.policy.title}
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 font-mono text-[11px] space-y-1.5">
-                  <div className="flex justify-between">
-                    <span className="text-[#64748B]">CLAUSE ID:</span>
-                    <span className="text-[#D97706] font-bold">{activeClause.version.clauseId}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#64748B]">VALID FROM:</span>
-                    <span className="text-[#0F172A]">{activeClause.version.effectiveFrom}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#64748B]">VALID TO:</span>
-                    <span className="text-[#0F172A]">{activeClause.version.effectiveTo || 'CURRENT_ACTIVE'}</span>
-                  </div>
-                  {activeClause.version.limitDays && (
-                    <div className="flex justify-between border-t border-slate-200 pt-1">
-                      <span className="text-[#64748B]">RETENTION CEILING:</span>
-                      <span className="text-[#0284C7] font-bold">{activeClause.version.limitDays} Days</span>
-                    </div>
-                  )}
-                  {activeClause.version.limitInr && (
-                    <div className="flex justify-between border-t border-slate-200 pt-1">
-                      <span className="text-[#64748B]">SIGNING LIMIT:</span>
-                      <span className="text-[#0284C7] font-bold">₹{activeClause.version.limitInr.toLocaleString('en-IN')}</span>
-                    </div>
-                  )}
-                </div>
-
-                <p className="text-[11px] text-[#334155] bg-slate-50 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
-                  {activeClause.version.description}
-                </p>
-              </div>
-            )}
-
-            {/* Person Inspector Content */}
-            {activePerson && (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <h4 className="font-heading font-semibold text-sm text-[#0F172A]">
-                    {activePerson.name}
-                  </h4>
-                  <div className="text-[11px] font-mono text-[#0284C7] mt-0.5">
-                    {activePerson.role}
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 font-mono text-[11px] space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-[#64748B]">MEMBER ID:</span>
-                    <span className="text-[#0F172A]">{activePerson.id}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#64748B]">TENURE:</span>
-                    <span className="text-[#0F172A]">{activePerson.joined} → {activePerson.left || 'Present'}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] font-mono text-[#64748B]">
-            <span>
-              Valid {activeNodeData.validFrom?.slice(0, 10) || '—'} → {activeNodeData.validTo?.slice(0, 10) || 'no end date'}
-            </span>
-            <span>Ref: {activeNodeData.id}</span>
+                {/* Nodes */}
+                {base.nodes.map(n => {
+                  const p = L.pos[n.id];
+                  if (!p) return null;
+                  const st = nodeState(n.id);
+                  const m = typeMeta(n.type);
+                  const isSel = n.id === selectedNodeId;
+                  const lit = highlighted.has(n.id);
+                  const inFocus = neighbours ? neighbours.has(n.id) : true;
+                  const opacity = st === 'absent' ? 0.1 : st === 'future' ? 0.35 : neighbours && !inFocus ? 0.3 : 1;
+                  const grey = st === 'superseded' || st === 'future';
+                  const showLabel = st !== 'absent' && (neighbours ? inFocus : true);
+                  const label = neighbours && inFocus ? polish(nodeTitle(stateById[n.id] || n)) : (n.type === 'person' ? nodeTitle(n) : n.id);
+                  return (
+                    <g key={n.id} transform={`translate(${p.x} ${p.y})`} opacity={opacity} style={{ transition: 'opacity 450ms ease' }}
+                       className={st === 'absent' ? '' : 'cursor-pointer'} pointerEvents={st === 'absent' ? 'none' : 'auto'}
+                       onClick={(ev) => { ev.stopPropagation(); onSelectNode(n.id); }}
+                       onPointerEnter={() => setHoverNode(n.id)} onPointerLeave={() => setHoverNode(null)}
+                       role="button" tabIndex={st === 'absent' ? -1 : 0} aria-label={`${m.label} ${n.id}, ${st}`}
+                       onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && onSelectNode(n.id)}>
+                      {(isSel || lit) && <circle r={R + 5} fill="none" stroke={st === 'flagged' ? '#E11D48' : '#0284C7'} strokeWidth="2.5" />}
+                      <circle r={R} fill={grey ? '#F1F5F9' : st === 'flagged' ? '#FFE4E6' : m.fill}
+                              stroke={grey ? '#94A3B8' : st === 'flagged' ? '#E11D48' : m.stroke}
+                              strokeWidth={isSel ? 2.5 : 1.6} strokeDasharray={st === 'future' ? '3 2' : ''}
+                              style={{ transition: 'fill 450ms, stroke 450ms' }} />
+                      <g transform="translate(-8 -8) scale(0.667)" fill="none" stroke={grey ? '#64748B' : m.stroke} strokeWidth="2.2"
+                         strokeLinecap="round" strokeLinejoin="round">
+                        {m.icon.map((d, i) => <path key={i} d={d} />)}
+                      </g>
+                      {st === 'flagged' && (
+                        <g transform={`translate(${R - 4} ${-R - 2})`}>
+                          <circle r="6.5" fill="#E11D48" /><text y="3.5" fontSize="10" fontWeight="700" fill="#fff" textAnchor="middle">!</text>
+                        </g>
+                      )}
+                      {showLabel && (
+                        <text y={R + 13} fontSize={neighbours && inFocus ? 12 : 10.5}
+                              textAnchor={p.x > L.width - 130 ? 'end' : p.x < 130 ? 'start' : 'middle'}
+                              x={p.x > L.width - 130 ? R : p.x < 130 ? -R : 0} fill={grey ? '#475569' : '#0F172A'}
+                              fontFamily={label === n.id ? 'var(--font-mono)' : 'var(--font-body)'} fontWeight={isSel ? 600 : 400}
+                              paintOrder="stroke" stroke="#F8FAFC" strokeWidth="3" pointerEvents="none">
+                          {label.length > 34 ? `${label.slice(0, 33)}…` : label}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+            </svg>
+          )}
+          <div className="absolute top-2 right-2 text-[11.5px] text-[#475569] bg-white/90 rounded px-2 py-1 border border-slate-200 pointer-events-none">
+            Faded: not yet valid · grey: superseded · red !: flagged
           </div>
         </div>
+      </div>
+
+      {inspectorOpen && (
+        <aside className="w-80 shrink-0 border-l border-slate-200 bg-white overflow-y-auto" aria-label="Inspector">
+          {selected
+            ? <Inspector node={selected} state={stateById[selected.id]} st={nodeState(selected.id)} asOfDate={asOfDate}
+                         allEdges={allEdges} baseById={baseById} decisions={decisions} policies={policies} flags={flags}
+                         team={team} openEntity={openEntity} />
+            : <p className="p-4 text-[13px] text-[#64748B]">Select a node to inspect it. Answer citations and ID chips elsewhere in the app open here.</p>}
+        </aside>
       )}
     </div>
+  );
+}
+
+function Overlay({ children }) {
+  return <div className="absolute inset-0 flex items-center justify-center text-[13px] text-[#475569] pointer-events-none">{children}</div>;
+}
+
+function Legend() {
+  const types = ['decision', 'clause', 'policy_version', 'person', 'project', 'meeting_note', 'flag'];
+  const lines = ['RELIED_ON', 'MADE_BY', 'SUPERSEDES', 'JUSTIFIED_BY', 'AFFECTS'];
+  return (
+    <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11.5px] text-[#334155] min-w-0">
+      {types.map(t => (
+        <span key={t} className="inline-flex items-center gap-1">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={TYPES[t].stroke} strokeWidth="2.4" aria-hidden="true">
+            {TYPES[t].icon.map((d, i) => <path key={i} d={d} />)}
+          </svg>
+          {TYPES[t].label}
+        </span>
+      ))}
+      <span className="text-slate-300" aria-hidden="true">|</span>
+      {lines.map(r => (
+        <span key={r} className="inline-flex items-center gap-1">
+          <svg width="20" height="6" aria-hidden="true"><line x1="0" y1="3" x2="20" y2="3" stroke={RELATIONS[r].danger ? '#E11D48' : '#475569'}
+            strokeWidth={Math.max(1.3, RELATIONS[r].width)} strokeDasharray={RELATIONS[r].dash} /></svg>
+          {RELATIONS[r].label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function Row({ label, children }) {
+  return (
+    <div>
+      <dt className="text-[12px] text-[#64748B]">{label}</dt>
+      <dd className="text-[13px] text-[#0F172A]">{children}</dd>
+    </div>
+  );
+}
+
+function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, policies, flags, team, openEntity }) {
+  const [compliance, setCompliance] = useState(null);
+  useEffect(() => { setCompliance(null); }, [node.id]);
+  const m = typeMeta(node.type);
+  const out = (rel) => allEdges.filter(e => e.source === node.id && e.relation === rel).map(e => e.target);
+  const inc = (rel) => allEdges.filter(e => e.target === node.id && e.relation === rel).map(e => e.source);
+  const stateText = { absent: `Not yet valid on ${day(asOfDate)}`, future: `Not yet in force on ${day(asOfDate)}`,
+    superseded: `Superseded / not in force on ${day(asOfDate)}`, active: `In force on ${day(asOfDate)}`,
+    flagged: `Flagged by the impact scanner as of ${day(asOfDate)}` }[st];
+
+  // Clause versions, from GET /policies.
+  const clauseVersions = (clauseId) => policies.flatMap(p => p.versions
+    .filter(v => v.clauses.some(c => c.clause_id === clauseId))
+    .map(v => ({ ...v.clauses.find(c => c.clause_id === clauseId), version: v.version, validFrom: v.valid_from, validTo: v.valid_to })))
+    .sort((a, b) => a.validFrom.localeCompare(b.validFrom));
+
+  const prov = node.provenance || {};
+  const provenance = (
+    <section className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 text-[12.5px] space-y-1">
+      <div className="text-[12px] font-semibold text-[#334155]">Provenance</div>
+      <div>Source: <span className="font-mono">{prov.sourceDoc || '—'}</span></div>
+      <div>
+        {prov.extractedBy === 'human' ? 'Recorded in the document itself' : `Extracted by ${prov.extractedBy} · model-reported confidence ${prov.confidence}`}
+        {' · '}{prov.humanVerified ? 'human verified' : 'not yet reviewed'}
+      </div>
+      {prov.sourceSpan?.quote && <blockquote className="italic text-[#475569] border-l-2 border-slate-300 pl-2">“{polish(prov.sourceSpan.quote)}”</blockquote>}
+      <div className="text-[#475569]">Valid {day(node.validFrom)} → {node.validTo ? day(node.validTo) : 'no end date'}</div>
+    </section>
+  );
+
+  let body = null;
+  if (node.type === 'decision') {
+    const d = decisions.find(x => x.id === node.id);
+    const a = d?.attributes || {};
+    const relied = out('RELIED_ON');
+    // Only flags whose triggering clause version is in force on the as-of date.
+    const nodeFlags = flags.filter(f => f.decision_id === node.id
+      && (clauseVersions(f.clause_id).find(v => v.version === f.new_version)?.validFrom || '9999') <= asOfDate);
+    body = (
+      <>
+        <h3 className="font-heading font-semibold text-[15px] leading-snug text-[#0F172A]">{polish(d?.label || nodeTitle(node))}</h3>
+        <dl className="grid grid-cols-2 gap-2">
+          <Row label="Decided">{day(a.decided_on || node.date)}</Row>
+          <Row label="Status">{a.status || '—'}{a.effect ? ` · ${a.effect}` : ''}</Row>
+          <Row label="Project">{a.project || '—'}</Row>
+          <div className="col-span-2"><Row label="Owner">{a.owner ? <IdChip id={a.owner} type="person" label={displayName(a.owner, team)} /> : '—'}</Row></div>
+        </dl>
+        <section>
+          <h4 className="text-[12px] text-[#64748B] mb-1">Relied on</h4>
+          {relied.length === 0 && <p className="text-[13px]">No clause is recorded for this decision.</p>}
+          {relied.map(cref => {
+            const [cid, ver] = cref.split('@');
+            const vs = clauseVersions(cid);
+            const i = vs.findIndex(v => v.version === ver);
+            const cur = vs[i], next = vs[i + 1];
+            return (
+              <div key={cref} className="text-[13px] leading-relaxed">
+                <IdChip id={cref} type="clause" /> {cur && `(${clauseSummary(cur.fields, cur.checkable)})`}
+                {next
+                  ? <>, superseded by <IdChip id={`${cid}@${next.version}`} type="clause" /> ({clauseSummary(next.fields, next.checkable)}) on {day(next.validFrom)}{next.validFrom > asOfDate ? ', after the as-of date' : ''}.</>
+                  : <>, still in force.</>}
+                <button className="ml-1 text-[#0369A1] underline cursor-pointer inline-flex items-center gap-0.5"
+                        onClick={() => openEntity(cid, 'clause', { view: 'POLICIES' })}>
+                  <BookOpen size={12} aria-hidden="true" /> Compare versions
+                </button>
+              </div>
+            );
+          })}
+        </section>
+        {nodeFlags.map(f => (
+          <section key={f.id} className="rounded-lg badge-note-rose p-2.5 text-[12.5px]">
+            <div className="font-semibold">Policy impact: {f.impact_type}</div>
+            <p className="mt-0.5 leading-relaxed">{polish(f.explanation)}</p>
+          </section>
+        ))}
+        <section>
+          <h4 className="text-[12px] text-[#64748B] mb-1">Recorded reason</h4>
+          <p className="text-[13px] leading-relaxed text-[#334155]">{polish(a.reasons) || '—'}</p>
+        </section>
+        <section>
+          <h4 className="text-[12px] text-[#64748B] mb-1">Compliance, then vs now</h4>
+          {!compliance && relied.length > 0 && (
+            <button className="btn-secondary" onClick={() => {
+              setCompliance({ loading: true });
+              fetchDecisionCompliance(node.id).then(c => setCompliance({ c })).catch(e => setCompliance({ error: e.message }));
+            }}>Run the compliance check</button>
+          )}
+          {!compliance && relied.length === 0 && <p className="text-[13px]">Nothing to check: no clause relied on.</p>}
+          {compliance?.loading && <p className="text-[13px] flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" /> Checking; the local model words the result (a few seconds)…</p>}
+          {compliance?.error && <p className="text-[13px] text-rose-700">Check failed: {compliance.error}</p>}
+          {compliance?.c && <ThenNow c={compliance.c} />}
+        </section>
+      </>
+    );
+  } else if (node.type === 'clause') {
+    const [cid, ver] = node.id.split('@');
+    const vs = clauseVersions(cid);
+    const cur = vs.find(v => v.version === ver);
+    body = (
+      <>
+        <h3 className="font-heading font-semibold text-[15px] text-[#0F172A]">{cur?.title || node.id}</h3>
+        <p className="text-[13px] leading-relaxed">{cur?.text || '—'}</p>
+        <dl className="grid grid-cols-2 gap-2">
+          <Row label="Rule">{cur ? clauseSummary(cur.fields, cur.checkable) || '—' : '—'}</Row>
+          <Row label="Effective">{day(cur?.validFrom)} → {cur?.validTo ? day(cur.validTo) : 'no end date'}</Row>
+        </dl>
+        <button className="btn-secondary" onClick={() => openEntity(cid, 'clause', { view: 'POLICIES' })}><BookOpen size={13} /> Compare all versions of {cid}</button>
+        <Related title="Decisions that relied on it" ids={inc('RELIED_ON')} baseById={baseById} />
+      </>
+    );
+  } else if (node.type === 'person') {
+    const p = team.find(x => x.id === node.id);
+    body = (
+      <>
+        <h3 className="font-heading font-semibold text-[15px] text-[#0F172A]">{p?.name || firstLine(node.label)}</h3>
+        <dl className="grid grid-cols-2 gap-2">
+          <Row label="Role">{p?.role || '—'}</Row>
+          <Row label="Tenure">{day(p?.joined)} → {p?.left ? day(p.left) : 'present'}</Row>
+        </dl>
+        <Related title="Decisions made" ids={inc('MADE_BY')} baseById={baseById} />
+      </>
+    );
+  } else if (node.type === 'flag') {
+    const f = flags.find(x => x.id === node.id);
+    body = (
+      <>
+        <h3 className="font-heading font-semibold text-[15px] text-[#0F172A]">{f?.impact_type || firstLine(node.label)}</h3>
+        <p className="text-[13px] leading-relaxed">{polish(f?.explanation) || '—'}</p>
+        <Related title="Affects" ids={out('AFFECTS')} baseById={baseById} />
+        <Related title="Caused by" ids={out('CAUSED_BY')} baseById={baseById} />
+      </>
+    );
+  } else {
+    body = (
+      <>
+        <h3 className="font-heading font-semibold text-[15px] text-[#0F172A]">{polish(nodeTitle(node))}</h3>
+        <Related title={node.type === 'project' ? 'Decisions about it' : node.type === 'meeting_note' ? 'Decisions it justifies' : 'Linked decisions'}
+                 ids={[...inc('ABOUT'), ...inc('JUSTIFIED_BY'), ...inc('BELONGS_TO')]} baseById={baseById} />
+      </>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[12px] font-semibold uppercase tracking-wide" style={{ color: m.text }}>{m.label}</span>
+        <IdChip id={node.id} type={node.type} />
+      </div>
+      <p className={`text-[12.5px] px-2 py-1 rounded ${st === 'flagged' ? 'badge-note-rose' : st === 'active' ? 'badge-note-green' : 'badge-note-slate'}`}>{stateText}</p>
+      {body}
+      {provenance}
+    </div>
+  );
+}
+
+function Related({ title, ids, baseById }) {
+  if (!ids.length) return null;
+  return (
+    <section>
+      <h4 className="text-[12px] text-[#64748B] mb-1">{title}</h4>
+      <div className="flex flex-wrap gap-1">
+        {[...new Set(ids)].map(id => <IdChip key={id} id={id} type={baseById[id]?.type} />)}
+      </div>
+    </section>
   );
 }
