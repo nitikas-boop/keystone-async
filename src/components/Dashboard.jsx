@@ -10,7 +10,9 @@ import {
   FileSearch,
   Home,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Table2,
+  BookOpen
 } from 'lucide-react';
 import Logo from './Logo';
 import TemporalSlider from './TemporalSlider';
@@ -20,6 +22,8 @@ import ReviewQueue from './ReviewQueue';
 import AuditLogTable from './AuditLogTable';
 import IngestionReview from './IngestionReview';
 import IngestModal from './IngestModal';
+import DecisionRegister from './DecisionRegister';
+import PoliciesView from './PoliciesView';
 import { AppContext } from '../context';
 import { RESTRICTED_READERS, userKey as toUserKey } from '../utils/people';
 import { todayIST } from '../utils/format';
@@ -41,6 +45,8 @@ const VIEWS = [
   { id: 'GRAPH', label: 'Temporal Graph', short: 'Graph', Icon: GitBranch },
   { id: 'QUEUE', label: 'Review Queue', short: 'Review', Icon: ListChecks },
   { id: 'EXTRACTIONS', label: 'Ingestion Review', short: 'Ingestion', Icon: FileSearch },
+  { id: 'DECISIONS', label: 'Decisions', short: 'Decisions', Icon: Table2 },
+  { id: 'POLICIES', label: 'Policies', short: 'Policies', Icon: BookOpen },
   { id: 'AUDIT', label: 'Audit Trail', short: 'Audit', Icon: ShieldCheck },
 ];
 
@@ -62,6 +68,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   const [pendingFacts, setPendingFacts] = useState(0);
   const [queueFocus, setQueueFocus] = useState(null);
   const [auditFocus, setAuditFocus] = useState(null);
+  const [policyFocus, setPolicyFocus] = useState(null);
   const [watch, setWatch] = useState({ id: null, timedOut: null });  // proposal the UI waits on for the executor
 
   const showNotification = useCallback((msg, type = "info") => {
@@ -208,13 +215,14 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   };
 
   // Any ID chip in the app lands here.
-  const openEntity = useCallback((id, type) => {
+  const openEntity = useCallback((id, type, opts = {}) => {
+    if (opts.view === 'POLICIES') { setPolicyFocus(String(id)); setActiveView('POLICIES'); return; }
     if (type === 'proposal') { setQueueFocus(String(id).replace(/\D/g, '')); setActiveView('QUEUE'); return; }
     if (type === 'audit') { setAuditFocus(String(id).replace(/\D/g, '')); setActiveView('AUDIT'); return; }
     if (type === 'extraction') { setActiveView('EXTRACTIONS'); return; }
     setSelectedNodeId(id);
     setHighlightNodeIds([id]);
-    setActiveView(v => (v === 'UNIFIED' || v === 'GRAPH' ? v : 'GRAPH'));
+    setActiveView(v => (opts.view || (v === 'UNIFIED' || v === 'GRAPH' ? v : 'GRAPH')));
   }, []);
 
   const ctx = useMemo(() => ({ userKey, isReader, team, openEntity, notify: showNotification, restrictedIds }),
@@ -235,9 +243,9 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
           >
             <Home size={16} />
           </button>
-          <Logo size={26} subtitle="" />
+          <div className="shrink-0"><Logo size={26} subtitle="" /></div>
           <span
-            className={`hidden xl:inline-flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-md whitespace-nowrap ${
+            className={`hidden min-[1760px]:inline-flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-md whitespace-nowrap ${
               engineOk === false ? 'badge-note-rose' : engineOk ? 'badge-note-green' : 'badge-note-slate'}`}
             title={health ? `Answers: ${health.models?.answer} · embeddings: ${health.models?.embed} · telemetry: ${String(health.telemetry)}`
               : health === null ? 'The backend did not answer GET /health.' : 'Checking GET /health…'}
@@ -261,8 +269,8 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
               }`}
             >
               <Icon size={14} className={activeView === id ? 'text-[#0284C7]' : ''} aria-hidden="true" />
-              <span className="hidden min-[1480px]:inline">{label}</span>
-              <span className="min-[1480px]:hidden">{short}</span>
+              <span className="hidden min-[1700px]:inline">{label}</span>
+              <span className="min-[1700px]:hidden">{short}</span>
               {(id === 'QUEUE' ? pendingProposals : id === 'EXTRACTIONS' ? pendingFacts : 0) > 0 && (
                 <span className="min-w-4 h-4 px-1 rounded-full bg-[#0284C7] text-[11px] leading-none font-bold text-white flex items-center justify-center"
                       title={id === 'QUEUE' ? `${pendingProposals} proposal(s) waiting for a human decision` : `${pendingFacts} extracted fact(s) waiting for review`}>
@@ -407,6 +415,18 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
           <div className="flex-1 h-full min-h-0">
             <IngestionReview onNotify={showNotification} auditLogs={auditLogs} refreshKey={policyRefresh}
                              onChanged={() => { loadAudit(); loadPendingFacts(); }} />
+          </div>
+        )}
+
+        {activeView === 'DECISIONS' && (
+          <div className="flex-1 h-full min-h-0">
+            <DecisionRegister refreshKey={policyRefresh} />
+          </div>
+        )}
+
+        {activeView === 'POLICIES' && (
+          <div className="flex-1 h-full min-h-0">
+            <PoliciesView focus={policyFocus} refreshKey={policyRefresh} asOfDate={todayIST()} />
           </div>
         )}
 

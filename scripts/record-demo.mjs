@@ -49,7 +49,8 @@ async function click(locator, wait = 900) {
   await el.click();
   await pause(wait);
 }
-const header = (name) => page.locator('header button', { hasText: name });
+// View tabs carry their full name in `title` (the visible label is shortened on narrow screens).
+const header = (name) => page.locator(`header nav button[title="${name}"]`).or(page.locator('header button', { hasText: name }));
 async function waitAnswer() {
   await page.getByText('Keystone Pipeline Running...').waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
   await page.getByText('Keystone Pipeline Running...').waitFor({ state: 'detached', timeout: 240000 });
