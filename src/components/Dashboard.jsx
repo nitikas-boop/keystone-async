@@ -427,7 +427,11 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
               <GraphVisualizer
                 asOfDate={asOfDate}
                 selectedNodeId={selectedNodeId}
-                onSelectNode={(id) => { setSelectedNodeId(id); setInspectKey(k => k + 1); }}
+                onSelectNode={(id) => {
+                  setSelectedNodeId(id);
+                  if (id) setInspectKey(k => k + 1);
+                  else setHighlightNodeIds([]);  // clearing the selection also clears the rings
+                }}
                 highlightNodeIds={highlightNodeIds}
                 refreshKey={policyRefresh}
                 focus={activeView === 'UNIFIED' ? answerFocus : null}

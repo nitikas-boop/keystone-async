@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronRight, ChevronLeft, ListTree, Loader2, Maximize2, Network, ZoomIn, ZoomOut } from 'lucide-react';
+import { BookOpen, ChevronRight, ChevronLeft, ListTree, Loader2, Maximize2, Network, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { fetchDecisionCompliance, fetchDecisions, fetchFlags, fetchGraphView, fetchPolicies } from '../api';
 import { useApp } from '../context';
 import IdChip from './IdChip';
@@ -159,13 +159,34 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
     const pt = svgRef.current.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
     return pt.matrixTransform(svgRef.current.getScreenCTM().inverse());
   };
-  const onPointerDown = (e) => { if (e.target.dataset.bg) { drag.current = { p: svgPoint(e), v: view }; e.currentTarget.setPointerCapture(e.pointerId); } };
+  const onPointerDown = (e) => {
+    if (e.target.dataset.bg) {
+      drag.current = { p: svgPoint(e), v: view, x: e.clientX, y: e.clientY };
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+  };
   const onPointerMove = (e) => {
     if (!drag.current) return;
     const p = svgPoint(e);
     setView(v => ({ ...v, x: drag.current.v.x + (p.x - drag.current.p.x), y: drag.current.v.y + (p.y - drag.current.p.y) }));
   };
-  const onPointerUp = () => { drag.current = null; };
+  // A click on empty canvas (not a drag) clears the selection.
+  const onPointerUp = (e) => {
+    const d = drag.current;
+    drag.current = null;
+    if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 4 && selectedNodeId) onSelectNode(null);
+  };
+
+  // Esc clears the selection (ignored while typing in a field).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || !selectedNodeId) return;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+      onSelectNode(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedNodeId, onSelectNode]);
   const zoomBy = (f) => setView(v => {
     const cx = (L?.width || 0) / 2, cy = (L?.height || 0) / 2;
     const k = Math.min(4, Math.max(0.5, v.k * f));
@@ -327,10 +348,10 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
                   return (
                     <g key={n.id} transform={`translate(${p.x} ${p.y})`} opacity={opacity} style={{ transition: 'opacity 450ms ease' }}
                        className={st === 'absent' ? '' : 'cursor-pointer'} pointerEvents={st === 'absent' ? 'none' : 'auto'}
-                       onClick={(ev) => { ev.stopPropagation(); onSelectNode(n.id); }}
+                       onClick={(ev) => { ev.stopPropagation(); onSelectNode(n.id === selectedNodeId ? null : n.id); }}
                        onPointerEnter={() => setHoverNode(n.id)} onPointerLeave={() => setHoverNode(null)}
                        role="button" tabIndex={st === 'absent' ? -1 : 0} aria-label={`${m.label} ${n.id}, ${st}`}
-                       onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && onSelectNode(n.id)}>
+                       onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && onSelectNode(n.id === selectedNodeId ? null : n.id)}>
                       {(isSel || lit) && <circle r={R + 5} fill="none" stroke={st === 'flagged' ? '#E11D48' : '#0284C7'} strokeWidth="2.5" />}
                       <circle r={R} fill={grey ? '#F1F5F9' : st === 'flagged' ? '#FFE4E6' : m.fill}
                               stroke={grey ? '#94A3B8' : st === 'flagged' ? '#E11D48' : m.stroke}
@@ -368,8 +389,8 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
           {selected
             ? <Inspector node={selected} state={stateById[selected.id]} st={nodeState(selected.id)} asOfDate={asOfDate}
                          allEdges={allEdges} baseById={baseById} decisions={decisions} policies={policies} flags={flags}
-                         team={team} openEntity={openEntity} />
-            : <p className="p-4 text-[13px] text-[#64748B]">Select a node to inspect it. Answer citations and ID chips elsewhere in the app open here.</p>}
+                         team={team} openEntity={openEntity} onClear={() => onSelectNode(null)} />
+            : <p className="p-4 text-[13px] text-[#64748B]">Select a node to inspect it. Answer citations and ID chips elsewhere in the app open here. Click empty space, click the node again, or press Esc to clear a selection.</p>}
         </aside>
       )}
     </div>
@@ -414,7 +435,7 @@ function Row({ label, children }) {
   );
 }
 
-function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, policies, flags, team, openEntity }) {
+function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, policies, flags, team, openEntity, onClear }) {
   const [compliance, setCompliance] = useState(null);
   useEffect(() => { setCompliance(null); }, [node.id]);
   const m = typeMeta(node.type);
@@ -562,7 +583,10 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
     <div className="p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[12px] font-semibold uppercase tracking-wide" style={{ color: m.text }}>{m.label}</span>
-        <IdChip id={node.id} type={node.type} />
+        <div className="flex items-center gap-1.5">
+          <IdChip id={node.id} type={node.type} />
+          <button className="icon-btn" onClick={onClear} aria-label="Clear selection" title="Clear selection (Esc)"><X size={14} /></button>
+        </div>
       </div>
       <p className={`text-[12.5px] px-2 py-1 rounded ${st === 'flagged' ? 'badge-note-rose' : st === 'active' ? 'badge-note-green' : 'badge-note-slate'}`}>{stateText}</p>
       {body}
