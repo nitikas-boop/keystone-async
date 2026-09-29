@@ -23,12 +23,12 @@ export default function Logo({ size = 32, showText = true, subtitle = "TEMPORAL 
             <span className="font-heading font-bold text-lg leading-none tracking-tight text-[#0B1437]">
               KeyStone
             </span>
-            <span className="px-1.5 py-0.5 text-[9.5px] leading-none font-mono uppercase bg-sky-50 border border-sky-200 text-[#0284C7] rounded tracking-wider font-semibold">
+            <span className="px-1.5 py-0.5 text-[11px] leading-none font-mono uppercase bg-sky-50 border border-sky-200 text-[#0284C7] rounded tracking-wider font-semibold">
               SOVEREIGN
             </span>
           </div>
           {subtitle && (
-            <span className="mt-1 text-[9px] leading-none font-mono tracking-wider text-[#64748B] uppercase">
+            <span className="mt-1 text-[11px] leading-none font-mono tracking-wider text-[#64748B] uppercase">
               {subtitle}
             </span>
           )}

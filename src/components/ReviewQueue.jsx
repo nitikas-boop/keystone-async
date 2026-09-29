@@ -118,7 +118,7 @@ export default function ReviewQueue({
 
   const empty = (
     <div className="p-8 text-center text-[13px] text-[#475569]">
-      <Inbox size={22} className="mx-auto mb-2 text-[#94A3B8]" aria-hidden="true" />
+      <Inbox size={22} className="mx-auto mb-2 text-[#64748B]" aria-hidden="true" />
       {items.length === 0
         ? 'No proposals yet. The impact scanner creates one when a new policy version makes a past decision non-compliant.'
         : 'Nothing is waiting for a decision. Switch to "All" to see decided proposals.'}

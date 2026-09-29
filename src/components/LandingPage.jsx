@@ -265,7 +265,7 @@ export default function LandingPage({ onLaunchConsole }) {
                   }}
                   className="w-full accent-[#0284C7] cursor-pointer"
                 />
-                <div className="flex justify-between text-[10px] text-[#64748B]">
+                <div className="flex justify-between text-[11px] text-[#64748B]">
                   <span>Sep 2024 (v1 Active)</span>
                   <span>Jun 2025 (v2 Active)</span>
                   <span>Sep 2026 (v3 Active)</span>
@@ -280,7 +280,7 @@ export default function LandingPage({ onLaunchConsole }) {
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 font-mono text-xs">
-              <div className="text-[10px] text-[#64748B] border-b border-slate-200 pb-2 mb-3 flex items-center justify-between">
+              <div className="text-[11px] text-[#64748B] border-b border-slate-200 pb-2 mb-3 flex items-center justify-between">
                 <span>GRAPH RETRIEVAL PAYLOAD</span>
                 <span className="text-emerald-700 font-medium">ILLUSTRATIVE</span>
               </div>
@@ -365,7 +365,7 @@ export default function LandingPage({ onLaunchConsole }) {
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs space-y-1.5">
-              <div className="text-[10px] text-[#64748B]">EXAMPLE SCANNER OUTPUT</div>
+              <div className="text-[11px] text-[#64748B]">EXAMPLE SCANNER OUTPUT</div>
               <div className="text-[#991B1B] font-bold">[FLAG]: ONGOING_PRACTICE_BREACH</div>
               <div className="text-[#334155] text-[11px]">
                 Target: DEC-007 (180-day customer log retention)<br/>
@@ -397,7 +397,7 @@ export default function LandingPage({ onLaunchConsole }) {
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs space-y-1.5">
-              <div className="flex justify-between text-[10px] text-[#64748B]">
+              <div className="flex justify-between text-[11px] text-[#64748B]">
                 <span>EXAMPLE FLOW (DEMO DATA)</span>
               </div>
               <div className="text-xs text-[#334155] bg-white p-2 rounded border border-slate-200">
@@ -440,14 +440,14 @@ export default function LandingPage({ onLaunchConsole }) {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-mono text-xs text-[#0284C7] font-bold">{step.num}</span>
-                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-[#64748B]">
+                    <span className="text-[11px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-[#64748B]">
                       STAGE {idx + 1}
                     </span>
                   </div>
                   <h4 className="font-heading font-semibold text-sm text-[#0F172A]">
                     {step.title}
                   </h4>
-                  <div className="text-[10px] font-mono text-[#0284C7] mt-0.5 font-medium">
+                  <div className="text-[11px] font-mono text-[#0284C7] mt-0.5 font-medium">
                     {step.subtitle}
                   </div>
                   <p className="text-[11px] text-[#64748B] mt-2 leading-snug">
@@ -455,7 +455,7 @@ export default function LandingPage({ onLaunchConsole }) {
                   </p>
                 </div>
 
-                <div className="mt-4 pt-2 border-t border-slate-100 font-mono text-[9.5px]">
+                <div className="mt-4 pt-2 border-t border-slate-100 font-mono text-[11px]">
                   <span className={`px-1.5 py-0.5 rounded-md ${step.color}`}>
                     {step.tag}
                   </span>
@@ -551,11 +551,11 @@ export default function LandingPage({ onLaunchConsole }) {
                   <div className="font-heading font-semibold text-[#0F172A] group-hover:text-[#0284C7]">
                     Priya Menon
                   </div>
-                  <div className="text-[10.5px] font-mono text-[#64748B]">
+                  <div className="text-[12px] font-mono text-[#64748B]">
                     Role: Ops Lead
                   </div>
                 </div>
-                <span className="text-[10.5px] font-mono text-[#0284C7] font-medium">Select Role →</span>
+                <span className="text-[12px] font-mono text-[#0284C7] font-medium">Select Role →</span>
               </button>
 
               <button
@@ -569,11 +569,11 @@ export default function LandingPage({ onLaunchConsole }) {
                   <div className="font-heading font-semibold text-[#0F172A] group-hover:text-[#0284C7]">
                     Karthik Rao
                   </div>
-                  <div className="text-[10.5px] font-mono text-[#64748B]">
+                  <div className="text-[12px] font-mono text-[#64748B]">
                     Role: Chief Technology Officer
                   </div>
                 </div>
-                <span className="text-[10.5px] font-mono text-[#0284C7] font-medium">Select Role →</span>
+                <span className="text-[12px] font-mono text-[#0284C7] font-medium">Select Role →</span>
               </button>
 
               <button
@@ -587,11 +587,11 @@ export default function LandingPage({ onLaunchConsole }) {
                   <div className="font-heading font-semibold text-[#0F172A] group-hover:text-[#0284C7]">
                     Ananya Rao
                   </div>
-                  <div className="text-[10.5px] font-mono text-[#64748B]">
+                  <div className="text-[12px] font-mono text-[#64748B]">
                     Role: Chief Executive Officer
                   </div>
                 </div>
-                <span className="text-[10.5px] font-mono text-[#0284C7] font-medium">Select Role →</span>
+                <span className="text-[12px] font-mono text-[#0284C7] font-medium">Select Role →</span>
               </button>
             </div>
 
@@ -620,7 +620,7 @@ export default function LandingPage({ onLaunchConsole }) {
           <span>•</span>
           <span>PostgreSQL + Neo4j/Graphiti + Ollama</span>
         </div>
-        <div className="text-[10px] text-[#94A3B8]">
+        <div className="text-[11px] text-[#64748B]">
           Built for small regulated teams that need an auditable record of which rule applied when.
         </div>
       </footer>

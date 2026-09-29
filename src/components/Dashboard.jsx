@@ -12,7 +12,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Table2,
-  BookOpen
+  BookOpen,
+  Search
 } from 'lucide-react';
 import Logo from './Logo';
 import TemporalSlider from './TemporalSlider';
@@ -24,6 +25,7 @@ import IngestionReview from './IngestionReview';
 import IngestModal from './IngestModal';
 import DecisionRegister from './DecisionRegister';
 import PoliciesView from './PoliciesView';
+import CommandPalette from './CommandPalette';
 import { AppContext } from '../context';
 import { RESTRICTED_READERS, userKey as toUserKey } from '../utils/people';
 import { todayIST } from '../utils/format';
@@ -69,6 +71,16 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   const [queueFocus, setQueueFocus] = useState(null);
   const [auditFocus, setAuditFocus] = useState(null);
   const [policyFocus, setPolicyFocus] = useState(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Ctrl/Cmd+K opens record search from anywhere in the workspace.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaletteOpen(o => !o); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [watch, setWatch] = useState({ id: null, timedOut: null });  // proposal the UI waits on for the executor
 
   const showNotification = useCallback((msg, type = "info") => {
@@ -283,6 +295,9 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
         {/* Right Action Icons & User Profile */}
         <div className="flex items-center gap-3 shrink-0">
+          <button onClick={() => setPaletteOpen(true)} className="btn-secondary" title="Search records (Ctrl+K)" aria-label="Search records">
+            <Search size={14} /> <kbd className="hidden min-[1500px]:inline font-mono text-[11px] text-[#475569]">Ctrl K</kbd>
+          </button>
           <button
             onClick={() => setIsIngestModalOpen(true)}
             className="h-8 px-3 rounded-lg btn-sky-gradient text-white text-[13px] font-medium flex items-center gap-1.5 shadow-xs cursor-pointer"
@@ -440,6 +455,8 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
           </div>
         )}
       </div>
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
 
       {/* Ingestion & Document Parser Modal */}
       <IngestModal
