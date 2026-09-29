@@ -191,7 +191,7 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about a decision, a policy or who decided what…"
+            placeholder="Ask a question…"
             aria-label="Question for Keystone"
             rows={Math.min(4, Math.max(1, Math.ceil(inputValue.length / 60)))}
             className="w-full bg-[#F8FAFC] border border-slate-300 rounded-lg pl-3 pr-28 py-2.5 text-[13px] leading-snug text-[#0F172A] placeholder-[#64748B] focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-300 resize-none overflow-hidden font-sans"
