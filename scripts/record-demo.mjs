@@ -82,7 +82,7 @@ await hold(6); mark('Unified Workspace overview'); await caption('Unified Worksp
 await pause(4000);
 await hold(20); await ask('Project Atlas History', 'Q1  Show the history of Project Atlas');
 await hold(24); mark('Click a citation, graph inspector'); await caption('Every sentence cites a graph node; click to inspect');
-await click(page.locator('.citation-pill-paper').last(), 3500);
+await click(page.locator('.kst-citation').last(), 3500);
 await hold(14); await ask('Why We Left AWS', 'Q2  Why did we move off AWS in May 2025?');
 await hold(18); mark('Q3 by voice: VendorCo contract'); await caption('Q3 by voice: transcribed on this machine by local Whisper, then the same /ask pipeline');
 await click(page.getByTestId('mic-button'), 5500);
@@ -130,7 +130,7 @@ await page.locator('input[type=file]').setInputFiles('data/demo-upload/meeting-2
 await page.locator('pre', { hasText: 'Transcript:' }).waitFor({ timeout: 120000 });
 await pause(4000);
 await hold(12); await click(page.getByRole('button', { name: /Upload & Run Scanner/ }), 500);
-await page.getByText('Impact Scanner Findings').waitFor({ timeout: 300000 });
+await page.getByText(/now wait in Ingestion Review|Extraction failed/).waitFor({ timeout: 300000 });
 await pause(3000);
 await click(page.locator('.paper-sheet-elevated > button').first(), 1500);
 await hold(10); mark('Ingestion Review'); await caption('Ingestion Review: the Keycloak decision extracted from the audio waits for a human');
