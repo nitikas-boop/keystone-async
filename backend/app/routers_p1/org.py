@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from . import person, require, signed_in
-from .. import access, comms, db, identity
+from .. import access, comms, db, identity, permissions
 
 router = APIRouter(tags=['p1 org'])
 
@@ -19,7 +19,7 @@ def _who(u: dict) -> str:
 async def org(u: dict = Depends(signed_in)):
     o = await db.pool.fetchrow('SELECT * FROM organizations WHERE id = $1', u['org_id'])
     out = {'id': o['id'], 'name': o['name'], 'require_approval': o['require_approval']}
-    if u['role'] in ('owner', 'lead'):
+    if u['role'] in ('owner', 'lead') or permissions.can(u, 'admin.panel'):
         out['code'] = {'set': o['join_code_hash'] is not None, 'disabled': o['code_disabled'],
                        'expires_at': o['code_expires_at'] and o['code_expires_at'].isoformat(),
                        'max_uses': o['code_max_uses'], 'uses': o['code_uses']}
@@ -34,7 +34,7 @@ class CodeIn(BaseModel):
 @router.post('/org/code/rotate')
 async def rotate_code(body: CodeIn | None = None, u: dict = Depends(person)):
     """A fresh code (the old one stops working). Shown once; only its hash is stored, and it is never logged."""
-    require(u, 'owner')
+    await permissions.require_cap(u, 'admin.panel')
     body = body or CodeIn()
     code = identity.new_code()
     exp = body.expires_in_hours and datetime.now(timezone.utc) + timedelta(hours=body.expires_in_hours)
@@ -56,7 +56,7 @@ class CodeSettings(BaseModel):
 
 @router.patch('/org/code')
 async def code_settings(body: CodeSettings, u: dict = Depends(person)):
-    require(u, 'owner')
+    await permissions.require_cap(u, 'admin.panel')
     ch = body.model_dump(exclude_none=True)
     if not ch:
         raise HTTPException(422, 'nothing to change')
@@ -152,7 +152,7 @@ class MemberEdit(BaseModel):
 
 @router.patch('/org/members/{user_id}')
 async def edit_member(user_id: str, body: MemberEdit, u: dict = Depends(person)):
-    require(u, 'owner')
+    await permissions.require_cap(u, 'admin.panel')
     ch = body.model_dump(exclude_none=True, mode='json')
     if not ch:
         raise HTTPException(422, 'nothing to change')
@@ -187,59 +187,104 @@ async def edit_member(user_id: str, body: MemberEdit, u: dict = Depends(person))
     return {'user_id': user_id, **ch}
 
 
+def _team_out(r, me: dict) -> dict:
+    mine = r['lead_id'] == me['user_id']
+    return {'id': r['id'], 'name': r['name'], 'lead_id': r['lead_id'], 'projects': r['projects'],
+            'description': r['description'], 'domain': r['domain'], 'members': r['members'],
+            'is_member': me['user_id'] in r['members'] or mine,
+            'can_manage': mine or permissions.can(me, 'team.manage_any')}
+
+
+TEAMS = ('SELECT t.*, array(SELECT user_id FROM team_members WHERE team_id = t.id ORDER BY 1) AS members '
+         'FROM teams t WHERE org_id = $1')
+
+
 @router.get('/org/teams')
 async def teams(u: dict = Depends(signed_in)):
-    rows = await db.pool.fetch('SELECT t.*, array(SELECT user_id FROM team_members WHERE team_id = t.id ORDER BY 1) '
-                               'AS members FROM teams t WHERE org_id = $1 ORDER BY name', u['org_id'])
-    return [{'id': r['id'], 'name': r['name'], 'lead_id': r['lead_id'], 'projects': r['projects'],
-             'members': r['members']} for r in rows]
+    return [_team_out(r, u) for r in await db.pool.fetch(TEAMS + ' ORDER BY name', u['org_id'])]
 
 
 class TeamIn(BaseModel):
     name: str
     lead_id: str | None = None
     projects: list[str] = []
+    description: str | None = None
+    members: list[str] = []
+
+
+async def _add(c, u: dict, team_id: str, user_id: str):
+    """Membership is the access: the new member sees every channel of the team, history included, at once."""
+    if await c.fetchval('INSERT INTO team_members VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING user_id',
+                        team_id, user_id, u['org_id']):
+        await db.audit(_who(u), 'team_member_added', 'team', team_id, [], {'user_id': user_id}, conn=c)
+        if user_id != u['user_id']:
+            await comms.notify(user_id, 'team_added', team_id, conn=c)
 
 
 @router.post('/org/teams', status_code=201)
-async def create_team(body: TeamIn, u: dict = Depends(person)):
-    """A team owns projects: a node whose project belongs to it is team-scoped when labelled 'team'."""
-    require(u, 'owner')
+async def create_team(body: TeamIn, u: dict = Depends(permissions.need('team.create'))):
+    """Executives and leads. The creator owns the team (its lead) unless an executive names another lead. The team
+    gets its first channel (#<name>); a node whose project belongs to it is team-scoped when labelled 'team'."""
+    if u.get('via') == 'mcp':
+        raise HTTPException(403, 'an agent (MCP) session cannot create teams; a person must')
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, 'team name is required')
+    lead = body.lead_id if body.lead_id and permissions.can(u, 'team.manage_any') else u['user_id']
     tid = f'team-{secrets.token_hex(3)}'
     async with db.pool.acquire() as c, c.transaction():
-        if body.lead_id and not await comms.active_member(c, u['org_id'], body.lead_id):
-            raise HTTPException(422, f'{body.lead_id} is not an active member')
-        await c.execute('INSERT INTO teams (id, org_id, name, lead_id, projects) VALUES ($1,$2,$3,$4,$5)', tid,
-                        u['org_id'], body.name.strip(), body.lead_id, body.projects)
-        if body.lead_id:
-            await c.execute('INSERT INTO team_members VALUES ($1,$2,$3)', tid, body.lead_id, u['org_id'])
+        for who in {lead, *body.members}:
+            if not await comms.active_member(c, u['org_id'], who):
+                raise HTTPException(422, f'{who} is not an active member')
+        if await c.fetchval('SELECT 1 FROM teams WHERE org_id = $1 AND lower(name) = lower($2)', u['org_id'], name):
+            raise HTTPException(409, f'a team called {name} already exists')
+        await c.execute('INSERT INTO teams (id, org_id, name, lead_id, projects, description) '
+                        'VALUES ($1,$2,$3,$4,$5,$6)', tid, u['org_id'], name, lead, body.projects, body.description)
+        await db.audit(_who(u), 'team_created', 'team', tid, [],
+                       {'name': name, 'lead_id': lead, 'members': sorted(set(body.members))}, conn=c)
+        for who in dict.fromkeys([lead, *body.members]):
+            await _add(c, u, tid, who)
         await comms.ensure_org_channels(c, u['org_id'])
-        await db.audit(_who(u), 'access_changed', 'team', tid, [], body.model_dump(), conn=c)
-    return {'id': tid, **body.model_dump()}
+    return _team_out(await db.pool.fetchrow(TEAMS + ' AND id = $2', u['org_id'], tid), u)
 
 
 class TeamEdit(BaseModel):
     lead_id: str | None = None
     projects: list[str] | None = None
+    description: str | None = None
     add_member: str | None = None
     remove_member: str | None = None
 
 
 @router.patch('/org/teams/{team_id}')
 async def edit_team(team_id: str, body: TeamEdit, u: dict = Depends(person)):
-    require(u, 'owner')
+    """Executives: any team. Leads: the teams they own. Removing a member revokes their access to the team's
+    channels at once (access is read from team_members on every request)."""
     ch = body.model_dump(exclude_none=True)
     async with db.pool.acquire() as c, c.transaction():
-        await _team_ok(c, u['org_id'], team_id)
+        t = await c.fetchrow('SELECT * FROM teams WHERE id = $1 AND org_id = $2', team_id, u['org_id'])
+        if t is None:
+            raise HTTPException(404, f'no such team {team_id}')
+        if t['lead_id'] != u['user_id']:
+            await permissions.require_cap(u, 'team.manage_any')
+        if (body.lead_id or body.projects is not None) and not permissions.can(u, 'team.manage_any'):
+            await permissions.deny(u, 'team.manage_any', 'only an executive can change a team lead or its projects')
         for who in (body.lead_id, body.add_member):
             if who and not await comms.active_member(c, u['org_id'], who):
                 raise HTTPException(422, f'{who} is not an active member')
-        await c.execute('UPDATE teams SET lead_id = coalesce($2, lead_id), projects = coalesce($3, projects) '
-                        'WHERE id = $1', team_id, body.lead_id, body.projects)
-        if body.add_member:
-            await c.execute('INSERT INTO team_members VALUES ($1,$2,$3) ON CONFLICT DO NOTHING', team_id,
-                            body.add_member, u['org_id'])
-        if body.remove_member:
-            await c.execute('DELETE FROM team_members WHERE team_id = $1 AND user_id = $2', team_id, body.remove_member)
-        await db.audit(_who(u), 'access_changed', 'team', team_id, [], ch, conn=c)
+        if body.remove_member and body.remove_member == (body.lead_id or t['lead_id']):
+            raise HTTPException(409, 'the team lead cannot be removed; name another lead first')
+        await c.execute('UPDATE teams SET lead_id = coalesce($2, lead_id), projects = coalesce($3, projects), '
+                        'description = coalesce($4, description) WHERE id = $1', team_id, body.lead_id, body.projects,
+                        body.description)
+        if body.lead_id or body.projects is not None or body.description is not None:
+            await db.audit(_who(u), 'access_changed', 'team', team_id, [],
+                           {k: v for k, v in ch.items() if k not in ('add_member', 'remove_member')}, conn=c)
+        for who in (body.lead_id, body.add_member):
+            if who:
+                await _add(c, u, team_id, who)
+        if body.remove_member and await c.fetchval('DELETE FROM team_members WHERE team_id = $1 AND user_id = $2 '
+                                                   'RETURNING user_id', team_id, body.remove_member):
+            await db.audit(_who(u), 'team_member_removed', 'team', team_id, [], {'user_id': body.remove_member},
+                           conn=c)
     return next(t for t in await teams(u) if t['id'] == team_id)

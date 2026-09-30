@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .reasoning import ModelUnavailable
-from . import ask, compliance, config, contracts, db, extract, graph, ingest, scanner, stt
+from . import ask, compliance, comms, config, contracts, db, extract, graph, ingest, permissions, scanner, stt
 from . import views
 from .contracts import actor, human, writer
 
@@ -104,13 +104,31 @@ async def upload(file: UploadFile, who: str = Depends(writer)):
     try:
         raw = (await file.read()).decode('utf-8')
         try:
-            fields = ingest.parse(raw)[0].get('fields') or {}
+            fm = ingest.parse(raw)[0]
         except Exception:
-            fields = {}  # ingest reports the format error itself
+            fm = {}  # ingest reports the format error itself
+        fields = fm.get('fields') or {}
         _authority(fields.get('amount_inr') if isinstance(fields, dict) else None, 'upload')
+        await _may_author(fm)
         return await ingest.ingest(raw, file.filename or 'upload.md', who)
     except (ValueError, UnicodeDecodeError) as e:
         raise HTTPException(422, str(e))
+
+
+async def _may_author(fm: dict):
+    """Policy versions: CEO or Compliance Lead. Decisions: executives, or a lead inside their domain; a member
+    proposes instead (POST /decision-proposals)."""
+    u = contracts.current_user()
+    kind = fm.get('doc_type') if isinstance(fm, dict) else None
+    if kind == 'policy_version':
+        await permissions.require_cap(u, 'policy.upload')
+    elif kind == 'decision':
+        await permissions.require_cap(u, 'decision.create')
+        if not permissions.can(u, 'approve.any'):
+            dom = await permissions.decision_domain(fm)
+            if dom not in permissions.domains(u):
+                await permissions.deny(u, 'decision.create', f"this decision is in the {dom or 'unassigned'} domain; "
+                                       f"a lead records decisions only in their own ({', '.join(sorted(permissions.domains(u))) or 'none'})")
 
 
 @app.get('/documents/{doc_id}')
@@ -232,9 +250,16 @@ def proposal_out(r) -> dict:
 
 @app.get('/proposals')
 async def proposals(status: str | None = None):
+    """Every proposal the viewer may see; `can_approve` / `approve_block` say whether they may act on it."""
     rows = await db.pool.fetch('SELECT * FROM proposals WHERE $1::text IS NULL OR status=$1 ORDER BY id', status)
     hidden = await graph.hidden_keys([r['decision_id'] for r in rows])
-    return [proposal_out(r) for r in rows if r['decision_id'] not in hidden]
+    u, out = contracts.current_user(), []
+    for r in rows:
+        if r['decision_id'] in hidden:
+            continue
+        why = await permissions.approval_block(u, **await proposal_gate(r)) if u and u.get('user_id') else 'sign in'
+        out.append({**proposal_out(r), 'can_approve': why is None, 'approve_block': why})
+    return out
 
 
 class ProposalIn(BaseModel):
@@ -251,9 +276,10 @@ async def create_proposal(body: ProposalIn, who: str = Depends(writer)):
     Review Queue, and only the executor acts on approved rows."""
     async with db.pool.acquire() as c, c.transaction():
         row = await c.fetchrow(
-            "INSERT INTO proposals (decision_id, clause_id, impact_type, to_addr, subject, body) "
-            "VALUES ($1, $2, 'MCP_PROPOSAL', $3, $4, $5) RETURNING *",
-            body.decision_id, body.clause_id, body.to, body.subject, body.body)
+            "INSERT INTO proposals (decision_id, clause_id, impact_type, to_addr, subject, body, domain, proposed_by) "
+            "VALUES ($1, $2, 'MCP_PROPOSAL', $3, $4, $5, $6, $7) RETURNING *",
+            body.decision_id, body.clause_id, body.to, body.subject, body.body,
+            permissions.domain_for_clause(body.clause_id), who.split(':')[1])
         await db.audit(f'{who}:mcp', 'proposed', 'proposal', str(row['id']), [body.decision_id, body.clause_id],
                        {'status': 'proposed', 'via': 'mcp'}, conn=c)
     return proposal_out(row)
@@ -274,6 +300,8 @@ async def _transition(pid: int, who: str, action: str, sql: str, *args, payload=
     decision = await db.pool.fetchval('SELECT decision_id FROM proposals WHERE id=$1', pid)
     if decision is None or await graph.hidden_keys([decision]):
         raise HTTPException(404, 'no such proposal')
+    p = await db.pool.fetchrow('SELECT * FROM proposals WHERE id=$1', pid)
+    await permissions.check_approval(contracts.current_user(), 'proposal', pid, **await proposal_gate(p))
     async with db.pool.acquire() as c, c.transaction():
         row = await c.fetchrow(f"UPDATE proposals SET {sql} WHERE id=$1 AND status='proposed' RETURNING *", pid, *args)
         if row is None:
@@ -282,7 +310,26 @@ async def _transition(pid: int, who: str, action: str, sql: str, *args, payload=
                                 'no such proposal' if status is None else f'proposal is {status}, not proposed')
         await db.audit(who, action, 'proposal', str(pid), [row['decision_id'], row['clause_id']],
                        payload or {'status': row['status']}, conn=c)
+        if row['proposed_by'] and action in ('approved', 'rejected'):
+            await comms.notify(row['proposed_by'], f'proposal_{action}', str(pid), conn=c,
+                               detail=(payload or {}).get('reason'))
         return proposal_out(row)
+
+
+async def decision_facts(decision_id: str) -> dict:
+    """Owner (person key) and amount of a decision, for the approval rules."""
+    rows = await graph.q('MATCH (d:Entity {uuid: $u}) RETURN d.owner AS owner, d.fields_json AS f',
+                         u=graph.uid(decision_id))
+    if not rows:
+        return {'owner': None, 'amount': None}
+    fields = json.loads(rows[0]['f'] or '{}')
+    return {'owner': rows[0]['owner'], 'amount': fields.get('amount_inr')}
+
+
+async def proposal_gate(p) -> dict:
+    facts = await decision_facts(p['decision_id'])
+    return {'domain': p['domain'] or permissions.domain_for_clause(p['clause_id']), 'proposer': p['proposed_by'],
+            'decision_owner': facts['owner'], 'amount': facts['amount']}
 
 
 @app.patch('/proposals/{pid}')
@@ -389,17 +436,24 @@ async def reject_extraction(ext_id: int, who: str = Depends(human)):
 
 @app.get('/audit')
 async def audit_log(after_id: int = 0, limit: int = 100):
-    if not _can({'type': 'audit_log', 'id': 'audit_log'}):
-        raise HTTPException(403, 'the audit log is open to the owner and compliance roles')
-    rows = await db.pool.fetch('SELECT * FROM audit_log WHERE id > $1 ORDER BY id LIMIT $2', after_id, min(limit, 500))
+    """CEO and Compliance Lead: the whole chain. Everyone else: only the rows they are the actor of. Rows are never
+    edited or deleted here (the app role can only INSERT and SELECT the log)."""
+    u = contracts.current_user()
+    if permissions.can(u, 'audit.full'):
+        rows = await db.pool.fetch('SELECT * FROM audit_log WHERE id > $1 ORDER BY id LIMIT $2', after_id,
+                                   min(limit, 500))
+    elif permissions.can(u, 'audit.own'):
+        rows = await db.pool.fetch('SELECT * FROM audit_log WHERE id > $1 AND actor IN ($3, $3 || \':mcp\') '
+                                   'ORDER BY id LIMIT $2', after_id, min(limit, 500), f"user:{u['user_id']}")
+    else:
+        raise HTTPException(401, 'sign in required')
     return [{**dict(r), 'ts': r['ts'].isoformat()} for r in rows]
 
 
 @app.get('/audit/verify')
 async def verify_chain():
     """Server-side chain check: recompute every row hash and link; report the first broken row."""
-    if not _can({'type': 'audit_log', 'id': 'audit_log'}):
-        raise HTTPException(403, 'the audit log is open to the owner and compliance roles')
+    await permissions.require_cap(contracts.current_user(), 'audit.full')
     rows = await db.pool.fetch('SELECT * FROM audit_log ORDER BY id')
     prev = '0' * 64
     for r in rows:

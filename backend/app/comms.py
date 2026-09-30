@@ -13,7 +13,7 @@ from . import access, db, graph
 log = logging.getLogger('keystone.comms')
 MENTION = re.compile(r'@([a-z0-9_.-]+)')
 AGENT = 'keystone'
-QUIET_KINDS = {'mention'}  # human-to-human: not audited (DM bodies and chatter stay out of the log)
+QUIET_KINDS = {'mention', 'policy_uploaded'}  # human-to-human chatter and org-wide broadcasts (already audited as policy_ingested)
 TEXT = {
     'mention': 'mentioned you in a conversation',
     'ping': 'Keystone pinged you (approved agent message)',
@@ -28,19 +28,29 @@ TEXT = {
     'access_granted': 'You were given access to an item',
     'flag': 'A policy change flagged a decision you own',
     'collision': 'A policy collision was assigned to you',
+    'team_added': 'You were added to a team',
+    'policy_uploaded': 'A new policy version was uploaded',
+    'proposal_approved': 'Your proposal was approved',
+    'proposal_rejected': 'Your proposal was rejected',
+    'action_approved': 'Your agent action was approved',
+    'action_rejected': 'Your agent action was rejected',
+    'decision_proposed': 'A proposed decision is waiting for your review',
+    'decision_accepted': 'Your proposed decision was accepted into ingestion',
+    'decision_rejected': 'Your proposed decision was rejected',
 }
 
 
 # ---- notifications ----
 
-async def notify(user_id: str, kind: str, ref_id: str | None, conn=None) -> None:
-    """One in-app notification. Unknown users are skipped (the scanner may name a person with no account)."""
+async def notify(user_id: str, kind: str, ref_id: str | None, conn=None, detail: str | None = None) -> None:
+    """One in-app notification. Unknown users are skipped (the scanner may name a person with no account). detail:
+    short text shown with it (a reviewer's reason)."""
     async def go(c):
         org = await c.fetchval('SELECT org_id FROM users WHERE id = $1', user_id)
         if org is None:
             return
-        nid = await c.fetchval('INSERT INTO notifications (org_id, user_id, kind, ref_id) VALUES ($1,$2,$3,$4) '
-                               'RETURNING id', org, user_id, kind, ref_id)
+        nid = await c.fetchval('INSERT INTO notifications (org_id, user_id, kind, ref_id, detail) '
+                               'VALUES ($1,$2,$3,$4,$5) RETURNING id', org, user_id, kind, ref_id, detail)
         if kind not in QUIET_KINDS:
             await db.audit('system:notify', 'notification_sent', 'notification', str(nid),
                            [ref_id] if ref_id else [], {'user_id': user_id, 'kind': kind}, conn=c)
@@ -59,6 +69,7 @@ async def notifications(user: dict, limit: int = 30) -> list[dict]:
     for r in rows:
         ref = r['ref_id']
         out.append({'id': r['id'], 'kind': r['kind'], 'text': TEXT.get(r['kind'], r['kind'].replace('_', ' ')),
+                    'detail': r['detail'],
                     'ref_id': None if ref in hidden else ref, 'restricted': ref in hidden,
                     'created_at': r['created_at'].isoformat(), 'read': r['read_at'] is not None})
     return out

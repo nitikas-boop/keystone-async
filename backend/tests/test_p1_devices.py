@@ -38,8 +38,8 @@ def test_pair_use_and_revoke(api):
     assert p.get('/auth/me').json()['user_id'] == 'priya'
     assert p.get('/proposals').status_code == 200 and p.get('/actions').status_code == 200
     assert p.post('/devices/pair').status_code == 403  # a phone cannot pair more phones
-    a = httpx.post(f'{api}/actions', json={'tool': 'send_dm', 'payload': {'user_id': 'sneha', 'body': 'from the phone'}},
-                   headers=as_('priya')).json()
+    a = httpx.post(f'{api}/actions', json={'tool': 'send_dm', 'payload': {'user_id': 'divya', 'body': 'from the phone'}},
+                   headers=as_('sneha')).json()  # Sneha proposes; Priya (Ops lead) approves: never your own
     assert p.post(f"/actions/{a['id']}/approve").json()['status'] == 'approved'  # a person, on their phone
     dev = next(d for d in httpx.get(f'{api}/devices', headers=as_('priya')).json() if d['label'] == 'Priya Pixel')
     assert sql("SELECT 1 FROM audit_log WHERE action = 'device_paired' AND object_id = $1", str(dev['id']))

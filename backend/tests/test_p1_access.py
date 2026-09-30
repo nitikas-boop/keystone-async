@@ -131,8 +131,13 @@ def test_people_card_shows_only_visible_decisions(labelled):
 
 
 def test_audit_log_is_owner_and_compliance_only_and_restricted_views_are_logged(labelled):
-    for user, code in (('nitika', 200), ('farhan', 200), ('priya', 403), ('meera', 403)):
-        assert get(labelled, '/audit', user, limit=1).status_code == code, user
+    """CEO (and the admin account) and the Compliance Lead read the whole chain; everyone else only their own rows."""
+    for user in ('nitika', 'farhan'):
+        assert len({r['actor'] for r in get(labelled, '/audit', user, limit=500).json()}) > 1, user
+    for user in ('priya', 'meera', 'karthik'):
+        r = get(labelled, '/audit', user, limit=500)
+        assert r.status_code == 200 and {x['actor'] for x in r.json()} <= {f'user:{user}', f'user:{user}:mcp'}, user
+        assert get(labelled, '/audit/verify', user).status_code == 403, user
 
     async def last_view():
         c = await asyncpg.connect(TEST_DB)

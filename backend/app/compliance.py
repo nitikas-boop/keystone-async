@@ -90,7 +90,7 @@ async def load_decision(decision_id: str) -> dict | None:
     d = rows[0]['d']
     if 'decided_on' not in d:
         return None  # placeholder for a referenced decision that was never ingested (e.g. a SUPERSEDES target)
-    return {'id': d['key'], 'title': d['name'], 'decided_on': date.fromisoformat(d['decided_on']),
+    return {'id': d['key'], 'title': d['name'], 'decided_on': date.fromisoformat(d['decided_on']), 'owner': d.get('owner'),
             'status': d.get('status', 'active'), 'effect': d.get('effect', 'completed'),
             'fields': json.loads(d.get('fields_json') or '{}'), 'clauses': sorted(set(filter(None, rows[0]['clauses']))),
             'provenance': graph._prov(d), 'relied_on_edges': [r for r in rows[0]['rels'] if r['key']]}

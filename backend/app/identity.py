@@ -21,10 +21,10 @@ _ph = PasswordHasher()
 
 # The synthetic Nimbus Ledger org (data/vault/people.yaml), seeded on an empty database. user id = the X-User key the
 # existing tests and scripts use; person_key = the Person node in the graph.
-DEMO_TEAMS = [  # (id, name, lead, projects, policies the department owns)
-    ('team-engineering', 'Engineering', 'karthik', ['Project Atlas', 'Internal Ops'], []),
-    ('team-operations', 'Operations', 'priya', ['Procurement'], ['POL-PROC']),
-    ('team-compliance', 'Compliance', 'farhan', ['Data Governance'], ['POL-RET']),
+DEMO_TEAMS = [  # (id, name, lead, projects, policies the department owns, domain)
+    ('team-engineering', 'Engineering', 'karthik', ['Project Atlas', 'Internal Ops'], [], 'engineering'),
+    ('team-operations', 'Operations', 'priya', ['Procurement'], ['POL-PROC'], 'ops'),
+    ('team-compliance', 'Compliance', 'farhan', ['Data Governance'], ['POL-RET'], 'compliance'),
 ]
 DEMO_USERS = [  # (id, employee_id, name, designation, role, team, person_key)
     ('nitika', 'NL-000', 'Nitika', 'Keystone Admin', 'owner', None, None),
@@ -42,6 +42,9 @@ DEMO_USERS = [  # (id, employee_id, name, designation, role, team, person_key)
 # chart). approval_authority_inr: the largest amount a person may approve; leads 5 lakh, employees none, others no cap.
 DEMO_ASSIGNED = {'aarav': ['Project Atlas']}
 DEMO_AUTHORITY = {'lead': 500000, 'member': 0}
+# Tier and domain (app/permissions.py): executives CEO and CTO (and the admin account), leads Ops and Compliance.
+DEMO_TIER = {'ananya': 'executive', 'karthik': 'executive', 'nitika': 'executive', 'priya': 'lead', 'farhan': 'lead'}
+DEMO_DOMAIN = {'priya': 'ops', 'farhan': 'compliance'}
 DEMO_AUDITOR = {'audit_from': date(2025, 1, 1), 'audit_to': date(2025, 12, 31)}
 
 
@@ -122,7 +125,8 @@ async def load_user(user_id: str, via: str = 'web', device_id: int | None = None
         return _demo_user(user_id)
     r = await db.pool.fetchrow(
         'SELECT u.id, u.org_id, u.employee_id, u.display_name, u.designation, u.person_key, m.role, m.team_id, '
-        'm.audit_from, m.audit_to, m.assigned_projects, m.approval_authority_inr, o.name AS org_name, '
+        'm.audit_from, m.audit_to, m.assigned_projects, m.approval_authority_inr, o.name AS org_name, m.tier, '
+        'coalesce(m.domain, t.domain) AS domain, '
         't.name AS department FROM users u JOIN memberships m ON m.user_id = u.id '
         'JOIN organizations o ON o.id = m.org_id LEFT JOIN teams t ON t.id = m.team_id '
         "WHERE u.id = $1 AND m.status = 'active' "
@@ -143,7 +147,7 @@ async def load_user(user_id: str, via: str = 'web', device_id: int | None = None
             'via': via, 'device_id': device_id, 'display_name': r['display_name'], 'designation': r['designation'],
             'employee_id': r['employee_id'], 'person_key': r['person_key'], 'org_name': r['org_name'],
             'department': r['department'], 'assigned_projects': r['assigned_projects'] or [],
-            'approval_authority_inr': r['approval_authority_inr'],
+            'approval_authority_inr': r['approval_authority_inr'], 'tier': r['tier'], 'domain': r['domain'],
             'audit_from': r['audit_from'] and r['audit_from'].isoformat(),
             'audit_to': r['audit_to'] and r['audit_to'].isoformat()}
 
@@ -156,7 +160,8 @@ def _demo_user(user_id: str) -> dict | None:
             'grants': [], 'via': 'web', 'device_id': None, 'display_name': u[2], 'designation': u[3],
             'employee_id': u[1], 'person_key': u[6], 'org_name': 'Nimbus Ledger', 'audit_from': None, 'audit_to': None,
             'department': next((t[1] for t in DEMO_TEAMS if t[0] == u[5]), None),
-            'assigned_projects': DEMO_ASSIGNED.get(u[0], []), 'approval_authority_inr': DEMO_AUTHORITY.get(u[4])}
+            'assigned_projects': DEMO_ASSIGNED.get(u[0], []), 'approval_authority_inr': DEMO_AUTHORITY.get(u[4]),
+            'tier': DEMO_TIER.get(u[0]), 'domain': DEMO_DOMAIN.get(u[0]) or next((t[5] for t in DEMO_TEAMS if t[0] == u[5]), None)}
 
 
 async def resolve(request) -> dict | None:
@@ -177,7 +182,7 @@ def me(u: dict) -> dict:
     """What the browser may know about the signed-in user (no grants list, no token)."""
     keys = ('user_id', 'org_id', 'org_name', 'role', 'team_id', 'teams', 'display_name', 'designation',
             'employee_id', 'person_key', 'via', 'audit_from', 'audit_to', 'department', 'assigned_projects',
-            'approval_authority_inr')
+            'approval_authority_inr', 'tier', 'domain')
     return {k: u.get(k) for k in keys}
 
 
@@ -212,17 +217,18 @@ async def _seed(have: set = frozenset()):
         for uid, emp, name, desig, role, team, person in new:
             await c.execute('INSERT INTO users (id, org_id, employee_id, password_hash, display_name, designation, '
                             'person_key) VALUES ($1,$2,$3,$4,$5,$6,$7)', uid, org, emp, pw, name, desig, person)
-        for tid, name, lead, projects, policies in DEMO_TEAMS:
-            await c.execute('INSERT INTO teams (id, org_id, name, lead_id, projects, policies) '
-                            'VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING', tid, org, name, lead, projects, policies)
+        for tid, name, lead, projects, policies, domain in DEMO_TEAMS:
+            await c.execute('INSERT INTO teams (id, org_id, name, lead_id, projects, policies, domain) '
+                            'VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING', tid, org, name, lead, projects,
+                            policies, domain)
         for uid, _, _, _, role, team, _ in new:
             aud = DEMO_AUDITOR if role == 'auditor' else {}
             await c.execute("INSERT INTO memberships (user_id, org_id, role, team_id, status, expires_at, audit_from, "
-                            "audit_to, assigned_projects, approval_authority_inr) "
-                            "VALUES ($1,$2,$3,$4,'active',$5,$6,$7,$8,$9)", uid, org, role, team,
+                            "audit_to, assigned_projects, approval_authority_inr, tier, domain) "
+                            "VALUES ($1,$2,$3,$4,'active',$5,$6,$7,$8,$9,$10,$11)", uid, org, role, team,
                             datetime(2026, 12, 31, tzinfo=timezone.utc) if aud else None,
                             aud.get('audit_from'), aud.get('audit_to'), DEMO_ASSIGNED.get(uid),
-                            DEMO_AUTHORITY.get(role))
+                            DEMO_AUTHORITY.get(role), DEMO_TIER.get(uid), DEMO_DOMAIN.get(uid))
             if team:
                 await c.execute('INSERT INTO team_members VALUES ($1,$2,$3)', team, uid, org)
         await comms.ensure_org_channels(c, org)

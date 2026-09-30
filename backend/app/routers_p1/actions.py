@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from . import editor, person, signed_in
-from .. import comms, db, graph, plugins
+from .. import comms, db, graph, permissions, plugins
 
 router = APIRouter(tags=['p1 agent actions'])
 REQUIRED = {'ping_user': ('user_id', 'reason'), 'send_dm': ('user_id', 'body'), 'post_to_channel': ('channel_id', 'body')}
@@ -58,37 +58,46 @@ async def propose(body: ActionIn, u: dict = Depends(editor)):
     return _out(row)
 
 
-def _visible_sql(u: dict) -> tuple[str, list]:
-    """The proposer sees their own; the Owner sees every action in the org."""
-    if u['role'] == 'owner':
-        return 'org_id = $1', [u['org_id']]
-    return 'org_id = $1 AND proposed_by = $2', [u['org_id'], u['user_id']]
+async def _block(u: dict, r) -> str | None:
+    return await permissions.approval_block(u, domain=r['domain'], proposer=r['proposed_by'])
+
+
+async def _may_see(u: dict, r) -> bool:
+    """The proposer sees their own; an approver sees the ones they may decide (not their own: separation of duties)."""
+    return r['proposed_by'] == u['user_id'] or await _block(u, r) is None
 
 
 @router.get('/actions')
 async def actions(status: str | None = None, u: dict = Depends(signed_in)):
-    where, args = _visible_sql(u)
-    rows = await db.pool.fetch(f'SELECT * FROM proposed_actions WHERE {where} '
-                               f'AND (${len(args) + 1}::text IS NULL OR status = ${len(args) + 1}) ORDER BY id DESC',
-                               *args, status)
-    return [_out(r) for r in rows]
+    rows = await db.pool.fetch('SELECT * FROM proposed_actions WHERE org_id = $1 AND ($2::text IS NULL OR status = $2) '
+                               'ORDER BY id DESC', u['org_id'], status)
+    return [{**_out(r), 'can_approve': await _block(u, r) is None} for r in rows if await _may_see(u, r)]
 
 
 async def _decide(aid: int, u: dict, action: str, status: str | None = None, text: dict | None = None, payload=None):
     """Only a proposed row can be edited, approved or rejected; only the executor moves approved -> executed."""
+    pre = await db.pool.fetchrow('SELECT * FROM proposed_actions WHERE id = $1 AND org_id = $2', aid, u['org_id'])
+    if pre is not None and status is not None and await _may_see(u, pre):  # the proposer may still reword a draft
+        why = await _block(u, pre)
+        if why:
+            await permissions.deny(u, f'proposed_action:{aid}', why, 'proposed_action')
     async with db.pool.acquire() as c, c.transaction():
         row = await c.fetchrow('SELECT * FROM proposed_actions WHERE id = $1 AND org_id = $2 FOR UPDATE', aid,
                                u['org_id'])
-        if row is None or (u['role'] != 'owner' and row['proposed_by'] != u['user_id']):
+        if row is None or not await _may_see(u, row):
             raise HTTPException(404, 'no such action')
         if row['status'] != 'proposed':
             raise HTTPException(409, f"action is {row['status']}, not proposed")
+
         row = await c.fetchrow('UPDATE proposed_actions SET status = coalesce($2, status), payload = payload || $3, '
                                'decided_by = CASE WHEN $2::text IS NULL THEN decided_by ELSE $4 END, '
                                'decided_at = CASE WHEN $2::text IS NULL THEN decided_at ELSE now() END '
                                'WHERE id = $1 RETURNING *', aid, status, text or {}, u['user_id'])
         await db.audit(f"user:{u['user_id']}", action, 'proposed_action', str(aid), [],
                        payload or {'status': row['status']}, conn=c)
+        if status:
+            await comms.notify(row['proposed_by'], f'action_{status}', str(aid), conn=c,
+                               detail=(payload or {}).get('reason'))
     return _out(row)
 
 

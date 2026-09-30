@@ -11,7 +11,7 @@ import httpx
 
 from app import db, executor
 
-H = {'X-User': 'priya'}
+H = {'X-User': 'nitika'}  # the admin account (executive): may upload policies and decisions in any domain
 POLICY = '''---
 doc_type: policy_version
 policy_id: T-POL-RET
@@ -126,8 +126,8 @@ def test_policy_decision_compliance_scanner_approval(api, clean):
                              "OR object_id = 'T-POL-RET@v3' ORDER BY id DESC LIMIT 5")
         await c.close()
         return [(r['actor'], r['action']) for r in reversed(rows)]
-    assert asyncio.run(trail()) == [('user:priya', 'policy_ingested'), ('system:scanner', 'flag_created'),
-                                    ('system:scanner', 'action_proposed'), ('user:priya', 'approved'),
+    assert asyncio.run(trail()) == [('user:nitika', 'policy_ingested'), ('system:scanner', 'flag_created'),
+                                    ('system:scanner', 'action_proposed'), ('user:nitika', 'approved'),
                                     ('executor', 'executed')]
 
 

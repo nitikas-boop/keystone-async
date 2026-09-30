@@ -120,6 +120,7 @@ async def _ingest(raw: str, path: str, actor: str, visibility: str = 'org') -> d
         await db.audit(actor, 'policy_ingested', 'policy_version', did, [f"{c['clause_id']}@{fm['version']}"
                        for c in fm['clauses']], {'document_id': did, 'sha256': hashlib.sha256(raw.encode()).hexdigest()})
         out['flags'] = await scanner.scan(fm['policy_id'], fm['version'])  # event-driven: runs on commit
+        await _announce_policy(did)
     if doc_type == 'decision' and fm.get('effect') == 'ongoing' and fm.get('fields'):
         # C3 type C: a new standing practice that contradicts another one opens a collision for the authority.
         from . import conflicts, contracts
@@ -312,6 +313,14 @@ async def ingest_source(text: str, source_name: str, actor: str, *, doc_id: str,
     candidates."""
     raw = meeting_note(text, doc_id, title, meeting_date, source_name, extra_front_matter)
     return await ingest(raw, source_name, actor, visibility=label['visibility'])
+
+
+async def _announce_policy(did: str):
+    """'A policy version was uploaded' for every active member of the default org (who owns the knowledge tables)."""
+    from . import comms
+    async with db.pool.acquire() as c, c.transaction():
+        for r in await c.fetch("SELECT user_id FROM memberships WHERE org_id = $1 AND status = 'active'", config.GROUP_ID):
+            await comms.notify(r['user_id'], 'policy_uploaded', did, conn=c)
 
 
 async def ingest(raw: str, path: str, actor: str, visibility: str = 'org') -> dict:

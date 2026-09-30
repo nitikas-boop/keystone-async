@@ -9,7 +9,7 @@ import pytest
 
 from conftest import TEST_ENV, wipe
 
-H = {'X-User': 'priya'}
+H = {'X-User': 'nitika'}  # the admin account (executive): may upload policies and decisions in any domain
 POLICY = '''---
 doc_type: policy_version
 policy_id: T-POL-RET

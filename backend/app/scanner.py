@@ -1,7 +1,7 @@
 """Policy impact scanner (§6.6). Called by ingestion the moment a PolicyVersion commits (event-driven)."""
 from datetime import date
 
-from . import compliance, config, db, graph, llm
+from . import comms, compliance, config, db, graph, llm, permissions
 
 SEVERITY = {'ONGOING_PRACTICE_BREACH': 'action_needed', 'RULE_CHANGED_SINCE': 'informational',
             'SUPERSEDED': 'historical', 'MCP_PROPOSAL': 'informational'}
@@ -77,13 +77,14 @@ async def _write_flag(dec: dict, new: dict, old: dict | None, old_version: str |
     flag_id = f"FLAG-{dec['id']}-{new['source_id']}"
     explanation = await explain_flag(dec, new, old, impact)
 
+    domain = permissions.domain_for_clause(new['clause_id'])
     async with db.pool.acquire() as c, c.transaction():
         inserted = await c.fetchval(
             'INSERT INTO flags (id, decision_id, clause_id, old_version, new_version, impact_type, severity, '
-            'old_result, new_result, explanation) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) '
+            'old_result, new_result, explanation, domain) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) '
             'ON CONFLICT (id) DO NOTHING RETURNING id',
             flag_id, dec['id'], new['clause_id'], old and old['version'], new['version'], impact,
-            SEVERITY[impact], old and old['result'], new['result'], explanation)
+            SEVERITY[impact], old and old['result'], new['result'], explanation, domain)
         if not inserted:
             return None  # already flagged (re-ingest): idempotent
         sources = [dec['id'], new['source_id']] + ([old_id] if old_id else [])
@@ -92,14 +93,17 @@ async def _write_flag(dec: dict, new: dict, old: dict | None, old_version: str |
         proposal_id = None
         if impact != 'SUPERSEDED':  # historical flags need no human decision
             proposal_id = await c.fetchval(
-                'INSERT INTO proposals (flag_id, decision_id, clause_id, impact_type, to_addr, subject, body) '
-                'VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+                'INSERT INTO proposals (flag_id, decision_id, clause_id, impact_type, to_addr, subject, body, domain) '
+                'VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
                 flag_id, dec['id'], new['clause_id'], impact, NOTIFY,
                 f"[Keystone] {impact}: {dec['id']} vs {new['source_id']}",
                 f"{explanation}\n\nDecision: {dec['id']} - {dec['title']} (decided {dec['decided_on']})\n"
-                f"Clause then: {old_id or 'n/a'}\nClause now: {new['source_id']}\nSeverity: {SEVERITY[impact]}\n")
+                f"Clause then: {old_id or 'n/a'}\nClause now: {new['source_id']}\nSeverity: {SEVERITY[impact]}\n", domain)
             await db.audit('system:scanner', 'action_proposed', 'proposal', str(proposal_id), sources,
                            {'flag_id': flag_id, 'to': NOTIFY}, conn=c)
+        owner = dec.get('owner') and await c.fetchval('SELECT id FROM users WHERE person_key = $1', dec['owner'])
+        if owner:  # "a decision I own went stale"
+            await comms.notify(owner, 'flag', dec['id'], conn=c)
 
     starts = graph.at(date.fromisoformat(new['valid_from']))
     prov = {'source_doc': 'system:scanner', 'visibility': 'org', 'confidence': 1.0, 'extracted_by': 'human',

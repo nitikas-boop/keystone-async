@@ -34,7 +34,7 @@ def sql(query: str, *args):
     return asyncio.run(go())
 
 
-def post_doc(api, name, text, user='priya'):
+def post_doc(api, name, text, user='nitika'):  # the admin account: may upload policies and decisions
     r = httpx.post(f'{api}/documents', files={'file': (name, text.encode())}, headers=H(user), timeout=600)
     assert r.status_code == 201, r.text
     return r.json()

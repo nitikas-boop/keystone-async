@@ -103,9 +103,11 @@ def test_agent_messages_need_a_human_approval(api):
     assert httpx.post(f'{api}/actions/{aid}/approve', headers=agent).status_code == 403  # an agent cannot approve
     assert post(api, f'/actions/{aid}/approve', 'sneha').status_code == 404
     assert httpx.patch(f'{api}/actions/{aid}', json={'payload': {'reason': 'DEC-004 needs a look today'}},
-                       headers=as_('priya')).status_code == 200
-    assert post(api, f'/actions/{aid}/approve', 'priya').json()['status'] == 'approved'
-    assert post(api, f'/actions/{aid}/approve', 'priya').status_code == 409
+                       headers=as_('priya')).status_code == 200  # the proposer may reword the draft
+    assert post(api, f'/actions/{aid}/approve', 'priya').status_code == 403  # but never approve it herself
+    assert aid in {x['id'] for x in get(api, '/actions', 'karthik').json()}  # an executive sees it to decide
+    assert post(api, f'/actions/{aid}/approve', 'karthik').json()['status'] == 'approved'
+    assert post(api, f'/actions/{aid}/approve', 'karthik').status_code == 409
 
     assert aid in run_executor()
     assert next(x for x in get(api, '/actions', 'priya').json() if x['id'] == aid)['status'] == 'executed'
@@ -113,7 +115,7 @@ def test_agent_messages_need_a_human_approval(api):
     dm = post(api, '/channels/dm', 'sneha', user_ids=['priya']).json()['id']
     msg = get(api, f'/channels/{dm}/messages', 'sneha').json()[-1]
     assert (msg['sender_id'], msg['body'], msg['is_agent_drafted'], msg['approved_by']) == \
-        ('keystone', 'DEC-004 needs a look today', True, 'Priya Menon')
+        ('keystone', 'DEC-004 needs a look today', True, 'Karthik Rao')
     acts = [r['action'] for r in sql("SELECT action FROM audit_log WHERE object_type = 'proposed_action' "
                                      "AND object_id = $1 ORDER BY id", str(aid))]
     assert acts == ['agent_message_proposed', 'edited', 'approved', 'agent_message_sent']
