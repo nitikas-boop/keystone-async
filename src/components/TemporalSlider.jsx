@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Play, Pause, Info } from 'lucide-react';
 import { fetchPolicies, fetchFlags } from '../api';
 import DateField from './DateField';
+import PolicyQuarters from './PolicyQuarters';
 import { addDays, clauseRef, day, daysBetween, inr, month, todayIST } from '../utils/format';
 
 // Everything here comes from the backend (/policies, /flags): milestones are the real policy version start dates,
@@ -151,6 +152,7 @@ export default function TemporalSlider({ asOfDate, onDateChange, refreshKey = 0,
           })}
         </div>
       </div>}
+      {!collapsed && <PolicyQuarters policies={policies} asOfDate={asOfDate} onDateChange={onDateChange} today={today} />}
     </div>
   );
 }
