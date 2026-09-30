@@ -13,6 +13,7 @@ from .. import comms, config, contracts, db, identity, plugins
 router = APIRouter(tags=['p1 auth'])
 EMPLOYEE_ID = re.compile(r'^[A-Za-z0-9_.-]{2,32}$')
 _dummy = None
+BAD_LOGIN = 'that employee ID and password do not match a registered account'
 
 
 class RegisterIn(BaseModel):
@@ -130,14 +131,14 @@ async def login(body: LoginIn, request: Request, response: Response):
     if row is None:  # same cost as a real check, so timing does not reveal which IDs exist
         _dummy = _dummy or await asyncio.to_thread(identity.hash_password, secrets.token_hex(8))
         await asyncio.to_thread(identity.verify_password, body.password, _dummy)
-        raise HTTPException(401, 'wrong employee ID or password')
+        raise HTTPException(401, BAD_LOGIN)
     if not await asyncio.to_thread(identity.verify_password, body.password, row['password_hash']):
-        raise HTTPException(401, 'wrong employee ID or password')
+        raise HTTPException(401, BAD_LOGIN)
     if row['status'] == 'pending':
         raise HTTPException(403, 'your join request is waiting for approval by the Owner or a Team lead')
     user = await identity.load_user(row['id'])
     if user is None:
-        raise HTTPException(401, 'wrong employee ID or password')
+        raise HTTPException(401, BAD_LOGIN)
     if body.client == 'mcp':
         if not plugins.is_enabled(user['org_id'], 'keystone-mcp'):
             raise HTTPException(403, 'the Keystone MCP plugin is disabled for this organisation')

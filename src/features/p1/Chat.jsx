@@ -7,6 +7,9 @@ import { Badge, Btn, ErrorNote, Input, Select, useAction, useLoad } from './ui';
 // E: channels (global, team, group, DM), messages, @mentions, @keystone, cards, people cards, and "Save as meeting
 // note". Polling, no WebSockets. Chat is never read by the model unless someone saves a thread.
 const ICON = { global: Hash, team: Users, group: Users, dm: MessageCircle };
+// Messaging scope above the message box: the whole organisation (#general), a team (or group), or one person.
+const SCOPES = [['org', 'Organisation', Hash], ['team', 'Team', Users], ['dm', '1 to 1', MessageCircle]];
+const scopeOf = (type) => (type === 'global' ? 'org' : type === 'dm' ? 'dm' : 'team');
 
 export default function Chat({ me, notify }) {
   const chans = useLoad(p1.channels);
@@ -17,6 +20,7 @@ export default function Chat({ me, notify }) {
   const [ref, setRef] = useState('');
   const [card, setCard] = useState(null);
   const [dmWith, setDmWith] = useState('');
+  const [pickDm, setPickDm] = useState(false);  // '1 to 1' chosen but no person picked yet
   const [run, busy, error] = useAction();
   const end = useRef(null);
   const list = chans.data || [];
@@ -37,10 +41,18 @@ export default function Chat({ me, notify }) {
       await load();
     });
   };
-  const openDm = () => run(async () => {
-    const r = await p1.openDm([dmWith]);
-    await chans.reload(); setCid(r.id); setDmWith('');
+  const openDmWith = (userId) => run(async () => {
+    const r = await p1.openDm([userId]);
+    await chans.reload(); setCid(r.id); setDmWith(''); setPickDm(false);
   });
+  const openDm = () => openDmWith(dmWith);
+  const scope = pickDm ? 'dm' : current ? scopeOf(current.type) : 'org';
+  const inScope = (sc) => list.filter(c => scopeOf(c.type) === sc);
+  const chooseScope = (sc) => {
+    const first = inScope(sc)[0];
+    setPickDm(sc === 'dm');
+    if (sc !== 'dm' && first) setCid(first.id);
+  };
   const save = () => {
     const title = window.prompt('Title for the meeting note', `${current?.name || 'Chat'} discussion`);
     if (!title) return;
@@ -108,10 +120,34 @@ export default function Chat({ me, notify }) {
           <div ref={end} />
         </div>
         <ErrorNote error={error} />
-        <form onSubmit={send} className="flex gap-2 pt-2 border-t border-slate-100">
-          <Input className="flex-1" placeholder="Message (use @user_id to mention, @keystone to ask)" value={text} onChange={e => setText(e.target.value)} disabled={!cid} />
-          <Input className="w-36 font-mono" placeholder="Share item ID" value={ref} onChange={e => setRef(e.target.value)} disabled={!cid} title="A decision or clause ID (e.g. DEC-007) to attach as a card" />
-          <Btn kind="primary" type="submit" disabled={!cid || busy} className="flex items-center gap-1.5"><Send size={13} /> Send</Btn>
+        <div className="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap" role="group" aria-label="Messaging scope">
+          <span className="text-[12px] text-[#64748B]">Send to</span>
+          <div className="flex gap-1 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
+            {SCOPES.map(([id, label, I]) => (
+              <button key={id} type="button" aria-pressed={scope === id} onClick={() => chooseScope(id)}
+                disabled={id === 'team' && inScope('team').length === 0}
+                className={`h-7 px-2.5 rounded-md text-[12.5px] flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${scope === id ? 'bg-white font-semibold shadow-xs text-[#0369A1]' : 'text-[#475569] hover:text-[#0F172A]'}`}>
+                <I size={12} /> {label}
+              </button>
+            ))}
+          </div>
+          {scope === 'team' && inScope('team').length > 1 && (
+            <Select className="h-7 text-[12.5px]" value={cid ?? ''} onChange={e => setCid(Number(e.target.value))}
+              options={inScope('team').map(c => ({ value: c.id, label: `#${c.name}` }))} />
+          )}
+          {scope === 'dm' && (
+            <Select className="h-7 text-[12.5px]" aria-label="Person"
+              value={pickDm ? '' : (dir.data || []).find(p => current?.name === p.name)?.user_id || ''}
+              onChange={e => e.target.value && openDmWith(e.target.value)}
+              options={[{ value: '', label: 'Choose a person…' }, ...(dir.data || []).filter(p => p.user_id !== me.user_id)
+                .map(p => ({ value: p.user_id, label: p.name }))]} />
+          )}
+          {current && !pickDm && <span className="text-[12px] text-[#64748B]">{scope === 'org' ? 'everyone in the organisation' : scope === 'team' ? `${current.members} member(s)` : `private: only you and ${current.name}`}</span>}
+        </div>
+        <form onSubmit={send} className="flex gap-2 pt-2">
+          <Input className="flex-1" placeholder="Message (use @user_id to mention, @keystone to ask)" value={text} onChange={e => setText(e.target.value)} disabled={!cid || pickDm} />
+          <Input className="w-36 font-mono" placeholder="Share item ID" value={ref} onChange={e => setRef(e.target.value)} disabled={!cid || pickDm} title="A decision or clause ID (e.g. DEC-007) to attach as a card" />
+          <Btn kind="primary" type="submit" disabled={!cid || pickDm || busy} className="flex items-center gap-1.5"><Send size={13} /> Send</Btn>
         </form>
       </section>
 

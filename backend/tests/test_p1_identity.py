@@ -141,3 +141,13 @@ def test_one_click_demo_login(api):
     r = httpx.post(f'{api}/auth/demo', json={'employee_id': 'NL-003'})
     assert r.status_code == 200 and r.json()['user_id'] == 'priya' and r.cookies.get(identity.COOKIE)
     assert httpx.post(f'{api}/auth/demo', json={'employee_id': 'not-a-demo'}).status_code == 404
+
+
+def test_login_checks_the_registered_account(api):
+    """Only a registered employee ID with its own password signs in; both failures read the same."""
+    wrong_pw, no_account = login(api, 'NL-005', 'not-the-password'), login(api, 'NL-999')
+    assert wrong_pw.status_code == no_account.status_code == 401
+    assert wrong_pw.json()['detail'] == no_account.json()['detail'] == \
+        'that employee ID and password do not match a registered account'
+    assert not wrong_pw.cookies.get(identity.COOKIE)
+    assert login(api, 'NL-005').json()['user_id'] == 'divya'

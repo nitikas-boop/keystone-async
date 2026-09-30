@@ -82,11 +82,18 @@ def writer() -> str:
     return who
 
 
+APPROVERS = {'owner', 'lead', 'compliance'}
+
+
 def human() -> str:
-    """A writer who is a person at a browser or a paired phone, not an agent token (approvals)."""
+    """Approvals (review-queue proposals, extracted decisions and policies): a person, not an agent token, whose role
+    carries the authority. Members (employees) and auditors cannot approve."""
     who = writer()
-    if current_user().get('via') == 'mcp':
+    u = current_user()
+    if u.get('via') == 'mcp':
         raise HTTPException(403, 'an agent (MCP) session cannot approve; a person must')
+    if u['role'] not in APPROVERS:
+        raise HTTPException(403, 'members cannot approve decisions or policies; a team lead, compliance or the owner must')
     return who
 
 

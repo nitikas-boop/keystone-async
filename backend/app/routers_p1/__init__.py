@@ -4,7 +4,7 @@ import asyncio
 
 from fastapi import HTTPException, Request
 
-from ..contracts import _user, actor, current_user, human, writer
+from ..contracts import _user, actor, current_user, writer
 
 _tasks: set = set()
 
@@ -21,8 +21,11 @@ def editor() -> dict:
 
 
 def person() -> dict:
-    """A person, not an agent token: every approval and every admin change."""
-    human()
+    """A person, not an agent token (any role but auditor): admin changes, devices, their own agent actions.
+    Approving decisions and policies needs contracts.human, which also checks the role."""
+    writer()
+    if current_user().get('via') == 'mcp':
+        raise HTTPException(403, 'an agent (MCP) session cannot approve; a person must')
     return current_user()
 
 

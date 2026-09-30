@@ -170,3 +170,14 @@ def test_hidden_nodes_never_reach_ask(labelled):
     r = httpx.post(f'{labelled}/ask', json=q, headers=as_('priya'), timeout=600)
     assert r.status_code == 200, r.text
     assert r.json()['refused'] and 'T-P1-SECRET' not in json.dumps(r.json())
+
+
+def test_members_cannot_approve_decisions_or_policies(api):
+    """Approving review-queue proposals and extracted decisions/policies needs a lead, compliance or the owner."""
+    for path in ('/proposals/999999/approve', '/proposals/999999/reject', '/extractions/999999/accept',
+                 '/extractions/999999/reject'):
+        for user in ('divya', 'sneha'):
+            r = httpx.post(f'{api}{path}', headers=as_(user))
+            assert r.status_code == 403 and 'members cannot approve' in r.json()['detail'], (path, user)
+        for user in ('priya', 'farhan', 'nitika'):  # allowed to try; the item just does not exist
+            assert httpx.post(f'{api}{path}', headers=as_(user)).status_code == 404, (path, user)

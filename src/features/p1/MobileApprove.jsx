@@ -10,9 +10,10 @@ export default function MobileApprove({ me, onSignOut, onDesktop }) {
   const [loadError, setLoadError] = useState(null);
   const [run, busy, error] = useAction();
 
-  const load = useCallback(() => Promise.all([p1.proposals('proposed'), p1.actions('proposed'), p1.flags(), p1.notifications()])
+  const approver = ['owner', 'lead', 'compliance'].includes(me.role);  // members cannot approve decisions or policies
+  const load = useCallback(() => Promise.all([approver ? p1.proposals('proposed') : Promise.resolve([]), p1.actions('proposed'), p1.flags(), p1.notifications()])
     .then(([proposals, actions, flags, n]) => { setData({ proposals, actions, flags, unread: n.unread }); setLoadError(null); })
-    .catch(e => (e.status === 401 ? onSignOut() : setLoadError(e))), [onSignOut]);  // revoked or expired: sign in again
+    .catch(e => (e.status === 401 ? onSignOut() : setLoadError(e))), [onSignOut, approver]);  // revoked or expired: sign in again
   useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, [load]);
 
   const act = (fn) => run(async () => { await fn(); await load(); });
