@@ -9,52 +9,51 @@
     --font-heading: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
     --font-body: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono Variable', Consolas, monospace;
-    
-    --bg-page: #F8FAFC;
+    --bg-page: #FAF9F6;
     --bg-paper: #FFFFFF;
     --bg-slate-tint: #F1F5F9;
-    --text-primary: #0F172A;
+    --text-primary: #1E293B;
     --text-muted: #64748B;
     --border-subtle: #E2E8F0;
-
     --brand-sky: #0284C7;
     --brand-sky-light: #E0F2FE;
-    --brand-indigo: #6366F1;
-    --brand-indigo-light: #EEF2FF;
-    
-    --pastel-amber: #FEF3C7;
-    --pastel-amber-text: #92400E;
+    --brand-indigo: #7C83B8;
+    --brand-indigo-light: #F3E8FF;
+    --pastel-amber: #FEF9C3;
+    --pastel-amber-text: #854D0E;
     --pastel-green: #DCFCE7;
     --pastel-green-text: #166534;
-    --pastel-lavender: #E0E7FF;
-    --pastel-lavender-text: #3730A3;
-    --pastel-rose: #FEE2E2;
-    --pastel-rose-text: #991B1B;
+    --pastel-lavender: #F3E8FF;
+    --pastel-lavender-text: #6B21A8;
+    --pastel-rose: #FCE7F3;
+    --pastel-rose-text: #9D174D;
   }
 
-  html {
-    font-family: var(--font-body);
-    background-color: var(--bg-page);
-    color: var(--text-primary);
-    scroll-behavior: smooth;
-  }
-
-  h1, h2, h3, h4, h5, h6, .font-heading {
-    font-family: var(--font-heading);
-    letter-spacing: -0.025em;
-  }
-
-  code, pre, .font-mono {
-    font-family: var(--font-mono);
-  }
+  html { font-family: var(--font-body); background-color: var(--bg-page); color: var(--text-primary); scroll-behavior: smooth; }
+  body { min-width: 320px; background-color: var(--bg-page); }
+  h1, h2, h3, h4, h5, h6, .font-heading { font-family: var(--font-heading); letter-spacing: -0.025em; }
+  code, pre, .font-mono { font-family: var(--font-mono); }
+  button, a, input, textarea, select { transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease, color 180ms ease; }
+  button:not(:disabled):hover, a:hover { transform: translateY(-2px); }
+  button:not(:disabled):active, a:active { transform: scale(.97); }
 }
+
+.paper-canvas { background-color: #FAF9F6; background-image: radial-gradient(#E2E8F0 1px, transparent 1px); background-size: 16px 16px; }
+.notebook-ambient { background: linear-gradient(120deg, rgba(224,242,254,.72), rgba(250,249,246,.4) 44%, rgba(243,232,255,.42)); background-size: 200% 200%; animation: paper-drift 18s ease-in-out infinite; }
+.sticky-note { transform: rotate(-1deg); }
+.sticky-note:nth-child(even) { transform: rotate(1deg); }
+.sticky-note:hover { transform: translateY(-4px) rotate(0deg) scale(1.01); box-shadow: 0 12px 24px rgba(15, 23, 42, .08); }
+@keyframes paper-drift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+
 
 /* Airy Paper Sheet & Note Card Metaphor */
 .paper-sheet {
-  background-color: #FFFFFF;
+  background-color: rgba(255, 255, 255, .86);
   border-radius: 1rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .045);
+  border: 1px solid rgba(226, 232, 240, 0.58);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -96,8 +95,8 @@
 
 /* Gentle Pastel Notes Badges */
 .badge-note-amber {
-  background-color: #FEF3C7;
-  color: #92400E;
+  background-color: #FEF9C3;
+  color: #854D0E;
   border: 1px solid #FDE68A;
 }
 

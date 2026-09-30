@@ -173,7 +173,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   };
 
   return (
-    <div className="h-dvh bg-[#F8FAFC] text-[#0F172A] flex flex-col overflow-hidden">
+    <div className="h-dvh paper-canvas text-[#1E293B] flex flex-col overflow-hidden">
       {/* Top Header Bar */}
       <header className="h-14 shrink-0 bg-white border-b border-slate-200/80 px-5 flex items-center justify-between gap-4 z-30 select-none shadow-xs">
         <div className="flex items-center gap-3 min-w-0">
@@ -214,7 +214,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             }`}
           >
             <LayoutGrid size={13} className={activeView === 'UNIFIED' ? 'text-[#0284C7]' : ''} />
-            <span>Unified Workspace</span>
+            <span>Notebook Home</span>
           </button>
 
           <button
@@ -224,7 +224,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             }`}
           >
             <GitBranch size={13} className={activeView === 'GRAPH' ? 'text-[#0284C7]' : ''} />
-            <span>Temporal Graph</span>
+            <span>Knowledge Map</span>
           </button>
 
           <button
@@ -234,7 +234,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             }`}
           >
             <ListChecks size={13} className={activeView === 'QUEUE' ? 'text-[#0284C7]' : ''} />
-            <span>Review Queue</span>
+            <span>Needs Your Review</span>
             {queueItems.filter(i => i.status === 'proposed' || i.status === 'Pending Approval').length > 0 && (
               <span className="min-w-4 h-4 px-1 rounded-full bg-[#0284C7] text-[10px] leading-none font-bold text-white flex items-center justify-center">
                 {queueItems.filter(i => i.status === 'proposed' || i.status === 'Pending Approval').length}
@@ -249,7 +249,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             }`}
           >
             <FileSearch size={13} className={activeView === 'EXTRACTIONS' ? 'text-[#0284C7]' : ''} />
-            <span>Ingestion Review</span>
+            <span>Notes to Review</span>
           </button>
 
           <button
@@ -259,7 +259,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             }`}
           >
             <ShieldCheck size={13} className={activeView === 'AUDIT' ? 'text-emerald-600' : ''} />
-            <span>Audit Trail</span>
+            <span>History Log</span>
           </button>
         </div>
 
@@ -271,7 +271,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             title="Upload a policy version, decision or meeting note (Markdown)"
           >
             <Upload size={13} />
-            <span className="hidden sm:inline">Ingest Document</span>
+            <span className="hidden sm:inline">Upload Notes</span>
           </button>
 
           <div className="h-8 flex items-center gap-2 pl-3 border-l border-slate-200 font-mono text-xs">
@@ -297,7 +297,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
           asOfDate={asOfDate} 
           onDateChange={(newDate) => {
             setAsOfDate(newDate);
-            showNotification(`Temporal Horizon set to ${newDate}`, "info");
+            showNotification(`Search date set to ${newDate}`, "info");
           }} 
         />
       </div>

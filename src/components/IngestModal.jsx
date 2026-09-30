@@ -129,7 +129,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
           </div>
           <div>
             <h3 className="font-heading font-bold text-base text-[#0F172A]">
-              Ingest Document & Trigger Policy Impact Scanner
+              Upload Notes & Check for Conflicts
             </h3>
             <p className="text-xs text-[#64748B]">
               Upload markdown policy version or decision document to <code className="text-[11px] font-mono bg-slate-100 px-1 py-0.5 rounded">POST /documents</code>.
@@ -260,7 +260,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
               <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
               <div>
                 <h4 className="font-heading font-semibold text-xs text-emerald-950">
-                  Ingestion Successful & Impact Scanner Executed
+                  Notes Saved & Fact Check Complete
                 </h4>
                 <p className="text-[11px] text-emerald-800 font-mono mt-0.5">
                   Document ingested into PostgreSQL + Neo4j with valid-time metadata.

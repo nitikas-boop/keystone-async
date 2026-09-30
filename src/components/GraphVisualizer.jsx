@@ -654,11 +654,11 @@ export default function GraphVisualizer({
                   </p>
                 </div>
 
-                {/* Historical Trace Matrix */}
+                {/* Source Details */}
                 {activeDecision.historicalCompliance && (
                   <div>
                     <span className="text-[10px] font-mono text-[#64748B] uppercase tracking-wider block mb-1.5">
-                      Point-in-Time Trace Matrix:
+                      Source Details:
                     </span>
                     <div className="space-y-1.5 font-mono text-[10px]">
                       {activeDecision.historicalCompliance.map((row, idx) => (

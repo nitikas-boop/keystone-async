@@ -26,7 +26,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans antialiased selection:bg-[#E0F2FE] selection:text-[#0369A1]">
+    <div className="min-h-screen paper-canvas text-[#1E293B] font-sans antialiased selection:bg-[#FEF9C3] selection:text-[#0369A1]">
       {isAuthenticated ? (
         <Dashboard 
           currentUser={currentUser} 

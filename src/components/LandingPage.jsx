@@ -31,7 +31,7 @@ export default function LandingPage({ onLaunchConsole }) {
   const workflowSteps = [
     {
       num: "01",
-      title: "Ingest Docs",
+      title: "Upload Notes",
       subtitle: "Front-matter & Dates",
       desc: "Meeting notes, policy versions, and decision logs as Markdown, each with its real date in front-matter.",
       tag: "PostgreSQL Records",
@@ -39,7 +39,7 @@ export default function LandingPage({ onLaunchConsole }) {
     },
     {
       num: "02",
-      title: "Build Graph",
+      title: "Connect Ideas",
       subtitle: "Bi-Temporal Triples",
       desc: "Graphiti on Neo4j indexes entities, decisions, and clauses with independent valid-time axes.",
       tag: "Neo4j Temporal Graph",
@@ -47,7 +47,7 @@ export default function LandingPage({ onLaunchConsole }) {
     },
     {
       num: "03",
-      title: "Query 'As-Of' Date",
+      title: "Search by Date",
       subtitle: "Point-in-Time Traversal",
       desc: "Evaluate any historical event against the exact policy version in force on that date.",
       tag: "Hybrid Traversal",
@@ -66,13 +66,13 @@ export default function LandingPage({ onLaunchConsole }) {
       title: "Human Approval",
       subtitle: "Gated Action",
       desc: "Actions land in the review queue. Only a human approval lets the executor act (today: an email file in outbox/).",
-      tag: "SHA-256 Audit Trail",
+      tag: "Secure Save Record",
       color: "badge-note-rose"
     }
   ];
 
   return (
-    <div className="relative min-h-screen bg-[#F8FAFC] text-[#0F172A] overflow-x-hidden">
+    <div className="relative min-h-screen notebook-ambient text-[#1E293B] overflow-x-hidden">
       {/* Subtle Sky Ambient Blurs */}
       <div className="absolute top-0 left-1/3 w-96 h-96 bg-sky-200/40 rounded-full filter blur-3xl pointer-events-none" />
       <div className="absolute top-1/3 right-10 w-96 h-96 bg-indigo-100/50 rounded-full filter blur-3xl pointer-events-none" />
@@ -115,7 +115,7 @@ export default function LandingPage({ onLaunchConsole }) {
           <span className="w-2 h-2 rounded-full bg-[#0284C7]"></span>
           <span>TRACK 1: SOVEREIGN AI</span>
           <span className="text-slate-300">|</span>
-          <span>TEMPORAL KNOWLEDGE GRAPH</span>
+          <span>KNOWLEDGE MAP</span>
         </div>
 
         {/* Primary Headline */}
@@ -136,7 +136,7 @@ export default function LandingPage({ onLaunchConsole }) {
             className="px-6 py-3.5 rounded-xl btn-sky-gradient text-white text-sm font-mono font-semibold flex items-center gap-2 shadow-md hover:scale-102 transition-all cursor-pointer"
           >
             <Sparkles size={16} />
-            <span>Launch Sovereign Console</span>
+            <span>Open Your Notebook</span>
             <ArrowRight size={16} />
           </button>
 
@@ -151,7 +151,7 @@ export default function LandingPage({ onLaunchConsole }) {
 
         {/* Metric Notes Grid */}
         <div className="mt-12 w-full grid grid-cols-2 md:grid-cols-4 gap-3 text-left">
-          <div className="paper-sheet p-3.5">
+          <div className="paper-sheet sticky-note p-3.5">
             <div className="font-mono text-lg font-bold text-[#0F172A] flex items-center gap-1.5">
               <span>Point-in-Time</span>
               <CheckCircle2 size={16} className="text-emerald-600" />
@@ -161,7 +161,7 @@ export default function LandingPage({ onLaunchConsole }) {
             </div>
           </div>
 
-          <div className="paper-sheet p-3.5">
+          <div className="paper-sheet sticky-note p-3.5">
             <div className="font-mono text-lg font-bold text-[#0284C7] flex items-center gap-1.5">
               <span>Bi-Temporal</span>
               <Clock size={16} className="text-[#0284C7]" />
@@ -171,7 +171,7 @@ export default function LandingPage({ onLaunchConsole }) {
             </div>
           </div>
 
-          <div className="paper-sheet p-3.5">
+          <div className="paper-sheet sticky-note p-3.5">
             <div className="font-mono text-lg font-bold text-[#D97706] flex items-center gap-1.5">
               <span>SHA-256</span>
               <ShieldCheck size={16} className="text-[#D97706]" />
@@ -181,7 +181,7 @@ export default function LandingPage({ onLaunchConsole }) {
             </div>
           </div>
 
-          <div className="paper-sheet p-3.5">
+          <div className="paper-sheet sticky-note p-3.5">
             <div className="font-mono text-lg font-bold text-emerald-700 flex items-center gap-1.5">
               <span>100% Local</span>
               <Lock size={16} className="text-emerald-700" />
@@ -236,7 +236,7 @@ export default function LandingPage({ onLaunchConsole }) {
 
         {/* Tab 1: Temporal Context */}
         {activeTab === 'temporal' && (
-          <div className="paper-sheet p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+          <div className="paper-sheet sticky-note p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
             <div className="space-y-3.5">
               <div className="inline-block px-2.5 py-0.5 rounded-md badge-note-sky font-mono text-[11px] font-semibold">
                 DEMONSTRATION 1
@@ -302,7 +302,7 @@ export default function LandingPage({ onLaunchConsole }) {
 
         {/* Tab 2: Clause-Level Compliance */}
         {activeTab === 'clause' && (
-          <div className="paper-sheet p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+          <div className="paper-sheet sticky-note p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
             <div className="space-y-3.5">
               <div className="inline-block px-2.5 py-0.5 rounded-md badge-note-amber font-mono text-[11px] font-semibold">
                 STRUCTURED ONTOLOGY
@@ -347,7 +347,7 @@ export default function LandingPage({ onLaunchConsole }) {
 
         {/* Tab 3: Staleness Scanner */}
         {activeTab === 'staleness' && (
-          <div className="paper-sheet p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+          <div className="paper-sheet sticky-note p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
             <div className="space-y-3.5">
               <div className="inline-block px-2.5 py-0.5 rounded-md badge-note-amber font-mono text-[11px] font-semibold">
                 PROACTIVE SCANNER
@@ -379,7 +379,7 @@ export default function LandingPage({ onLaunchConsole }) {
 
         {/* Tab 4: Gated MCP Execution */}
         {activeTab === 'gated' && (
-          <div className="paper-sheet p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+          <div className="paper-sheet sticky-note p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
             <div className="space-y-3.5">
               <div className="inline-block px-2.5 py-0.5 rounded-md badge-note-green font-mono text-[11px] font-semibold">
                 STAGE 5 ACTION GATE
@@ -478,7 +478,7 @@ export default function LandingPage({ onLaunchConsole }) {
           </h2>
         </div>
 
-        <div className="paper-sheet overflow-hidden">
+        <div className="paper-sheet sticky-note overflow-hidden">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 font-mono text-[11px] text-[#0F172A]">
