@@ -73,7 +73,10 @@ async def _ingest(raw: str, path: str, actor: str, visibility: str = 'org') -> d
     raw = raw.replace('\r\n', '\n')
     fm, fm_end, body_start = parse(raw)
     ref, did, doc_type = ref_date(fm), doc_id(fm), fm['doc_type']
-    visibility = fm.get('visibility', visibility)
+    # The stricter of front-matter and caller (e.g. a Team folder's scope) wins: a file cannot loosen its folder.
+    # The strictest label wins: a file's own front-matter can narrow its folder scope, never widen it.
+    rank = {'org': 0, 'team': 1, 'restricted': 2}
+    visibility = max((fm.get('visibility') or 'org', visibility or 'org'), key=lambda v: rank.get(v, 2))
     relied = {}
 
     async with db.pool.acquire() as c, c.transaction():
@@ -117,6 +120,13 @@ async def _ingest(raw: str, path: str, actor: str, visibility: str = 'org') -> d
         await db.audit(actor, 'policy_ingested', 'policy_version', did, [f"{c['clause_id']}@{fm['version']}"
                        for c in fm['clauses']], {'document_id': did, 'sha256': hashlib.sha256(raw.encode()).hexdigest()})
         out['flags'] = await scanner.scan(fm['policy_id'], fm['version'])  # event-driven: runs on commit
+    if doc_type == 'decision' and fm.get('effect') == 'ongoing' and fm.get('fields'):
+        # C3 type C: a new standing practice that contradicts another one opens a collision for the authority.
+        from . import conflicts, contracts
+        try:
+            out['collisions'] = [c['id'] for c in await conflicts.detect_decision_conflicts(contracts.ORG_ID)]
+        except Exception:
+            log.exception('decision-conflict check failed for %s; ingestion is unaffected', did)
     return out
 
 
@@ -274,6 +284,34 @@ async def completed_docs() -> dict[str, dict]:
     stored = {r['id']: r['sha256'] for r in await db.pool.fetch('SELECT id, sha256 FROM documents')}
     return {p: v for p, v in last.items()
             if v.get('status') in ('ok', 'skipped') and stored.get(v.get('document_id')) == v.get('sha256')}
+
+
+def read_text(p: Path) -> str:
+    """Text of a scanned file: .md/.txt as is, .pdf and .docx extracted locally."""
+    suffix = p.suffix.lower()
+    if suffix == '.pdf':
+        from pypdf import PdfReader
+        return '\n\n'.join((page.extract_text() or '').strip() for page in PdfReader(p).pages).strip()
+    if suffix == '.docx':
+        import docx
+        return '\n\n'.join(par.text for par in docx.Document(p).paragraphs if par.text.strip())
+    return p.read_text(encoding='utf-8')
+
+
+def meeting_note(text: str, doc_id: str, title: str, meeting_date: date, source: str, extra: dict | None = None) -> str:
+    fm = {'doc_type': 'meeting_note', 'doc_id': doc_id, 'title': title, 'meeting_date': meeting_date,
+          'source': source, **(extra or {})}
+    return f"---\n{yaml.safe_dump(fm, sort_keys=False, allow_unicode=True)}---\n# {title}\n\n{text.strip()}\n"
+
+
+async def ingest_source(text: str, source_name: str, actor: str, *, doc_id: str, title: str, meeting_date: date,
+                        label: dict, extra_front_matter: dict | None = None) -> dict:
+    """The one ingestion entry point for plain text (Person 1 calls it for saved chat threads and connector imports;
+    the sign-in scan and audio use it too). The text becomes a meeting_note with the given date (never guessed),
+    is stored with label['visibility'] (contracts.label_for), and its extracted facts wait in Ingestion Review as
+    candidates."""
+    raw = meeting_note(text, doc_id, title, meeting_date, source_name, extra_front_matter)
+    return await ingest(raw, source_name, actor, visibility=label['visibility'])
 
 
 async def ingest(raw: str, path: str, actor: str, visibility: str = 'org') -> dict:

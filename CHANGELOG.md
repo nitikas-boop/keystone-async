@@ -1,5 +1,39 @@
 # Changelog
 
+## Person 2: knowledge, conflicts and reasoning (branch hemanth-split2, 30 Sept 2026)
+
+Built on Commit 0 (the shared contract in `backend/app/contracts`). Every endpoint calls `current_user` and
+`can_access`; counts are computed after the filter. Setup on an existing volume:
+`docker compose exec postgres sh /docker-entrypoint-initdb.d/migrate.sh` and `docker compose build backend`.
+
+- **L. Session start.** Sign-in (the contract's `on_login`) warms the answer model and embedder in the
+  background (Ollama `keep_alive`), with a status line in the top bar (not loaded, loading, ready, failed).
+  A heartbeat keeps the model loaded; the last logout or 15 idle minutes unload it. The same sign-in scans
+  `data/keystone` (`Organisation/`, `Team/<name>/`, `Groups/<name>/`) with a SHA-256 diff: new, updated,
+  missing, touched-but-unchanged. The folder sets the access label. The first scan is a baseline an Owner
+  confirms. Files wait in Ingestion Review until someone ingests or ignores them; nothing is automatic.
+  Measured here (RTX 4060, 8 GB): cold load about 7 s; one 7B model serves answers and extraction.
+- **C. Conflicts.** Policy proposals with claims (with expiry and a Team lead or Owner override),
+  version-checked edits ("someone changed this, reload") and review locks. Duplicate detection runs in three
+  layers (exact, structural, embedding cosine), and the local model only explains a match. Collisions of
+  type A (proposal vs proposal), B (proposal vs another active clause) and C (two standing decisions)
+  go to the domain authority, who is never a party. The winner becomes a new PolicyVersion through normal
+  ingestion, so the staleness scanner runs. The ruling is a Decision (`RUL-n`) that chat can cite.
+- **D. `/whatif`** (alias `/what-if`): policy change and person-leaves, labelled "HYPOTHETICAL: nothing has
+  changed". Nothing is written except a `simulations` row and an audit row. Authorities can turn a result
+  into a draft proposal. Also `/asof`, `/flags`, `/compliance`, `/history`, `/whois`, `/explain` and
+  `/report`, all filtered on the server.
+- **J. Reports.** Compliance as of a date and an audit-prep pack, as Markdown or PDF
+  (Knowledge → Reports, or `/report`).
+- **I. Languages.** A Hindi UI switch. Answers are translated sentence by sentence by the local model; the
+  citation IDs are never sent to it. About 20-35 s per answer on this GPU, measured.
+- **F. Audio.** Upload a recording with its meeting date and recorded consent. It is transcribed locally
+  with timestamps, the uploader maps speakers, and the candidates go to Ingestion Review. Each cited quote
+  plays the recording from its timestamp. The raw audio can be deleted and the transcript stays.
+- Fixes found while testing: pinned `av==15.1.0` (PyAV 16+ broke faster-whisper, including `/transcribe`),
+  model load and unload serialised (a logout racing the next login left the model cold), the stub logout
+  moved to explicit sign-out, and the scanner self-check.
+
 ## Inbox, decision pages, portable answers, authoring forms (30 Sept 2026)
 
 Frontend only; every change uses existing endpoints.

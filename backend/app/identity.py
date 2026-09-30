@@ -131,7 +131,7 @@ async def load_user(user_id: str, via: str = 'web', device_id: int | None = None
                                 'UNION SELECT id FROM teams WHERE lead_id = $1', user_id)
     grants = await db.pool.fetch('SELECT resource_id FROM access_grants WHERE user_id = $1 AND revoked_at IS NULL',
                                  user_id)
-    return {'user_id': r['id'], 'org_id': r['org_id'], 'role': r['role'], 'team_id': r['team_id'],
+    return {'user_id': r['id'], 'org_id': r['org_id'], 'role': r['role'], 'team_id': r['team_id'], 'actor': f"user:{r['id']}",
             'teams': sorted(x['t'] for x in teams), 'grants': sorted(g['resource_id'] for g in grants),
             'via': via, 'device_id': device_id, 'display_name': r['display_name'], 'designation': r['designation'],
             'employee_id': r['employee_id'], 'person_key': r['person_key'], 'org_name': r['org_name'],
@@ -143,7 +143,7 @@ def _demo_user(user_id: str) -> dict | None:
     u = next((u for u in DEMO_USERS if u[0] == user_id), None)
     if u is None:
         return None
-    return {'user_id': u[0], 'org_id': config.GROUP_ID, 'role': u[4], 'team_id': u[5], 'teams': [u[5]] if u[5] else [],
+    return {'user_id': u[0], 'org_id': config.GROUP_ID, 'role': u[4], 'team_id': u[5], 'actor': f'user:{u[0]}', 'teams': [u[5]] if u[5] else [],
             'grants': [], 'via': 'web', 'device_id': None, 'display_name': u[2], 'designation': u[3],
             'employee_id': u[1], 'person_key': u[6], 'org_name': 'Nimbus Ledger', 'audit_from': None, 'audit_to': None}
 

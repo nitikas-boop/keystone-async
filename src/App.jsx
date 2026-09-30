@@ -15,7 +15,7 @@ export default function App() {
             onSignOut={signOut}
             onHome={signOut}
             extraViews={[...P1.views, ...P2.views]}
-            headerExtras={<P1.HeaderExtras user={user} />}
+            headerExtras={<>{P2.HeaderWidget && <P2.HeaderWidget currentUser={user} />}<P1.HeaderExtras user={user} /></>}
           />
         )}
       </P1.AuthGate>

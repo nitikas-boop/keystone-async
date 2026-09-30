@@ -7,7 +7,7 @@ import secrets
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from . import ip, spawn
+from . import ip
 from .. import comms, config, contracts, db, identity, plugins
 
 router = APIRouter(tags=['p1 auth'])
@@ -54,7 +54,7 @@ def set_session(request: Request, response: Response, token: str, max_age: int):
 
 def start_session(request: Request, response: Response, user: dict):
     set_session(request, response, identity.make_token(user['user_id']), config.SESSION_HOURS * 3600)
-    spawn(contracts.on_login.fire(user), user)  # model warm-up and directory scan; never delays the response
+    contracts.on_login.fire(user)  # model warm-up and directory scan, in the background: never delays the response
 
 
 async def _new_user(c, org_id: str, body, pw_hash: str) -> str:
@@ -181,6 +181,9 @@ async def demo_login(body: DemoIn, request: Request, response: Response):
 
 @router.post('/auth/logout')
 async def logout(response: Response):
+    u = contracts.current_user()
+    if u and u.get('user_id') and not u.get('anonymous'):
+        contracts.on_logout.fire(u)  # e.g. release the warmed-up model
     response.delete_cookie(identity.COOKIE, path='/')
     return {'ok': True}
 

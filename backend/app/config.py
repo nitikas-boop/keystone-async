@@ -58,3 +58,9 @@ DEMO_LOGIN = E('DEMO_LOGIN', '1' if DEMO_SEED else '0') == '1'
 PAIRING_TTL_SECONDS = int(E('PAIRING_TTL_SECONDS', '60'))
 
 # --- P2 --- (knowledge, conflicts, reasoning)
+KEYSTONE_DIR = E('KEYSTONE_DIR', 'data/keystone')        # L2 sign-in scan root: Organisation/, Team/<name>/, Groups/<name>/
+AUDIO_DIR = E('AUDIO_DIR', 'audio_store')                  # F: uploaded meeting audio (raw audio is deletable)
+MODEL_KEEP_ALIVE = E('MODEL_KEEP_ALIVE', '30m')            # L1: Ollama keep_alive while a session is active
+MODEL_IDLE_MINUTES = float(E('MODEL_IDLE_MINUTES', '15'))  # L1: unload after this long with no heartbeat
+SCAN_MAX_FILES = int(E('SCAN_MAX_FILES', '500'))           # L2: cap per scan; the next scan picks up the rest
+ANSWER_LANGUAGE = E('ANSWER_LANGUAGE', 'hi')               # I: the one extra answer language (Hindi)

@@ -5,6 +5,7 @@ import { useApp } from '../context';
 import IdChip from './IdChip';
 import { day, plural, polish, ts } from '../utils/format';
 import { displayName } from '../utils/people';
+import ScannedFiles, { AudioStamp } from '../features/p2/ScannedFiles';
 
 // Ingestion review (§6.8): facts the local model extracted from meeting notes, grouped by source document and
 // sentence. The supporting sentence is shown once, highlighted inside its document. Accept, edit (PATCH, which
@@ -128,6 +129,7 @@ export default function IngestionReview({ onNotify, auditLogs = [], onChanged, r
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <ScannedFiles key={refreshKey} onNotify={onNotify} onChanged={() => { load(); if (onChanged) onChanged(); }} />
         {error && <p className="text-rose-700 text-[13px]">Could not load extractions: {error}</p>}
         {!error && rows === null && <p className="text-[#64748B] text-[13px]">Loading…</p>}
 
@@ -169,7 +171,10 @@ export default function IngestionReview({ onNotify, auditLogs = [], onChanged, r
               <div className="divide-y divide-slate-100">
                 {g.sentences.map(s => (
                   <div key={s.key} className="p-3 grid grid-cols-1 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] gap-3">
-                    <Context raw={docs[g.doc]} span={s.span} />
+                    <div>
+                      <Context raw={docs[g.doc]} span={s.span} />
+                      <AudioStamp docId={g.doc} raw={docs[g.doc]} span={s.span} />
+                    </div>
                     <ul className="space-y-2">
                       {s.facts.map(f => (
                         <Fact key={f.id} f={f} subject={subject} team={team} review={reviewOf[String(f.id)]}

@@ -10,9 +10,9 @@ from typing import Any, Dict, List, Optional
 import importlib
 
 try:
-    from app import config, db, graph
+    from app import config, db, graph, grounding
 except ImportError:
-    from .. import config, db, graph
+    from .. import config, db, graph, grounding
 
 from .base import BaseRetrievalAdapter, EdgeRecord, NodeRecord, RetrievalResult, SourceRecord
 
@@ -113,6 +113,13 @@ class GraphitiRetrievalAdapter(BaseRetrievalAdapter):
         for r in ranked:
             if r['score'] >= self.relevance_min:
                 seeds += [k for k in r['keys'] if k not in seeds]
+        # A hybrid-search hit whose title shares a content word with the question ("aws" -> "Move from AWS to ...")
+        # is evidence even when its cosine is low: nomic-embed-text scores short titles in a narrow band, so the
+        # threshold alone refused on-topic questions. Off-topic names are refused earlier (app/grounding.py).
+        words = grounding.content_words(question)
+        seeds += [k for k in (n.attributes.get('key') for n in res.nodes
+                              if set(grounding.WORD.findall((n.name or '').lower())) & set(words))
+                  if k and k not in seeds]
         seeds = seeds[:10]
 
         if not seeds:

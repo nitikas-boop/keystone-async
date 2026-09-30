@@ -16,7 +16,8 @@ from app import config, db, graph, ingest  # noqa: E402  (config reads the envir
 
 TEST_GROUP = 'keystone-test'
 TEST_ENV = {**os.environ, 'DATABASE_URL': os.environ.get('TEST_DATABASE_URL', 'postgresql://keystone_test:keystone_test_dev@localhost:5433/keystone_test'), 'GROUP_ID': TEST_GROUP,
-            'VAULT_DIR': '/tmp/keystone-test-vault', 'OUTBOX_DIR': '/tmp/keystone-test-outbox'}
+            'VAULT_DIR': '/tmp/keystone-test-vault', 'OUTBOX_DIR': '/tmp/keystone-test-outbox',
+            'KEYSTONE_DIR': '/tmp/keystone-test-scan', 'AUDIO_DIR': '/tmp/keystone-test-audio'}
 
 
 TEST_POLICIES = [

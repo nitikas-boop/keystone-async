@@ -19,6 +19,9 @@ import {
 } from 'lucide-react';
 import { DEMO_QUERIES } from '../data/demoQueries';
 import { ask, transcribe } from '../api';
+import { useTranslation } from 'react-i18next';
+import { SlashResult, parseSlash, runSlash, SLASH_HELP } from '../features/p2/Slash';
+import { translateAnswer } from '../api/p2';
 import { startRecording } from '../utils/recorder';
 import { day, plural, polish, ts } from '../utils/format';
 import IdChip from './IdChip';
@@ -87,6 +90,19 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
     if (onQueryExecuted && demo?.asOfDateSuggested) onQueryExecuted(demo);
     const startedAt = Date.now();
     setPending({ asOf, startedAt });
+    const slash = parseSlash(queryText);
+    if (slash) {
+      // Slash commands (D): /whatif runs the dry-run simulator; the rest read server-filtered records.
+      try {
+        const out = await runSlash(slash, queryText, asOf, { onAsOf: (d) => onQueryExecuted?.({ asOfDateSuggested: d }) });
+        push({ role: 'assistant', slash: out, seconds: (Date.now() - startedAt) / 1000 });
+      } catch (err) {
+        push({ role: 'assistant', error: err });
+      } finally {
+        setPending(null);
+      }
+      return;
+    }
     try {
       const res = await ask(queryText, asOf, sessionId);
       if (onNodeHighlight && res.highlight_nodes) onNodeHighlight(res.highlight_nodes);
@@ -206,6 +222,7 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
               const askedBy = msg.linked ? (row ? displayName(row.actor, team) : null) : viewer && `${viewer.name} (${viewer.role})`;
               return <Answer res={msg.res} onCitationClick={onCitationClick} actions={<AnswerActions res={msg.res} auditRow={row} askedBy={askedBy} />} />;
             })()}
+            {msg.slash && <SlashResult out={msg.slash} onCitationClick={onCitationClick} />}
             {msg.error && <ErrorCard err={msg.error} />}
           </div>
           );
@@ -236,7 +253,7 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a question…"
+            placeholder="Ask a question or type /whatif…"
             aria-label="Question for Keystone"
             rows={Math.min(4, Math.max(1, Math.ceil(inputValue.length / 60)))}
             className="w-full bg-[#F8FAFC] border border-slate-300 rounded-lg pl-3 pr-28 py-2.5 text-[13px] leading-snug text-[#0F172A] placeholder-[#64748B] focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-300 resize-none overflow-hidden font-sans"
@@ -262,6 +279,7 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
             </button>
           </div>
         </div>
+        <p className="mt-1 text-[11.5px] text-[#475569]">{SLASH_HELP}</p>
         <Sovereignty health={health} />
       </div>
     </div>
@@ -296,7 +314,7 @@ function Answer({ res, onCitationClick, actions }) {
   const checks = res.compliance || [];
   return (
     <div className="max-w-[92%] rounded-xl p-3.5 bg-white border border-slate-200 text-[13px] text-[#1E293B] leading-relaxed space-y-2">
-      {(res.sentences || []).map((s, i) => <Sentence key={i} s={s} onCitationClick={onCitationClick} />)}
+      <Translated res={res} onCitationClick={onCitationClick} />
       {!(res.sentences || []).length && <p>{polish(res.answer)}</p>}
       {res.warnings?.length > 0 && (
         <p className="p-2 rounded-md badge-note-amber text-[12.5px] flex items-start gap-1.5">
@@ -375,6 +393,37 @@ function AnswerActions({ res, auditRow, askedBy }) {
       {done === 'failed' && <span className="text-[12px] text-rose-700">The browser blocked it.</span>}
       {done && done !== 'failed' && <span className="text-[12px] text-emerald-700">{done === 'download' ? 'Saved' : 'Copied'}</span>}
     </div>
+  );
+}
+
+// I: when the UI language is Hindi, the answer is translated on the backend sentence by sentence. The citation
+// chips come from the original answer, never from the translation; "Show English" switches back.
+function Translated({ res, onCitationClick }) {
+  const { t, i18n } = useTranslation();
+  const [got, setGot] = useState(null);  // {lang, sentences, latency_ms} | {lang, error}
+  const [showOriginal, setShowOriginal] = useState(false);
+  const lang = i18n.language;
+  const tr = got?.lang === lang ? got : null;  // a translation into another language is never shown
+  useEffect(() => {
+    if (lang === 'en' || !res.answer_id) return undefined;
+    let alive = true;
+    translateAnswer(res.answer_id, lang).then(x => alive && setGot({ ...x, lang }))
+      .catch(e => alive && setGot({ lang, error: e.message }));
+    return () => { alive = false; };
+  }, [lang, res.answer_id]);
+  const original = (res.sentences || []).map((s, i) => <Sentence key={i} s={s} onCitationClick={onCitationClick} />);
+  if (lang === 'en') return original;
+  return (
+    <>
+      {tr?.sentences && !showOriginal ? tr.sentences.map((s, i) => <Sentence key={i} s={s} onCitationClick={onCitationClick} />) : original}
+      <p className="text-[11.5px] text-[#64748B] flex gap-2">
+        {!tr && t('translate.working')}
+        {tr?.error && `Translation unavailable: ${tr.error}`}
+        {tr?.sentences && <>{t('translate.showing')} ({(tr.latency_ms / 1000).toFixed(1)} s, local model) ·
+          <button className="text-[#0369A1] underline" onClick={() => setShowOriginal(o => !o)}>
+            {showOriginal ? t('translate.translated') : t('translate.original')}</button></>}
+      </p>
+    </>
   );
 }
 

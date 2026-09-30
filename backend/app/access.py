@@ -15,11 +15,13 @@ from . import config, db
 ROLES = ('owner', 'lead', 'member', 'compliance', 'auditor')
 READ_ALL = {'owner', 'compliance'}
 PROJECT_TEAM: dict[str, dict[str, str]] = {}  # org_id -> {project name: team id}, refreshed per request
+TEAM_BY_NAME: dict[str, dict[str, str]] = {}  # org_id -> {lower-case team name or id: team id}
 
 
 async def refresh_projects(org_id: str):
-    rows = await db.pool.fetch('SELECT id, unnest(projects) AS p FROM teams WHERE org_id = $1', org_id)
-    PROJECT_TEAM[org_id] = {r['p']: r['id'] for r in rows}
+    rows = await db.pool.fetch('SELECT id, name, projects FROM teams WHERE org_id = $1', org_id)
+    PROJECT_TEAM[org_id] = {p: r['id'] for r in rows for p in r['projects']}
+    TEAM_BY_NAME[org_id] = {k.lower(): r['id'] for r in rows for k in (r['name'], r['id'])}
 
 
 def _org() -> str:
@@ -34,9 +36,20 @@ def item_date(src: dict) -> str | None:
 
 
 def label_for(source: dict) -> dict:
-    project = source.get('project')
-    return {'team': source.get('team') or PROJECT_TEAM.get(_org(), {}).get(project), 'project': project,
-            'visibility': source.get('visibility') or 'org', 'date': item_date(source)}
+    """Explicit visibility wins. A scanned file's folder scope decides otherwise: Organisation/ -> org,
+    Team/... -> team (the scanning user's team), Groups/... -> restricted."""
+    project, scope = source.get('project'), source.get('scope') or 'org'
+    named = TEAM_BY_NAME.get(_org(), {})
+    team = named.get(str(source.get('team') or '').lower()) or source.get('team') or PROJECT_TEAM.get(_org(), {}).get(project)
+    vis = source.get('visibility')
+    if not vis:
+        if scope.lower() in ('org', 'organisation'):
+            vis = 'org'
+        elif scope.lower().startswith('team:') and (tid := named.get(scope.split(':', 1)[1].lower())):
+            vis, team = 'team', tid  # Team/<name>/ of a real team
+        else:
+            vis = 'restricted'  # a group folder, or a team folder no team matches: nobody is widened by accident
+    return {'team': team, 'project': project, 'visibility': vis, 'date': item_date(source)}
 
 
 def can_access(user: dict | None, resource: dict, action: str = 'read') -> bool:
@@ -69,7 +82,7 @@ def can_access(user: dict | None, resource: dict, action: str = 'read') -> bool:
 
 def resource_of(props: dict, org_id: str | None = None) -> dict:
     """A graph node's (or edge's) property dict as a can_access resource."""
-    return {'type': props.get('type') or 'edge', 'id': props.get('key') or props.get('uuid'),
+    return {'type': props.get('type') or 'edge', 'id': props.get('key') or props.get('id') or props.get('uuid'),
             'org_id': org_id, **label_for(props)}
 
 

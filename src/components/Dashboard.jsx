@@ -43,7 +43,7 @@ import {
   fetchGraphView,
   fetchTeam,
   healthCheck,
-  setCurrentUser
+  setCurrentUser,
 } from '../api';
 
 const VIEWS = [
@@ -115,6 +115,11 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
   // Sync current user with api.js X-User header
   useEffect(() => { setCurrentUser(userKey); }, [userKey]);
+  // Stub sign-in hooks (Commit 0): fires on_login (model warm-up, directory scan) without waiting on it. Logout fires
+  // only on an explicit sign-out: an effect cleanup would also run under StrictMode, and the requests can then reach
+  // the server as login, login, logout.
+  // Sign-in and sign-out (and the on_login / on_logout hooks) happen in Person 1's AuthGate, not here.
+  const signOut = onSignOut;
 
   useEffect(() => { fetchTeam().then(setTeam).catch(() => setTeam([])); }, []);
 
@@ -372,7 +377,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
               <span className="hidden min-[1280px]:inline text-[#64748B] text-[11.5px]">{currentUser.role} · <span className="font-mono">{currentUser.id}</span></span>
             </div>
             <button
-              onClick={onSignOut}
+              onClick={signOut}
               className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-[#64748B] hover:text-rose-600 transition-colors cursor-pointer"
               title="Sign out"
               aria-label="Sign out"
@@ -527,9 +532,10 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
           </div>
         )}
 
-        {extraViews.filter(v => v.id === activeView).map(v => (
+        {extraViews.filter(v => v.render && v.id === activeView).map(v => (
           <div key={v.id} className="flex-1 h-full min-h-0 overflow-y-auto">
-            {v.render({ currentUser, asOfDate, notify: showNotification })}
+            {v.render({ asOfDate, currentUser, notify: showNotification, refreshKey: policyRefresh, auditLogs,
+                        onChanged: () => { loadAudit(); loadPendingFacts(); loadProposals(); setPolicyRefresh(k => k + 1); } })}
           </div>
         ))}
       </div>

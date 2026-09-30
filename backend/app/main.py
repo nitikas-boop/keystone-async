@@ -58,10 +58,13 @@ app.middleware('http')(contracts.bind_user)
 app.add_middleware(CORSMiddleware, allow_origin_regex=config.CORS_ORIGIN_REGEX, allow_credentials=True,
                    allow_methods=['*'], allow_headers=['*'])
 app.include_router(views.router)
+app.include_router(contracts.router)  # Person 2's stub /contracts/login|logout (fires the hooks)
 # Each person's routers are discovered, so neither edits this file again (KEYSTONE-BUILD-SPLIT.md section 4).
 for _pkg in ('routers_p1', 'routers_p2'):
     for _m in sorted(pkgutil.iter_modules([str(Path(__file__).parent / _pkg)]), key=lambda m: m.name):
-        app.include_router(importlib.import_module(f'.{_pkg}.{_m.name}', __package__).router)
+        _mod = importlib.import_module(f'.{_pkg}.{_m.name}', __package__)
+        if hasattr(_mod, 'router'):  # helper modules without a router are skipped
+            app.include_router(_mod.router)
 
 
 def _can(resource: dict, action: str = 'read') -> bool:

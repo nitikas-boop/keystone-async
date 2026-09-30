@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from . import compliance, config, db, llm
+from . import compliance, config, db, grounding, llm
 from .memory import conversation_memory
 from .prompts import ANSWER_REFUSAL_SENTENCE, REASONING_SYSTEM_PROMPT
 from .retrieval import BaseRetrievalAdapter, get_retrieval_adapter
@@ -138,6 +138,14 @@ class ReasoningEngine:
         # retrieve with the recent questions first; fall back to the question alone if that finds nothing.
         # A standalone question gets no history at all: earlier turns in retrieval or the prompt only add noise
         # (the AWS answer lost its decision date after an Atlas question in the same session).
+        reader = actor.removeprefix('user:') in config.RESTRICTED_READERS
+        if await grounding.unrecorded(question, reader):
+            # The question names something no visible record mentions: the ordinary refusal, before any retrieval
+            # (a 7B model otherwise answers a nearby decision instead of "no recorded decision").
+            return await self._format_response(
+                question=question, as_of=as_of, actor=actor, sentences=[], sources={}, subgraph_nodes=[],
+                subgraph_edges=[], checks=[], refused=True, ranked=[],
+                threshold=getattr(self.adapter, 'relevance_min', 0.0), session_id=session_id)
         history = conversation_memory.get_history(session_id) if session_id and is_follow_up(question) else []
         user_queries = [m.content for m in history if m.role == 'user']
         retrieval = None
@@ -145,7 +153,7 @@ class ReasoningEngine:
             retrieval = await self.adapter.retrieve(f"{' '.join(user_queries[-2:])} {question}", as_of)
         if retrieval is None or retrieval.is_empty:
             retrieval = await self.adapter.retrieve(question, as_of)
-        if actor.removeprefix('user:') not in config.RESTRICTED_READERS:
+        if not reader:
             retrieval = drop_restricted(retrieval)
 
         subgraph_nodes = [n.to_dict() for n in retrieval.nodes]

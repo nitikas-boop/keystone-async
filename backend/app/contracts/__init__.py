@@ -3,16 +3,18 @@
 Signatures are frozen (KEYSTONE-BUILD-SPLIT.md sections 5 and 6). Person 1 replaces the stub bodies; Person 2 calls
 these from day one, so nothing needs rework at merge. Stubs are permissive: a fixed demo owner, everything visible.
 
-Agreed shapes:
-  user     = {user_id, org_id, role, team_id}          role: owner | lead | member | compliance | auditor
+Agreed shapes (both Commit 0s, merged):
+  user     = {user_id, org_id, role, team_id, actor}   role: owner | lead | member | compliance | auditor
+             user_id is users.id ('priya'); actor is the audit actor ('user:priya'); person_key the graph Person
   resource = {type, id, team, project, visibility}     visibility: org | team | restricted
   rule     = see app/plugins (rule-pack YAML format)
 """
+import asyncio
 import logging
 from contextvars import ContextVar
 from types import SimpleNamespace
 
-from fastapi import HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from .. import access, config, db, identity, plugins
@@ -21,7 +23,9 @@ log = logging.getLogger('keystone.contracts')
 # Dev-only (config.DEV_AUTH): a request with no identity at all reads as this owner, exactly as the Commit 0 stub did,
 # so tests that read without signing in keep working. It cannot write: actor() refuses it.
 DEMO_OWNER = {'user_id': 'nitika', 'org_id': config.GROUP_ID, 'role': 'owner', 'team_id': None, 'teams': [],
-              'grants': [], 'via': 'web'}
+              'grants': [], 'via': 'web', 'actor': 'user:nitika'}
+ORG_ID = config.E('ORG_ID', config.GROUP_ID)  # the default org (system processes: watcher, seed, scanner)
+USERS = {u[0] for u in identity.DEMO_USERS}   # the demo user ids (dev X-User sign-in, tests)
 ANON = {'user_id': None, 'org_id': None, 'role': 'anonymous', 'team_id': None, 'teams': [], 'grants': []}
 PUBLIC = {'/health', '/auth/login', '/auth/register', '/auth/join', '/auth/logout', '/auth/me', '/auth/demo', '/devices/claim',
           '/docs', '/docs/oauth2-redirect', '/redoc', '/openapi.json'}
@@ -36,6 +40,20 @@ def current_user() -> dict | None:
     return _user.get()
 
 
+def user_for(key: str) -> dict | None:
+    """A demo user's contract dict without a database (tests, scripts)."""
+    u = identity._demo_user(key)
+    return u and {**u, 'actor': f'user:{key}'}
+
+
+ORG_OWNERS: dict[str, list[str]] = {}  # org_id -> owner user ids, refreshed per request (org_owners is sync)
+
+
+def org_owners(org_id: str) -> list[str]:
+    """user_ids of the org's Owners (C3 authority fallback), as loaded by the latest request for that org."""
+    return sorted(ORG_OWNERS.get(org_id) or [u[0] for u in identity.DEMO_USERS if u[4] == 'owner'])
+
+
 async def bind_user(request, call_next):
     """HTTP middleware: resolves the caller once per request so current_user() works anywhere below it. Everything
     except PUBLIC needs a session: an unknown caller gets 401 before any route runs."""
@@ -46,6 +64,9 @@ async def bind_user(request, call_next):
             await access.refresh_projects(user['org_id'])
             if user['org_id'] not in plugins.ENABLED:
                 await plugins.refresh(user['org_id'])
+            ORG_OWNERS[user['org_id']] = [r['user_id'] for r in await db.pool.fetch(
+                "SELECT user_id FROM memberships WHERE org_id = $1 AND role = 'owner' AND status = 'active'",
+                user['org_id'])]
     except Exception as e:  # outside surface_errors: say why instead of a bare 500 (e.g. P1 migrations not applied)
         log.exception('resolving the caller failed')
         return JSONResponse({'detail': f'cannot resolve the signed-in user: {type(e).__name__}: {e}'}, 500)
@@ -121,34 +142,47 @@ async def log_view(resource: dict) -> None:
 # ---- events ----
 
 class _Hook:
-    def __init__(self):
-        self.handlers = []
+    """register(fn); fire(user). Handlers run in the background, as `user`: firing never delays the login."""
+
+    def __init__(self, name: str):
+        self.name, self.handlers, self.tasks = name, [], set()
 
     def register(self, fn):
         self.handlers.append(fn)
         return fn
 
-    async def fire(self, user: dict):
-        """Each handler runs even if an earlier one fails; a failure is logged, never raised into the login."""
-        for fn in self.handlers:
+    def fire(self, user: dict) -> list:
+        async def run(fn):
+            _user.set(user)
             try:
                 await fn(user)
             except Exception:
-                log.exception('on_login handler %s failed', getattr(fn, '__name__', fn))
+                log.exception('%s handler %s failed', self.name, getattr(fn, '__name__', fn))
+        out = []
+        for fn in self.handlers:
+            t = asyncio.get_running_loop().create_task(run(fn))
+            self.tasks.add(t)  # keep a reference so the task is not garbage-collected mid-run
+            t.add_done_callback(self.tasks.discard)
+            out.append(t)
+        return out
 
 
-on_login = _Hook()  # Person 2 registers warm_model and scan_directory; Person 1 fires it after a real login
+on_login = _Hook('on_login')    # Person 2: warm_model, scan_directory. Person 1 fires it after sign-in.
+on_logout = _Hook('on_logout')  # Person 2: release the model. Person 1 fires it on sign-out.
 
 
-async def notify(user_id: str, kind: str, ref_id: str) -> None:
-    """In-app notification for one user (E). The text is built when it is read, so it never carries data."""
+def notify(user_id: str, kind: str, ref_id: str | None):
+    """In-app notification for one user (E); the text is built when it is read, so it never carries data.
+    Call it plain (runs in the background) or await it (the returned task)."""
     from .. import comms
-    await comms.notify(user_id, kind, ref_id)
+    return asyncio.get_running_loop().create_task(comms.notify(user_id, kind, ref_id))
 
 
-async def _audit_write(event_type: str, actor: str, payload, object_type: str = 'org', object_id: str = '',
-                       source_ids: list[str] = (), conn=None):
-    return await db.audit(actor, event_type, object_type, object_id, list(source_ids), payload, conn=conn)
+async def _audit_write(event_type: str, actor: str, payload, object_type: str = 'org', object_id='',
+                       source_ids: list[str] | None = None, conn=None):
+    """Hash-chained audit row (ids may be ints: they are stored as text)."""
+    return await db.audit(actor, event_type, object_type, str(object_id), [str(x) for x in source_ids or []], payload,
+                          conn=conn)
 
 
 audit = SimpleNamespace(write=_audit_write)
@@ -160,6 +194,24 @@ async def ingest_source(raw: str, path: str, actor: str, visibility: str = 'org'
     """The one ingestion entry point (Person 2): the result lands in Ingestion Review."""
     from .. import ingest
     return await ingest.ingest(raw, path, actor, visibility)
+
+
+# Person 2's Commit 0 stub sign-in, kept for scripts and tests: fires the hooks for the signed-in caller.
+router = APIRouter(prefix='/contracts', tags=['contracts'])
+
+
+@router.post('/login')
+async def contract_login():
+    actor()
+    on_login.fire(current_user())
+    return current_user()
+
+
+@router.post('/logout')
+async def contract_logout():
+    actor()
+    on_logout.fire(current_user())
+    return {'ok': True}
 
 
 def load_rules(org_id: str) -> list[dict]:

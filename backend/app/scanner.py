@@ -121,5 +121,5 @@ if __name__ == '__main__':
          'RET-4.2': {'fields': {}, 'checkable': False}}
     b = {**a, 'RET-2.1': {'fields': {'retention_days_max': 90}, 'checkable': True}}
     assert changed_clauses(a, b) == ['RET-2.1'] and changed_clauses(a, a) == []
-    assert IMPACT_MEANING.keys() == SEVERITY.keys()
+    assert IMPACT_MEANING.keys() == SEVERITY.keys() - {'MCP_PROPOSAL'}  # MCP proposals carry no flag
     print('scanner self-check ok')

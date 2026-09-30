@@ -1,1 +1,1 @@
-"""Person 2 routers: every module here with a `router` is included by main.py."""
+"""Person 2 routers. main.py mounts every module here that defines `router`."""
