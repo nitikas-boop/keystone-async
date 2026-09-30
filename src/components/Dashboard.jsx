@@ -115,11 +115,11 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
   // Sync current user with api.js X-User header
   useEffect(() => { setCurrentUser(userKey); }, [userKey]);
-  // Stub sign-in hooks (Commit 0): fires on_login (model warm-up, directory scan) without waiting on it.
-  useEffect(() => {
-    contractLogin().catch(() => {});
-    return () => { contractLogout().catch(() => {}); };
-  }, [userKey]);
+  // Stub sign-in hooks (Commit 0): fires on_login (model warm-up, directory scan) without waiting on it. Logout fires
+  // only on an explicit sign-out: an effect cleanup would also run under StrictMode, and the requests can then reach
+  // the server as login, login, logout.
+  useEffect(() => { contractLogin().catch(() => {}); }, [userKey]);
+  const signOut = () => { contractLogout().catch(() => {}); onSignOut(); };
 
   useEffect(() => { fetchTeam().then(setTeam).catch(() => setTeam([])); }, []);
 
@@ -350,7 +350,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
               <span className="hidden min-[1280px]:inline text-[#64748B] text-[11.5px]">{currentUser.role} · <span className="font-mono">{currentUser.id}</span></span>
             </div>
             <button
-              onClick={onSignOut}
+              onClick={signOut}
               className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-[#64748B] hover:text-rose-600 transition-colors cursor-pointer"
               title="Sign out"
               aria-label="Sign out"
