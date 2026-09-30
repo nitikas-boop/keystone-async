@@ -230,3 +230,13 @@ export async function healthCheck() {
     return null;
   }
 }
+
+// ---- Commit 0: stub sign-in hooks (Person 1 replaces with real login; Person 2's warm-up and scan run on it) ----
+
+export async function contractLogin() {
+  return send(`${API}/contracts/login`, { method: 'POST', headers: headers() });
+}
+
+export async function contractLogout() {
+  return send(`${API}/contracts/logout`, { method: 'POST', headers: headers() });
+}

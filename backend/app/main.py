@@ -1,5 +1,7 @@
 import asyncio
+import importlib
 import logging
+import pkgutil
 from contextlib import asynccontextmanager
 from datetime import date
 
@@ -12,10 +14,10 @@ from pydantic import BaseModel
 
 from .reasoning import ModelUnavailable
 from . import ask, compliance, config, db, extract, graph, ingest, scanner, stt
-from . import views
+from . import contracts, routers_p1, routers_p2, views
 
 # ponytail: hardcoded users (§9 "hardcoded auth is fine"); real auth/RBAC is roadmap
-USERS = set(config.E('KEYSTONE_USERS', 'nitika,priya,farhan,ananya,karthik').split(','))
+USERS = contracts.USERS
 
 
 def actor(x_user: str | None = Header(None)) -> str:
@@ -61,6 +63,14 @@ async def surface_errors(request, call_next):
 app.add_middleware(CORSMiddleware, allow_origin_regex=r'http://(localhost|127\.0\.0\.1)(:\d+)?',
                    allow_methods=['*'], allow_headers=['*'])
 app.include_router(views.router)
+app.include_router(contracts.router)
+# Commit 0: every module in routers_p1/ then routers_p2/ that defines `router` is mounted; neither person edits
+# this file again.
+for pkg in (routers_p1, routers_p2):
+    for m in sorted(pkgutil.iter_modules(pkg.__path__), key=lambda m: m.name):
+        mod = importlib.import_module(f'{pkg.__name__}.{m.name}')
+        if hasattr(mod, 'router'):
+            app.include_router(mod.router)
 
 
 @app.get('/health')

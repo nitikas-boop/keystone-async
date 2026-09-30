@@ -37,3 +37,13 @@ KEYSTONE_RETRIEVAL_ADAPTER = E('KEYSTONE_RETRIEVAL_ADAPTER', 'graphiti')
 # ponytail: visibility filter by user list; full RBAC / source-level ACLs are roadmap
 RESTRICTED_READERS = set(E('RESTRICTED_READERS', 'nitika,farhan,ananya').split(','))
 WHISPER_MODEL = E('WHISPER_MODEL', 'base.en')
+
+# --- P1 ---
+
+# --- P2 ---
+KEYSTONE_DIR = E('KEYSTONE_DIR', 'data/keystone')        # L2 sign-in scan root: Organisation/, Team/<name>/, Groups/<name>/
+AUDIO_DIR = E('AUDIO_DIR', 'audio_store')                  # F: uploaded meeting audio (raw audio is deletable)
+MODEL_KEEP_ALIVE = E('MODEL_KEEP_ALIVE', '30m')            # L1: Ollama keep_alive while a session is active
+MODEL_IDLE_MINUTES = float(E('MODEL_IDLE_MINUTES', '15'))  # L1: unload after this long with no heartbeat
+SCAN_MAX_FILES = int(E('SCAN_MAX_FILES', '500'))           # L2: cap per scan; the next scan picks up the rest
+ANSWER_LANGUAGE = E('ANSWER_LANGUAGE', 'hi')               # I: the one extra answer language (Hindi)

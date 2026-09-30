@@ -27,6 +27,8 @@ import DecisionRegister from './DecisionRegister';
 import PoliciesView from './PoliciesView';
 import CommandPalette from './CommandPalette';
 import { AppContext } from '../context';
+import * as p1 from '../features/p1';
+import * as p2 from '../features/p2';
 import { RESTRICTED_READERS, userKey as toUserKey } from '../utils/people';
 import { todayIST } from '../utils/format';
 import { nodeTitle } from '../utils/entities';
@@ -41,7 +43,9 @@ import {
   fetchGraphView,
   fetchTeam,
   healthCheck,
-  setCurrentUser
+  setCurrentUser,
+  contractLogin,
+  contractLogout
 } from '../api';
 
 const VIEWS = [
@@ -53,6 +57,8 @@ const VIEWS = [
   { id: 'POLICIES', label: 'Policies', short: 'Policies', Icon: BookOpen },
   { id: 'AUDIT', label: 'Audit Trail', short: 'Audit', Icon: ShieldCheck },
 ];
+// Commit 0: each person's nav group comes from their own features/pN/index.jsx; this file is not edited again.
+const ALL_VIEWS = [...VIEWS, ...p1.views, ...p2.views];
 
 export default function Dashboard({ currentUser, onSignOut, onHome }) {
   const [asOfDate, setAsOfDate] = useState(() => todayIST());
@@ -109,6 +115,11 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
   // Sync current user with api.js X-User header
   useEffect(() => { setCurrentUser(userKey); }, [userKey]);
+  // Stub sign-in hooks (Commit 0): fires on_login (model warm-up, directory scan) without waiting on it.
+  useEffect(() => {
+    contractLogin().catch(() => {});
+    return () => { contractLogout().catch(() => {}); };
+  }, [userKey]);
 
   useEffect(() => { fetchTeam().then(setTeam).catch(() => setTeam([])); }, []);
 
@@ -293,7 +304,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
         {/* View Switcher Segmented Pills */}
         <nav aria-label="Views" className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 text-[13px] shrink-0">
-          {VIEWS.map(({ id, label, short, Icon }) => (
+          {ALL_VIEWS.map(({ id, label, short, Icon }) => (
             <button
               key={id}
               onClick={() => setActiveView(id)}
@@ -318,6 +329,8 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
         {/* Right Action Icons & User Profile */}
         <div className="flex items-center gap-3 shrink-0">
+          {p1.HeaderWidget && <p1.HeaderWidget currentUser={currentUser} />}
+          {p2.HeaderWidget && <p2.HeaderWidget currentUser={currentUser} />}
           <button onClick={() => setPaletteOpen(true)} className="btn-secondary" title="Search records (Ctrl+K)" aria-label="Search records">
             <Search size={14} /> <kbd className="hidden min-[1500px]:inline font-mono text-[11px] text-[#475569]">Ctrl K</kbd>
           </button>
@@ -490,6 +503,13 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             />
           </div>
         )}
+
+        {ALL_VIEWS.filter(v => v.render && v.id === activeView).map(v => (
+          <div key={v.id} className="flex-1 h-full min-h-0">
+            {v.render({ asOfDate, currentUser, notify: showNotification, refreshKey: policyRefresh, auditLogs,
+                        onChanged: () => { loadAudit(); loadPendingFacts(); loadProposals(); setPolicyRefresh(k => k + 1); } })}
+          </div>
+        ))}
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
