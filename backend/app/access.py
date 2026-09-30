@@ -58,16 +58,25 @@ def label_for(source: dict) -> dict:
     return {'team': team, 'project': project, 'visibility': vis, 'date': item_date(source)}
 
 
+def member_projects(user: dict) -> set[str]:
+    """An employee's projects: the ones assigned to them, else every project of the teams they belong to (their
+    department). An employee in no team with projects has none."""
+    if user.get('assigned_projects'):
+        return set(user['assigned_projects'])
+    teams = set(user.get('teams', ()))
+    return {p for p, t in PROJECT_TEAM.get(user.get('org_id'), {}).items() if t in teams}
+
+
 def in_jurisdiction(user: dict, resource: dict) -> bool:
-    """An employee with assigned projects: the org chart, their projects' items, and items (policies) owned by their
-    department. Anything tied to neither (another project, another department's policy, a meeting note, a flag) is
-    outside it. Without assigned projects there is no extra limit."""
-    if user.get('role') != 'member' or not user.get('assigned_projects'):
+    """An employee (member): the org chart, their projects' items (assigned, else their department's), and items
+    (policies) owned by their department. Anything tied to neither (another department's project or policy, a
+    meeting note, a flag) is outside it, whatever its org label. Leads, compliance and the owner have no such limit."""
+    if user.get('role') != 'member':
         return True
     if (resource.get('type') or '').lower() == 'person':
         return True
     if resource.get('project'):
-        return resource['project'] in user['assigned_projects']
+        return resource['project'] in member_projects(user)
     return resource.get('team') is not None and resource['team'] in user.get('teams', ())
 
 

@@ -13,6 +13,9 @@ PID, CID = 'T-POL-W', 'T-RET-W1'
 def world(api):
     wipe()
     p2_wipe()
+    # Members see only their department's projects: Project Tango belongs to Operations (Sneha's) for this module.
+    sql("UPDATE teams SET projects = array_append(projects, 'Project Tango') WHERE id = 'team-operations' "
+        "AND NOT 'Project Tango' = ANY(projects)")
     post_doc(api, 'T-POL-W-v1.md', POLICY.format(pid=PID, v='v1', day='2024-01-15', cid=CID, n=365))
     for did, days, vis, effect in (('T-DEC-W1', 180, 'org', 'ongoing'), ('T-DEC-W2', 30, 'org', 'ongoing'),
                                    ('T-DEC-W3', 200, 'restricted', 'ongoing'), ('T-DEC-W4', 90, 'org', 'completed')):
@@ -21,6 +24,7 @@ def world(api):
     # v2 lowers the cap to 150: T-DEC-W1 (180) and restricted T-DEC-W3 (200) are flagged by the scanner
     post_doc(api, 'T-POL-W-v2.md', POLICY.format(pid=PID, v='v2', day='2025-01-01', cid=CID, n=150))
     yield api
+    sql("UPDATE teams SET projects = array_remove(projects, 'Project Tango') WHERE id = 'team-operations'")
     p2_wipe()
     wipe()
 

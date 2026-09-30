@@ -16,15 +16,20 @@ AARAV = {'user_id': 'aarav', 'org_id': 'u', 'role': 'member', 'teams': ['team-en
          'assigned_projects': ['Project Atlas']}
 
 
-def test_in_jurisdiction_unit():
+def test_in_jurisdiction_unit(monkeypatch):
     assert access.in_jurisdiction(AARAV, {'type': 'Decision', 'project': 'Project Atlas'})
     assert not access.in_jurisdiction(AARAV, {'type': 'Decision', 'project': 'Procurement'})
     assert access.in_jurisdiction(AARAV, {'type': 'Person'})                      # the org chart is public
     assert access.in_jurisdiction(AARAV, {'type': 'PolicyVersion', 'team': 'team-eng'})  # own department's policy
     assert not access.in_jurisdiction(AARAV, {'type': 'PolicyVersion', 'team': 'team-ops'})
     assert not access.in_jurisdiction(AARAV, {'type': 'MeetingNote'})            # tied to no project or department
-    plain = {**AARAV, 'assigned_projects': []}                                   # no assignment: team scope only
-    assert access.in_jurisdiction(plain, {'type': 'Decision', 'project': 'Procurement'})
+    # No assignment: the department's projects (Rohit, engineer: Engineering's, never Operations' Procurement).
+    monkeypatch.setitem(access.PROJECT_TEAM, 'u', {'Project Atlas': 'team-eng', 'Internal Ops': 'team-eng',
+                                                   'Procurement': 'team-ops'})
+    plain = {**AARAV, 'assigned_projects': []}
+    assert access.in_jurisdiction(plain, {'type': 'Decision', 'project': 'Internal Ops'})
+    assert not access.in_jurisdiction(plain, {'type': 'Decision', 'project': 'Procurement'})
+    assert not access.in_jurisdiction({**plain, 'teams': []}, {'type': 'Decision', 'project': 'Project Atlas'})
     assert access.in_jurisdiction({**AARAV, 'role': 'lead'}, {'type': 'MeetingNote'})
 
 
@@ -56,7 +61,10 @@ def test_employee_sees_only_the_assigned_project(scoped):
     assert me['approval_authority_inr'] == 0 and me['role'] == 'member'
     mine = {d['id'] for d in get(api, '/decisions', 'aarav').json()}
     assert mine == {'T-J-ATLAS'}  # Internal Ops is his department's project, but not assigned to him
-    assert {d['id'] for d in get(api, '/decisions', 'divya').json()} >= {'T-J-ATLAS', 'T-J-PROC', 'T-J-OPS'}
+    # No assignment: the department's projects. Divya (Engineering) sees Atlas and Internal Ops, never Procurement.
+    divya = {d['id'] for d in get(api, '/decisions', 'divya').json()}
+    assert divya >= {'T-J-ATLAS', 'T-J-OPS'} and 'T-J-PROC' not in divya
+    assert {d['id'] for d in get(api, '/decisions', 'priya').json()} >= {'T-J-ATLAS', 'T-J-PROC', 'T-J-OPS'}  # a lead
     g = get(api, '/graph', 'aarav').json()
     assert {n['id'] for n in g['nodes'] if n['type'] == 'Decision'} == {'T-J-ATLAS'}
     view = get(api, '/graph/view', 'aarav').json()
@@ -86,9 +94,13 @@ def test_ask_outside_jurisdiction_is_refused_with_the_contact(scoped):
     assert r['citations'] == [] and r['subgraph'] == {'nodes': [], 'edges': []}
     rows = _audit('ACCESS_DENIED_ATTEMPT', before)
     assert [(x['actor'], x['object_id'], x['object_type']) for x in rows] == [('user:aarav', 'T-J-PROC', 'question')]
+    # an engineer with no assigned project is limited to Engineering's projects: refused the same way
+    eng = httpx.post(f'{scoped}/ask', json={'question': 'Why did we sign the Zorbex contract?', 'as_of': '2025-06-01'},
+                     headers=as_('rohit'), timeout=600).json()
+    assert eng['refused'] and eng['restricted'] and eng['citations'] == [] and 'Zorbex' not in eng['answer'], eng
     # the same question from someone who may see it is answered, not refused
     ok = httpx.post(f'{scoped}/ask', json={'question': 'Why did we sign the Zorbex contract?', 'as_of': '2025-06-01'},
-                    headers=as_('divya'), timeout=600).json()
+                    headers=as_('priya'), timeout=600).json()  # the Ops lead: Procurement is her department's
     assert not ok.get('restricted')
 
 
