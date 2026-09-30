@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from . import editor, signed_in, spawn
-from .. import access, comms, contracts, db
+from .. import access, comms, contracts, db, permissions
 
 router = APIRouter(tags=['p1 chat'])
 log = logging.getLogger('keystone.chat')
@@ -21,23 +21,42 @@ async def channels(u: dict = Depends(signed_in)):
     return await comms.channels(u)
 
 
-class GroupIn(BaseModel):
+class ChannelIn(BaseModel):
     name: str
-    members: list[str]
+    topic: str | None = None
+    is_private: bool = False
+    team_id: str | None = None      # a team channel: every team member reads it, history included
+    members: list[str] = []         # a private org channel: who may read it (the creator always)
 
 
 @router.post('/channels', status_code=201)
-async def create_group(body: GroupIn, u: dict = Depends(editor)):
-    """A group channel: only its members can read, post, or see that it exists."""
-    members = set(body.members) | {u['user_id']}
+async def create_channel(body: ChannelIn, u: dict = Depends(permissions.need('channel.create'))):
+    """Executives and leads. Org scope: public (everyone) or private (its members only). Team scope: a channel of a
+    team the creator owns (executives: any team)."""
+    name = body.name.strip().lstrip('#').lower().replace(' ', '-')
+    if not name:
+        raise HTTPException(422, 'channel name is required')
     async with db.pool.acquire() as c, c.transaction():
+        if body.team_id:
+            lead = await c.fetchval('SELECT lead_id FROM teams WHERE id = $1 AND org_id = $2', body.team_id, u['org_id'])
+            if lead is None:
+                raise HTTPException(404, f'no such team {body.team_id}')
+            if lead != u['user_id']:
+                await permissions.require_cap(u, 'team.manage_any')
+        members = set(body.members) | {u['user_id']} if body.is_private and not body.team_id else set()
         for m in members:
             if not await comms.active_member(c, u['org_id'], m):
                 raise HTTPException(422, f'{m} is not an active member')
-        cid = await c.fetchval("INSERT INTO channels (org_id, name, type, created_by) VALUES ($1,$2,'group',$3) "
-                               'RETURNING id', u['org_id'], body.name.strip() or 'group', u['user_id'])
+        cid = await c.fetchval('INSERT INTO channels (org_id, name, type, team_id, topic, is_private, created_by) '
+                               'VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING RETURNING id', u['org_id'], name,
+                               'team' if body.team_id else 'global', body.team_id, body.topic,
+                               body.is_private and not body.team_id, u['user_id'])
+        if cid is None:
+            raise HTTPException(409, f'#{name} already exists')
         await c.executemany('INSERT INTO channel_members VALUES ($1,$2,$3)', [(cid, m, u['org_id']) for m in members])
-    return {'id': cid, 'name': body.name, 'type': 'group', 'members': len(members)}
+        await db.audit(f"user:{u['user_id']}", 'channel_created', 'channel', str(cid), [],
+                       {'name': name, 'team_id': body.team_id, 'is_private': body.is_private}, conn=c)
+    return next(ch for ch in await comms.channels(u) if ch['id'] == cid)
 
 
 class DmIn(BaseModel):
@@ -77,6 +96,8 @@ async def post(cid: int, body: MessageIn, u: dict = Depends(editor)):
         raise _not_found(e)
     except ValueError as e:
         raise HTTPException(422, str(e))
+    except PermissionError as e:
+        await permissions.deny(u, f'channel:{cid}', str(e), 'channel')
     if out['asks_keystone']:
         question = body.body.replace('@keystone', '').replace('@Keystone', '').strip()
         spawn(comms.answer_in_channel(u, cid, question))
@@ -100,6 +121,33 @@ async def save_thread(cid: int, body: SaveIn, u: dict = Depends(editor)):
     except ValueError as e:
         raise HTTPException(422, str(e))
     await db.audit(f"user:{u['user_id']}", 'thread_saved', 'channel', str(cid), [doc_id], {'visibility': vis})
+    spawn(_ingest_thread(u, doc_id, md, vis, participants))
+    return {'document_id': doc_id, 'visibility': vis, 'status': 'queued'}
+
+
+@router.post('/channels/{cid}/read')
+async def mark_read(cid: int, u: dict = Depends(signed_in)):
+    try:
+        await comms.channel(u, cid)
+    except LookupError as e:
+        raise _not_found(e)
+    await comms.mark_read(u, cid)
+    return {'ok': True}
+
+
+@router.post('/channels/{cid}/messages/{mid}/promote', status_code=202)
+async def promote(cid: int, mid: int, body: SaveIn, u: dict = Depends(editor)):
+    """"Promote to decision note": one message becomes a meeting note in Ingestion Review. Chat is otherwise never
+    ingested or read by the model."""
+    try:
+        doc_id, md, vis, participants = await comms.thread_markdown(u, cid, body.title.strip() or 'Decision note',
+                                                                    body.meeting_date or date.today(), only=mid)
+    except LookupError as e:
+        raise _not_found(e)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    await db.audit(f"user:{u['user_id']}", 'message_promoted', 'channel', str(cid), [doc_id],
+                   {'message_id': mid, 'visibility': vis})
     spawn(_ingest_thread(u, doc_id, md, vis, participants))
     return {'document_id': doc_id, 'visibility': vis, 'status': 'queued'}
 

@@ -532,7 +532,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
         {extraViews.filter(v => v.render && v.id === activeView).map(v => (
           <div key={v.id} className="flex-1 h-full min-h-0 overflow-y-auto">
-            {v.render({ asOfDate, currentUser, notify: showNotification, refreshKey: policyRefresh, auditLogs,
+            {v.render({ asOfDate, currentUser, notify: showNotification, refreshKey: policyRefresh, auditLogs, can,
                         onChanged: () => { loadAudit(); loadPendingFacts(); loadProposals(); setPolicyRefresh(k => k + 1); } })}
           </div>
         ))}

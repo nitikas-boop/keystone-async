@@ -8,7 +8,7 @@ import logging
 import re
 from datetime import date, datetime, timezone
 
-from . import access, db, graph
+from . import access, db, graph, permissions
 
 log = logging.getLogger('keystone.comms')
 MENTION = re.compile(r'@([a-z0-9_.-]+)')
@@ -77,17 +77,27 @@ async def notifications(user: dict, limit: int = 30) -> list[dict]:
 
 # ---- channels ----
 
+ORG_CHANNELS = [  # (name, topic, post_tier): public, org-wide; every member reads them
+    ('general', 'Anything for the whole organisation', None),
+    ('announcements', 'Company announcements (executives post, everyone reads)', 'executive'),
+    ('compliance', 'Policies, audits and regulator questions', None),
+    ('engineering', 'Engineering talk for everyone', None),
+]
+
+
 async def ensure_org_channels(c, org_id: str):
-    """#general for the org and one channel per team; idempotent."""
-    await c.execute("INSERT INTO channels (org_id, name, type, created_by) VALUES ($1, 'general', 'global', 'system') "
-                    'ON CONFLICT DO NOTHING', org_id)
-    await c.execute("INSERT INTO channels (org_id, name, type, team_id, created_by) SELECT org_id, lower(name), 'team', "
-                    "id, 'system' FROM teams WHERE org_id = $1 ON CONFLICT DO NOTHING", org_id)
+    """The org-wide channels and a first channel per team (#<team name>); idempotent."""
+    for name, topic, post_tier in ORG_CHANNELS:
+        await c.execute("INSERT INTO channels (org_id, name, type, topic, post_tier, created_by) "
+                        "VALUES ($1, $2, 'global', $3, $4, 'system') ON CONFLICT DO NOTHING", org_id, name, topic, post_tier)
+    await c.execute("INSERT INTO channels (org_id, name, type, team_id, topic, created_by) SELECT org_id, lower(name), "
+                    "'team', id, description, 'system' FROM teams t WHERE org_id = $1 "
+                    "AND NOT EXISTS (SELECT 1 FROM channels WHERE team_id = t.id) ON CONFLICT DO NOTHING", org_id)
 
 
 async def members_of(c, ch) -> set[str]:
     """Active participants of a channel. Removal from the org or the team revokes access immediately."""
-    if ch['type'] == 'global':
+    if ch['type'] == 'global' and not ch['is_private']:
         rows = await c.fetch("SELECT user_id FROM memberships WHERE org_id = $1 AND status = 'active'", ch['org_id'])
     elif ch['type'] == 'team':
         rows = await c.fetch("SELECT t.u AS user_id FROM (SELECT user_id AS u FROM team_members WHERE team_id = $1 "
@@ -118,21 +128,49 @@ async def names(c, ids) -> dict[str, str]:
     return {r['id']: r['display_name'] for r in rows} | {AGENT: 'Keystone'}
 
 
+SCOPE = {'global': 'org', 'group': 'org', 'team': 'team', 'dm': 'dm'}
+
+
+def can_post(user: dict, ch) -> bool:
+    if ch['post_tier'] == 'executive':
+        return permissions.can(user, 'post.announcements')
+    return permissions.can(user, 'chat.post')
+
+
 async def channels(user: dict) -> list[dict]:
-    rows = await db.pool.fetch('SELECT * FROM channels WHERE org_id = $1 ORDER BY type, name', user['org_id'])
+    """The channels this user may read, each with its scope (org | team | dm), unread count and last activity."""
+    rows = await db.pool.fetch(
+        'SELECT c.*, t.name AS team_name, rs.last_read_at, '
+        '(SELECT max(created_at) FROM messages WHERE channel_id = c.id) AS last_at, '
+        '(SELECT count(*) FROM messages m WHERE m.channel_id = c.id AND m.sender_id <> $2 '
+        " AND m.created_at > coalesce(rs.last_read_at, '-infinity')) AS unread, "
+        '(SELECT count(*) FROM messages m WHERE m.channel_id = c.id AND m.sender_id <> $2 '
+        " AND m.created_at > coalesce(rs.last_read_at, '-infinity') AND m.body ~ ('@' || $2 || '\\M')) AS mentions "
+        'FROM channels c LEFT JOIN teams t ON t.id = c.team_id '
+        'LEFT JOIN read_state rs ON rs.channel_id = c.id AND rs.user_id = $2 '
+        'WHERE c.org_id = $1 ORDER BY c.type, c.name', user['org_id'], user['user_id'])
     out = []
     for ch in rows:
         members = await members_of(db.pool, ch)
         if not access.can_access(user, {'type': 'channel', 'id': str(ch['id']), 'org_id': ch['org_id'],
                                         'members': members}):
             continue
-        name = ch['name']
+        name, others = ch['name'], []
         if ch['type'] == 'dm':
-            others = await names(db.pool, members - {user['user_id']})
-            name = ', '.join(sorted(set(others.values()) - {'Keystone'})) or 'Just you'
-        out.append({'id': ch['id'], 'name': name, 'type': ch['type'], 'team_id': ch['team_id'],
-                    'members': len(members)})
+            who = await names(db.pool, members - {user['user_id']})
+            others = sorted(who.keys() - {AGENT})
+            name = ', '.join(sorted(set(who.values()) - {'Keystone'})) or 'Just you'
+        out.append({'id': ch['id'], 'name': name, 'type': ch['type'], 'scope': SCOPE[ch['type']],
+                    'team_id': ch['team_id'], 'team_name': ch['team_name'], 'topic': ch['topic'],
+                    'is_private': ch['is_private'] or ch['type'] in ('group', 'dm'), 'members': len(members),
+                    'with': others, 'unread': ch['unread'], 'mentions': ch['mentions'],
+                    'last_at': ch['last_at'] and ch['last_at'].isoformat(), 'can_post': can_post(user, ch)})
     return out
+
+
+async def mark_read(user: dict, cid: int):
+    await db.pool.execute('INSERT INTO read_state (user_id, channel_id, last_read_at) VALUES ($1, $2, now()) '
+                          'ON CONFLICT (user_id, channel_id) DO UPDATE SET last_read_at = now()', user['user_id'], cid)
 
 
 async def dm_channel(c, org_id: str, users: list[str], created_by: str) -> int:
@@ -169,7 +207,9 @@ async def cards(refs: list[str]) -> dict[str, dict]:
 
 
 async def messages(user: dict, cid: int, after: int = 0) -> list[dict]:
+    """Reading a channel marks it read for this user."""
     await channel(user, cid)
+    await mark_read(user, cid)
     rows = await db.pool.fetch('SELECT * FROM (SELECT * FROM messages WHERE channel_id = $1 AND id > $2 '
                                'ORDER BY id DESC LIMIT 200) m ORDER BY id', cid, after)
     who = await names(db.pool, {r['sender_id'] for r in rows} | {r['approved_by'] for r in rows if r['approved_by']})
@@ -189,6 +229,8 @@ async def post(user: dict, cid: int, body: str, ref: str | None = None) -> dict:
         raise LookupError(f'no such item {ref}')  # you can only share what you can see
     async with db.pool.acquire() as c, c.transaction():
         ch = await channel(user, cid, c)
+        if not can_post(user, ch):
+            raise PermissionError(permissions.MESSAGES['post.announcements'] if ch['post_tier'] else 'read-only access')
         members = await members_of(c, ch)
         mid = await c.fetchval('INSERT INTO messages (org_id, channel_id, sender_id, body, ref_node_id) '
                                'VALUES ($1,$2,$3,$4,$5) RETURNING id', ch['org_id'], cid, user['user_id'], body, ref)
@@ -243,18 +285,21 @@ async def answer_in_channel(user: dict, cid: int, question: str):
 VIS = {'global': 'org', 'team': 'team', 'group': 'restricted', 'dm': 'restricted'}
 
 
-async def thread_markdown(user: dict, cid: int, title: str, meeting_date: date) -> tuple[str, str, str, list[str]]:
-    """The thread as a meeting_note document: (doc_id, markdown, visibility, participants). Its scope follows the
-    channel: #general -> org, a team channel -> that team, a group or DM -> restricted plus a grant per participant."""
+async def thread_markdown(user: dict, cid: int, title: str, meeting_date: date,
+                          only: int | None = None) -> tuple[str, str, str, list[str]]:
+    """The thread (or, with `only`, one promoted message: a decision note) as a meeting_note document: (doc_id,
+    markdown, visibility, participants). Its scope follows the channel: a public org channel -> org, a team channel
+    -> that team, a private channel, group or DM -> restricted plus a grant per participant."""
     ch = await channel(user, cid)
-    rows = await db.pool.fetch('SELECT * FROM messages WHERE channel_id = $1 ORDER BY id', cid)
+    rows = await db.pool.fetch('SELECT * FROM messages WHERE channel_id = $1 AND ($2::bigint IS NULL OR id = $2) '
+                               'ORDER BY id', cid, only)
     if not rows:
-        raise ValueError('the conversation is empty')
+        raise ValueError('no such message' if only else 'the conversation is empty')
     who = await names(db.pool, {r['sender_id'] for r in rows})
     people = await db.pool.fetch('SELECT id, person_key FROM users WHERE id = ANY($1)', list(who))
     attendees = [p['person_key'] or p['id'] for p in people]
-    doc_id = f"MTG-CHAT-{cid}-{datetime.now(timezone.utc):%Y%m%d%H%M%S}"
-    vis = VIS[ch['type']]
+    doc_id = f"MTG-CHAT-{cid}-{f'M{only}-' if only else ''}{datetime.now(timezone.utc):%Y%m%d%H%M%S}"
+    vis = 'restricted' if ch['is_private'] else VIS[ch['type']]
     lines = [f"**{who.get(r['sender_id'], r['sender_id'])}** ({r['created_at']:%Y-%m-%d %H:%M}): {r['body']}"
              for r in rows]
     fm = [f'doc_type: meeting_note', f'doc_id: {doc_id}', f'title: "{title.replace(chr(34), chr(39))}"',
@@ -262,7 +307,8 @@ async def thread_markdown(user: dict, cid: int, title: str, meeting_date: date) 
           'source: chat']
     if ch['type'] == 'team':
         fm.append(f"team: {ch['team_id']}")
-    md = '---\n' + '\n'.join(fm) + f'\n---\n# {title}\n\nSaved from a Keystone chat thread.\n\n' + '\n\n'.join(lines) + '\n'
+    note = 'Promoted from a Keystone chat message as a decision note.' if only else 'Saved from a Keystone chat thread.'
+    md = '---\n' + '\n'.join(fm) + f'\n---\n# {title}\n\n{note}\n\n' + '\n\n'.join(lines) + '\n'
     return doc_id, md, vis, [p['id'] for p in people]
 
 

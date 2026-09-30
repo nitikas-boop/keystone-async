@@ -204,6 +204,10 @@ async def ensure_seed():
             have = {r['id'] for r in await db.pool.fetch('SELECT id FROM users WHERE org_id = $1', config.GROUP_ID)}
             if empty or (have and {u[0] for u in DEMO_USERS} - have):
                 await _seed(have)
+        from . import comms
+        async with db.pool.acquire() as c, c.transaction():  # org channels added since an org was created
+            for o in await c.fetch('SELECT id FROM organizations'):
+                await comms.ensure_org_channels(c, o['id'])
         _seeded = True
 
 

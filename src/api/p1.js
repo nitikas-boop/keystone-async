@@ -78,7 +78,10 @@ export async function requestAccess(userId, what) {
 
 // ---- E: chat and notifications ----
 export const channels = () => call('GET', '/channels');
-export const createGroup = (name, memberIds) => call('POST', '/channels', { name, members: memberIds });
+// body: {name, topic, is_private, team_id?, members?} (executives and leads)
+export const createChannel = (body) => call('POST', '/channels', body);
+export const markRead = (cid) => call('POST', `/channels/${cid}/read`);
+export const promoteMessage = (cid, mid, title, meeting_date) => call('POST', `/channels/${cid}/messages/${mid}/promote`, { title, meeting_date });
 export const openDm = (userIds) => call('POST', '/channels/dm', { user_ids: userIds });
 export const messages = (cid, after = 0) => call('GET', `/channels/${cid}/messages${q({ after })}`);
 export const postMessage = (cid, body, ref) => call('POST', `/channels/${cid}/messages`, { body, ref: ref || null });
