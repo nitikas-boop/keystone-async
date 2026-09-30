@@ -4,215 +4,296 @@
 @source "../src";
 @source "../index.html";
 
+/* Keystone palette (the landing poster): one set of tokens for every screen. Exposed as Tailwind colours
+   (bg-ks-surface, text-ks-muted, border-ks-line …) and mirrored for SVG/three.js in src/theme.js.
+   Rules: umber and brown are never small text; red means a problem and nothing else. */
+@theme {
+  --color-ks-bg: #11100D;          /* smoky black: page background */
+  --color-ks-surface: #1B1915;     /* panels and cards */
+  --color-ks-raised: #24211C;      /* rows, inputs, hover */
+  --color-ks-raised-2: #2D2923;    /* pressed / selected neutrals */
+  --color-ks-line: rgba(237, 227, 210, 0.08);
+  --color-ks-line-strong: rgba(237, 227, 210, 0.16);
+  --color-ks-text: #EDE3D2;        /* warm cream body text (13.8:1 on surface) */
+  --color-ks-text-2: #CFC5B4;      /* strong secondary text */
+  --color-ks-muted: #828D85;       /* dolphin gray: secondary text */
+  --color-ks-subtle: #7F858B;      /* old silver: borders, superseded / expired */
+  --color-ks-umber: #7B3221;       /* fills only: edges, accents, restricted chips */
+  --color-ks-brown: #AC5840;       /* large text, buttons, decision fills */
+  --color-ks-orange: #EE7A45;      /* primary accent: links, focus, highlights */
+  --color-ks-red: #E4483B;         /* breach / action needed: fills, borders, icons */
+  --color-ks-red-text: #EE6A5E;    /* the same red, lifted for small text (5.7:1) */
+  --color-ks-gold: #F2C46D;        /* informational, key numbers */
+  --color-ks-stone: #D6C7B0;       /* limestone: clauses */
+  --color-ks-ok: #A7B5AA;          /* compliant (light sage) */
+  --color-ks-on-accent: #FFF8EE;   /* text on brown / red / orange fills */
+}
+
 @layer base {
   :root {
-    --font-heading: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
+    color-scheme: dark;
+    --font-heading: 'Playfair Display', Georgia, 'Times New Roman', serif;
     --font-body: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono Variable', Consolas, monospace;
-    
-    --bg-page: #F8FAFC;
-    --bg-paper: #FFFFFF;
-    --bg-slate-tint: #F1F5F9;
-    --text-primary: #0F172A;
-    --text-muted: #64748B;
-    --border-subtle: #E2E8F0;
 
-    --brand-sky: #0284C7;
-    --brand-sky-light: #E0F2FE;
-    --brand-indigo: #6366F1;
-    --brand-indigo-light: #EEF2FF;
-    
-    --pastel-amber: #FEF3C7;
-    --pastel-amber-text: #92400E;
-    --pastel-green: #DCFCE7;
-    --pastel-green-text: #166534;
-    --pastel-lavender: #E0E7FF;
-    --pastel-lavender-text: #3730A3;
-    --pastel-rose: #FEE2E2;
-    --pastel-rose-text: #991B1B;
+    --ks-bg: var(--color-ks-bg);
+    --ks-surface: var(--color-ks-surface);
+    --ks-glass: rgba(27, 25, 21, 0.6);
+    --ks-glass-border: rgba(237, 227, 210, 0.08);
+    --ks-text: var(--color-ks-text);
+    --ks-muted: var(--color-ks-muted);
+    --ks-subtle: var(--color-ks-subtle);
+    --ks-umber: var(--color-ks-umber);
+    --ks-brown: var(--color-ks-brown);
+    --ks-orange: var(--color-ks-orange);
+    --ks-red: var(--color-ks-red);
+    --ks-gold: var(--color-ks-gold);
+    --ks-stone: var(--color-ks-stone);
+    --ks-ok: var(--color-ks-ok);
+    --ks-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+    /* Older names, re-pointed so anything still reading them is already on the palette. */
+    --bg-page: var(--color-ks-bg);
+    --bg-paper: var(--color-ks-surface);
+    --bg-slate-tint: var(--color-ks-raised);
+    --text-primary: var(--color-ks-text);
+    --text-muted: var(--color-ks-muted);
+    --border-subtle: var(--color-ks-line);
+    --brand-sky: var(--color-ks-orange);
+    --brand-sky-light: rgba(238, 122, 69, 0.12);
+    --brand-indigo: var(--color-ks-brown);
+    --brand-indigo-light: rgba(172, 88, 64, 0.16);
+    --pastel-amber: rgba(242, 196, 109, 0.12);
+    --pastel-amber-text: var(--color-ks-gold);
+    --pastel-green: rgba(167, 181, 170, 0.12);
+    --pastel-green-text: var(--color-ks-ok);
+    --pastel-lavender: rgba(242, 196, 109, 0.12);
+    --pastel-lavender-text: var(--color-ks-gold);
+    --pastel-rose: rgba(228, 72, 59, 0.12);
+    --pastel-rose-text: var(--color-ks-red-text);
   }
 
-  html {
+  html, body {
     font-family: var(--font-body);
-    background-color: var(--bg-page);
-    color: var(--text-primary);
-    scroll-behavior: smooth;
+    background-color: var(--ks-bg);
+    color: var(--ks-text);
   }
+  html { scroll-behavior: smooth; }
 
-  h1, h2, h3, h4, h5, h6, .font-heading {
+  /* Playfair Display for page titles and section headings; small uppercase labels stay in the UI sans. */
+  h1, h2, h3, .font-heading {
     font-family: var(--font-heading);
-    letter-spacing: -0.025em;
+    letter-spacing: -0.005em;
   }
+  :is(h1, h2, h3).uppercase { font-family: var(--font-body); letter-spacing: 0.04em; }
+  h4, h5, h6 { font-family: var(--font-body); }
 
   code, pre, .font-mono {
     font-family: var(--font-mono);
   }
+
+  ::selection { background: rgba(238, 122, 69, 0.35); color: var(--ks-text); }
 }
 
-/* Airy Paper Sheet & Note Card Metaphor */
+/* Glass cards: panels, modals and the inspector */
 .paper-sheet {
-  background-color: #FFFFFF;
+  background-color: var(--ks-glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border-radius: 1rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid var(--ks-glass-border);
+  box-shadow: 0 1px 0 rgba(237, 227, 210, 0.03) inset, 0 12px 32px -18px rgba(0, 0, 0, 0.7);
+  transition: border-color 0.2s var(--ks-ease), box-shadow 0.2s var(--ks-ease), background-color 0.2s var(--ks-ease);
 }
 
 .paper-sheet-elevated {
-  background-color: #FFFFFF;
+  background-color: rgba(27, 25, 21, 0.78);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border-radius: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(226, 232, 240, 0.85);
+  border: 1px solid rgba(237, 227, 210, 0.1);
+  box-shadow: 0 1px 0 rgba(237, 227, 210, 0.04) inset, 0 24px 60px -24px rgba(0, 0, 0, 0.8);
 }
 
 .paper-sheet-interactive {
-  background-color: #FFFFFF;
+  background-color: var(--ks-glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border-radius: 1rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  transition: all 0.2s ease;
+  border: 1px solid var(--ks-glass-border);
+  box-shadow: 0 12px 32px -18px rgba(0, 0, 0, 0.7);
+  transition: transform 0.2s var(--ks-ease), border-color 0.2s var(--ks-ease), box-shadow 0.2s var(--ks-ease);
 }
 
 .paper-sheet-interactive:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px -2px rgba(2, 132, 199, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  border-color: #BAE6FD;
+  border-color: rgba(238, 122, 69, 0.35);
+  box-shadow: 0 0 0 1px rgba(238, 122, 69, 0.12), 0 10px 28px -12px rgba(238, 122, 69, 0.28);
 }
 
-/* Subtle Sky-Indigo Gradient for Primary CTA */
+/* Primary CTA (the class name is historical): brown button, orange glow on hover */
 .btn-sky-gradient {
-  background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
-  color: #FFFFFF;
-  border: 1px solid rgba(2, 132, 199, 0.2);
-  box-shadow: 0 2px 8px -1px rgba(2, 132, 199, 0.25);
-  transition: all 0.2s ease;
+  background: linear-gradient(135deg, #B9613F 0%, var(--ks-brown) 100%);
+  color: #FFF8EE;
+  border: 1px solid rgba(238, 122, 69, 0.5);
+  box-shadow: 0 2px 10px -2px rgba(238, 122, 69, 0.3);
+  transition: background 0.2s var(--ks-ease), box-shadow 0.2s var(--ks-ease), transform 0.2s var(--ks-ease);
 }
 
 .btn-sky-gradient:hover {
-  background: linear-gradient(135deg, #0369A1 0%, #075985 100%);
-  box-shadow: 0 4px 12px -1px rgba(2, 132, 199, 0.35);
+  background: linear-gradient(135deg, #C66A45 0%, #B9613F 100%);
+  box-shadow: 0 0 0 3px rgba(238, 122, 69, 0.14), 0 8px 22px -8px rgba(238, 122, 69, 0.55);
   transform: translateY(-0.5px);
 }
 
-/* Gentle Pastel Notes Badges */
-.badge-note-amber {
-  background-color: #FEF3C7;
-  color: #92400E;
-  border: 1px solid #FDE68A;
+/* Status chips. One meaning per colour in every tab:
+   green = compliant (sage), rose = breach / action needed (red), amber, sky and lavender = informational (gold),
+   slate = superseded / expired (old silver). */
+.badge-note-amber, .badge-note-sky, .badge-note-lavender {
+  background-color: rgba(242, 196, 109, 0.1);
+  color: var(--ks-gold);
+  border: 1px solid rgba(242, 196, 109, 0.28);
 }
 
 .badge-note-green {
-  background-color: #DCFCE7;
-  color: #166534;
-  border: 1px solid #BBF7D0;
-}
-
-.badge-note-lavender {
-  background-color: #E0E7FF;
-  color: #3730A3;
-  border: 1px solid #C7D2FE;
-}
-
-.badge-note-sky {
-  background-color: #E0F2FE;
-  color: #0369A1;
-  border: 1px solid #BAE6FD;
+  background-color: rgba(167, 181, 170, 0.1);
+  color: var(--ks-ok);
+  border: 1px solid rgba(167, 181, 170, 0.3);
 }
 
 .badge-note-rose {
-  background-color: #FEE2E2;
-  color: #991B1B;
-  border: 1px solid #FECACA;
+  background-color: rgba(228, 72, 59, 0.12);
+  color: var(--color-ks-red-text);
+  border: 1px solid rgba(228, 72, 59, 0.4);
 }
 
-/* Citation Pill (Paper Note Style) */
+.badge-note-slate {
+  background-color: rgba(127, 133, 139, 0.1);
+  color: #9AA0A5;
+  border: 1px solid rgba(127, 133, 139, 0.28);
+}
+
+/* Restricted: burnt-umber chip with cream text (pair with a lock icon). */
+.badge-restricted {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  background-color: var(--ks-umber);
+  color: var(--ks-text);
+  border: 1px solid rgba(238, 122, 69, 0.25);
+}
+
+/* Citation Pill */
 .citation-pill-paper {
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  background-color: #F1F5F9;
-  color: #0369A1;
-  border: 1px solid #CBD5E1;
+  background-color: rgba(238, 122, 69, 0.08);
+  color: var(--ks-orange);
+  border: 1px solid rgba(238, 122, 69, 0.28);
   padding: 0.15rem 0.5rem;
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s var(--ks-ease), border-color 0.15s var(--ks-ease), box-shadow 0.15s var(--ks-ease);
 }
 
 .citation-pill-paper:hover {
-  background-color: #E0F2FE;
-  border-color: #38BDF8;
-  color: #0284C7;
-  box-shadow: 0 1px 4px rgba(2, 132, 199, 0.15);
+  background-color: rgba(238, 122, 69, 0.16);
+  border-color: rgba(238, 122, 69, 0.6);
+  box-shadow: 0 0 12px -2px rgba(238, 122, 69, 0.35);
 }
 
-/* Custom Clean Scrollbar */
+/* Source-sentence highlight: gold at ~35% behind cream text */
+.ks-highlight {
+  background-color: rgba(242, 196, 109, 0.35);
+  color: var(--ks-text);
+  border-radius: 3px;
+  padding: 0 0.15em;
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #F8FAFC;
+  background: var(--ks-bg);
 }
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: rgba(237, 227, 210, 0.14);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+  background: rgba(237, 227, 210, 0.26);
 }
 
-.badge-note-slate {
-  background-color: #F1F5F9;
-  color: #334155;
-  border: 1px solid #CBD5E1;
-}
-
-/* Shared controls. Approve (emerald, solid) is deliberately unlike the sky Ingest Document CTA. */
+/* Shared controls. Approve (sage, solid) is deliberately unlike the brown Ingest Document CTA. */
 .btn-approve {
   display: inline-flex; align-items: center; gap: 0.375rem;
   padding: 0.375rem 0.75rem; border-radius: 0.5rem; font-size: 13px; font-weight: 600;
-  background: #047857; color: #FFFFFF; border: 1px solid #065F46; cursor: pointer;
+  background: var(--ks-ok); color: #11100D; border: 1px solid #C3CEC5; cursor: pointer;
+  transition: background-color 0.18s var(--ks-ease), box-shadow 0.18s var(--ks-ease);
 }
-.btn-approve:hover { background: #065F46; }
+.btn-approve:hover { background: #B9C6BC; box-shadow: 0 0 0 3px rgba(167, 181, 170, 0.18); }
 .btn-secondary {
   display: inline-flex; align-items: center; gap: 0.375rem;
   padding: 0.3rem 0.625rem; border-radius: 0.5rem; font-size: 13px; font-weight: 500;
-  background: #FFFFFF; color: #1E293B; border: 1px solid #CBD5E1; cursor: pointer;
+  background: var(--color-ks-raised); color: var(--ks-text); border: 1px solid var(--color-ks-line-strong); cursor: pointer;
+  transition: background-color 0.18s var(--ks-ease), border-color 0.18s var(--ks-ease), box-shadow 0.18s var(--ks-ease);
 }
-.btn-secondary:hover { background: #F1F5F9; }
+.btn-secondary:hover { background: var(--color-ks-raised-2); border-color: rgba(238, 122, 69, 0.4); box-shadow: 0 0 10px -3px rgba(238, 122, 69, 0.35); }
 .btn-danger {
   display: inline-flex; align-items: center; gap: 0.375rem;
   padding: 0.3rem 0.625rem; border-radius: 0.5rem; font-size: 13px; font-weight: 500;
-  background: #FFFFFF; color: #9F1239; border: 1px solid #FDA4AF; cursor: pointer;
+  background: rgba(228, 72, 59, 0.08); color: var(--color-ks-red-text); border: 1px solid rgba(228, 72, 59, 0.45); cursor: pointer;
+  transition: background-color 0.18s var(--ks-ease);
 }
-.btn-danger:hover { background: #FFF1F2; }
-.btn-approve:disabled, .btn-secondary:disabled, .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-danger:hover { background: rgba(228, 72, 59, 0.16); }
+.btn-approve:disabled, .btn-secondary:disabled, .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 1.75rem; height: 1.75rem; border-radius: 0.5rem; color: #475569; border: 1px solid #E2E8F0; cursor: pointer;
+  width: 1.75rem; height: 1.75rem; border-radius: 0.5rem; color: var(--ks-muted); border: 1px solid var(--color-ks-line-strong); cursor: pointer;
+  transition: background-color 0.18s var(--ks-ease), color 0.18s var(--ks-ease), border-color 0.18s var(--ks-ease);
 }
-.icon-btn:hover { background: #F1F5F9; color: #0F172A; }
+.icon-btn:hover { background: var(--color-ks-raised); color: var(--ks-orange); border-color: rgba(238, 122, 69, 0.4); }
 .field {
   height: 1.875rem; padding: 0 0.5rem; border-radius: 0.5rem; font-size: 13px;
-  background: #FFFFFF; color: #0F172A; border: 1px solid #CBD5E1;
+  background: var(--color-ks-raised); color: var(--ks-text); border: 1px solid var(--color-ks-line-strong);
+  transition: border-color 0.18s var(--ks-ease), box-shadow 0.18s var(--ks-ease);
 }
-.field:focus { outline: 2px solid #0284C7; outline-offset: 0; border-color: transparent; }
+.field:focus { outline: 2px solid var(--ks-orange); outline-offset: 0; border-color: transparent; }
+.field::placeholder, input::placeholder, textarea::placeholder { color: var(--ks-muted); }
+input[type="date"], input[type="datetime-local"] { color-scheme: dark; }
 
 /* Keyboard focus is always visible. */
-:focus-visible { outline: 2px solid #0284C7; outline-offset: 2px; }
-
+:focus-visible { outline: 2px solid var(--ks-orange); outline-offset: 2px; }
 
 /* As-of slider: a 16px thumb (TemporalSlider positions its milestone markers against this width). */
 .kst-range { -webkit-appearance: none; appearance: none; height: 16px; background: transparent; cursor: pointer; }
-.kst-range::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: #CBD5E1; }
-.kst-range::-moz-range-track { height: 4px; border-radius: 4px; background: #CBD5E1; }
+.kst-range::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: var(--color-ks-raised-2); }
+.kst-range::-moz-range-track { height: 4px; border-radius: 4px; background: var(--color-ks-raised-2); }
 .kst-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%;
-  background: #0284C7; border: 2px solid #FFFFFF; box-shadow: 0 0 0 1px #0284C7; }
-.kst-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #0284C7; border: 2px solid #FFFFFF; }
+  background: var(--ks-gold); border: 2px solid var(--ks-bg); box-shadow: 0 0 0 1px var(--ks-gold), 0 0 10px rgba(242, 196, 109, 0.45); }
+.kst-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--ks-gold); border: 2px solid var(--ks-bg); }
 
 /* Graph nodes: show keyboard focus as a ring on the node, not a square box around the SVG group. */
 svg g[role="button"]:focus { outline: none; }  /* the browser draws a square box on mouse focus too */
-svg g[role="button"]:focus-visible > circle { stroke: #0284C7; stroke-width: 3; }
+svg g[role="button"]:focus-visible > circle { stroke: var(--ks-orange); stroke-width: 3; }
+
+/* Breach pulse on flagged graph nodes: opacity and scale only, so it stays cheap. */
+@keyframes ks-breach-pulse {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 0.25; transform: scale(1.35); }
+}
+.ks-breach-ring { transform-box: fill-box; transform-origin: center; animation: ks-breach-pulse 1.8s ease-in-out infinite; }
+
+/* Gentle entrance when switching tabs */
+@keyframes ks-tab-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.ks-tab-in { animation: ks-tab-in 0.22s var(--ks-ease) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ks-breach-ring, .ks-tab-in { animation: none; }
+}

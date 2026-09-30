@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Copy, Download, FlaskConical, Loader2, RefreshCw, ShieldAlert, ShieldCheck, X } from 'lucide-react';
+import { Copy, Download, FlaskConical, Loader2, Lock, RefreshCw, ShieldAlert, ShieldCheck, X } from 'lucide-react';
 import { canonicalRow, sha256, verifyAuditChain } from '../utils/crypto';
 import { verifyAuditServer } from '../api';
 import { useApp } from '../context';
@@ -94,13 +94,13 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
     <div className="flex h-full gap-4 min-h-0">
       <div className="flex-1 min-w-0 flex flex-col paper-sheet overflow-hidden">
         {/* Header + verification */}
-        <div className="px-4 py-3 bg-white border-b border-slate-100 space-y-2.5">
+        <div className="px-4 py-3 bg-ks-surface border-b border-ks-line space-y-2.5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="font-heading font-semibold text-[13px] text-[#0F172A] flex items-center gap-2">
-                <ShieldCheck size={15} className="text-emerald-700" aria-hidden="true" /> Tamper-evident audit log
+              <h2 className="font-heading font-semibold text-[13px] text-ks-text flex items-center gap-2">
+                <ShieldCheck size={15} className="text-ks-ok" aria-hidden="true" /> Tamper-evident audit log
               </h2>
-              <p className="text-[12px] text-[#64748B]">
+              <p className="text-[12px] text-ks-muted">
                 Append-only. Each block stores the SHA-256 hash of the block before it, so changing any block breaks every later link.
               </p>
             </div>
@@ -132,11 +132,11 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
               <option value="">All actions</option>
               {ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
-            <span className="flex items-center gap-1 text-[#475569]">From <DateField label="From date" placeholder="Start" value={filters.from} onChange={v => setFilters(f => ({ ...f, from: v }))} /></span>
-            <span className="flex items-center gap-1 text-[#475569]">to <DateField label="To date" placeholder="End" value={filters.to} onChange={v => setFilters(f => ({ ...f, to: v }))} /></span>
+            <span className="flex items-center gap-1 text-ks-muted">From <DateField label="From date" placeholder="Start" value={filters.from} onChange={v => setFilters(f => ({ ...f, from: v }))} /></span>
+            <span className="flex items-center gap-1 text-ks-muted">to <DateField label="To date" placeholder="End" value={filters.to} onChange={v => setFilters(f => ({ ...f, to: v }))} /></span>
             <input className="field w-44" placeholder="Object or source ID" value={filters.q} onChange={e => setFilters(f => ({ ...f, q: e.target.value }))} aria-label="Filter by object or source ID" />
-            {filtered && <button className="text-[#0369A1] underline cursor-pointer" onClick={() => setFilters({ actor: '', action: '', from: '', to: '', q: '' })}>Clear</button>}
-            <span className="ml-auto text-[#475569]">{filtered ? `${shown.length} of ${plural(rows.length, 'block')}` : plural(rows.length, 'block')}</span>
+            {filtered && <button className="text-ks-orange underline cursor-pointer" onClick={() => setFilters({ actor: '', action: '', from: '', to: '', q: '' })}>Clear</button>}
+            <span className="ml-auto text-ks-muted">{filtered ? `${shown.length} of ${plural(rows.length, 'block')}` : plural(rows.length, 'block')}</span>
             <button className="btn-secondary" onClick={() => exportRows('json')}><Download size={13} /> JSON</button>
             <button className="btn-secondary" onClick={() => exportRows('csv')}><Download size={13} /> CSV</button>
             {TAMPER_ENABLED && (
@@ -150,8 +150,8 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
         {/* Table */}
         <div className="flex-1 overflow-auto">
           <table className="w-full text-left border-collapse text-[13px]">
-            <thead className="sticky top-0 z-10 bg-slate-50">
-              <tr className="border-b border-slate-200 text-[12px] text-[#475569]">
+            <thead className="sticky top-0 z-10 bg-ks-raised">
+              <tr className="border-b border-ks-line text-[12px] text-ks-muted">
                 <th className="py-2 px-3 font-medium">Block</th>
                 <th className="py-2 px-3 font-medium">Time (IST)</th>
                 <th className="py-2 px-3 font-medium">Actor</th>
@@ -162,9 +162,9 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
                 <th className="py-2 px-3 font-medium">Hash</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-ks-line">
               {rows.length === 0 && (
-                <tr><td colSpan={8} className="py-8 text-center text-[#475569]">No audit entries yet. Asking a question or approving a proposal appends a block.</td></tr>
+                <tr><td colSpan={8} className="py-8 text-center text-ks-muted">No audit entries yet. Asking a question or approving a proposal appends a block.</td></tr>
               )}
               {shown.map(r => {
                 const parentHover = hover != null && r.pos === hover - 1;
@@ -172,14 +172,14 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
                 return (
                   <tr key={r.id} onClick={() => setDrawer(r)} onMouseEnter={() => setHover(r.pos)} onMouseLeave={() => setHover(null)}
                       tabIndex={0} onKeyDown={e => e.key === 'Enter' && setDrawer(r)}
-                      className={`cursor-pointer hover:bg-slate-50 ${broken ? 'bg-rose-50' : ''} ${drawer?.id === r.id ? 'bg-sky-50/60' : ''}`}>
+                      className={`cursor-pointer hover:bg-ks-raised ${broken ? 'bg-ks-red/10' : ''} ${drawer?.id === r.id ? 'bg-ks-orange/6' : ''}`}>
                     <td className="py-2 px-3 font-mono font-semibold whitespace-nowrap">
                       {r.pos}{broken && <span className="ml-1 text-[11.5px] font-sans font-normal px-1 rounded badge-note-rose">broken</span>}
                     </td>
-                    <td className="py-2 px-3 whitespace-nowrap font-mono text-[12px] text-[#334155]" title={ts(r.ts).full}>{ts(r.ts).ist}</td>
+                    <td className="py-2 px-3 whitespace-nowrap font-mono text-[12px] text-ks-text-2" title={ts(r.ts).full}>{ts(r.ts).ist}</td>
                     <td className="py-2 px-3 whitespace-nowrap">
                       {displayName(r.actor, team)}
-                      <span className="block font-mono text-[11px] text-[#64748B]">{r.actor}</span>
+                      <span className="block font-mono text-[11px] text-ks-muted">{r.actor}</span>
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
                       <span className={`px-1.5 py-0.5 rounded-md font-mono text-[12px] ${ACTION_STYLE[r.action] || 'badge-note-slate'}`}>{r.action}</span>
@@ -188,18 +188,18 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
                     <td className="py-2 px-3">
                       <div className="flex flex-wrap gap-1 max-w-[16rem]">
                         {r.source_ids.filter(id => !masked(id)).map(id => <IdChip key={id} id={id} />)}
-                        {r.source_ids.some(masked) && <span className="px-1.5 rounded bg-slate-100 text-[12px] text-[#475569]" title="Hidden: restricted">restricted</span>}
+                        {r.source_ids.some(masked) && <span className="px-1.5 rounded badge-restricted text-[12px]" title="Hidden: restricted"><Lock size={10} aria-hidden="true" />restricted</span>}
                       </div>
                     </td>
-                    <td className={`py-2 px-3 font-mono text-[12px] whitespace-nowrap ${hover === r.pos ? 'bg-amber-100' : ''}`}
+                    <td className={`py-2 px-3 font-mono text-[12px] whitespace-nowrap ${hover === r.pos ? 'bg-ks-gold/15' : ''}`}
                         title={r.prev_hash}>
                       {r.prev_hash === GENESIS ? <span className="font-sans">genesis (64 zeros)</span> : shortHash(r.prev_hash)}
                     </td>
-                    <td className={`py-2 px-3 font-mono text-[12px] whitespace-nowrap ${parentHover ? 'bg-amber-100' : ''}`} title={r.hash}>
+                    <td className={`py-2 px-3 font-mono text-[12px] whitespace-nowrap ${parentHover ? 'bg-ks-gold/15' : ''}`} title={r.hash}>
                       {shortHash(r.hash)}
-                      <button onClick={e => { e.stopPropagation(); copy(r.hash); }} className="ml-1 align-middle text-[#64748B] hover:text-[#0369A1] cursor-pointer"
+                      <button onClick={e => { e.stopPropagation(); copy(r.hash); }} className="ml-1 align-middle text-ks-muted hover:text-ks-orange cursor-pointer"
                               aria-label={`Copy hash of block ${r.pos}`}><Copy size={11} /></button>
-                      {copied === r.hash && <span className="ml-1 font-sans text-[11.5px] text-emerald-700">copied</span>}
+                      {copied === r.hash && <span className="ml-1 font-sans text-[11.5px] text-ks-ok">copied</span>}
                     </td>
                   </tr>
                 );
@@ -207,7 +207,7 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
             </tbody>
           </table>
         </div>
-        <p className="px-4 py-1.5 border-t border-slate-100 text-[12px] text-[#475569]">
+        <p className="px-4 py-1.5 border-t border-ks-line text-[12px] text-ks-muted">
           Hover a block: its parent hash and the previous block's hash light up together. They must be identical for the chain to hold.
         </p>
       </div>
@@ -218,31 +218,31 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
 }
 
 function VerifyCard({ title, v, kind, sim }) {
-  let body, cls = 'border-slate-200 bg-slate-50';
-  if (!v) body = <span className="text-[#475569]">Not run yet</span>;
+  let body, cls = 'border-ks-line bg-ks-raised';
+  if (!v) body = <span className="text-ks-muted">Not run yet</span>;
   else if (v.running) {
     const pct = v.total ? Math.round((v.checked / v.total) * 100) : 0;
     body = (
       <span className="flex items-center gap-2 w-full">
         <Loader2 size={13} className="animate-spin" aria-hidden="true" /> Hashing {v.checked}/{v.total}
-        <span className="flex-1 h-1.5 rounded bg-slate-200 overflow-hidden"><span className="block h-full bg-[#0284C7]" style={{ width: `${pct}%` }} /></span>
+        <span className="flex-1 h-1.5 rounded bg-ks-raised-2 overflow-hidden"><span className="block h-full bg-ks-orange" style={{ width: `${pct}%` }} /></span>
       </span>
     );
   } else if (v.error) {
-    cls = 'border-rose-200 bg-rose-50';
-    body = <span className="text-rose-800">Could not run: {v.error}</span>;
+    cls = 'border-ks-red/35 bg-ks-red/10';
+    body = <span className="text-ks-red-text">Could not run: {v.error}</span>;
   } else if (v.ok) {
-    cls = 'border-emerald-200 bg-emerald-50';
+    cls = 'border-ks-ok/30 bg-ks-ok/10';
     const n = kind === 'server' ? v.rows : v.checked;
-    body = <span className="text-[#14532D] flex items-center gap-1"><ShieldCheck size={13} aria-hidden="true" /> Valid · {plural(n, 'block')} · verified {ts(v.at).time}</span>;
+    body = <span className="text-ks-ok flex items-center gap-1"><ShieldCheck size={13} aria-hidden="true" /> Valid · {plural(n, 'block')} · verified {ts(v.at).time}</span>;
   } else {
-    cls = 'border-rose-200 bg-rose-50';
+    cls = 'border-ks-red/35 bg-ks-red/10';
     const pos = kind === 'server' ? `row id ${v.first_broken_id}` : `block ${v.brokenPos}`;
-    body = <span className="text-rose-900 flex items-center gap-1"><ShieldAlert size={13} aria-hidden="true" /> Broken at {pos} · {ts(v.at).time}</span>;
+    body = <span className="text-ks-red-text flex items-center gap-1"><ShieldAlert size={13} aria-hidden="true" /> Broken at {pos} · {ts(v.at).time}</span>;
   }
   return (
-    <div className={`rounded-lg border px-2.5 py-1.5 text-[12.5px] ${cls} ${sim ? 'ring-2 ring-amber-300' : ''}`} title={v?.message || ''}>
-      <div className="text-[12px] font-semibold text-[#334155]">{title}</div>
+    <div className={`rounded-lg border px-2.5 py-1.5 text-[12.5px] ${cls} ${sim ? 'ring-2 ring-ks-gold/50' : ''}`} title={v?.message || ''}>
+      <div className="text-[12px] font-semibold text-ks-text-2">{title}</div>
       <div className="flex items-center min-h-5">{body}</div>
     </div>
   );
@@ -252,16 +252,16 @@ function ObjectRef({ r, masked, openEntity }) {
   const id = r.object_id;
   if (r.object_type === 'proposal') return <IdChip id={`#${id}`} type="proposal" label="proposal" />;
   if (r.object_type === 'flag' || r.object_type === 'policy_version' || r.object_type === 'decision') {
-    return masked(id) ? <span className="text-[#475569]">restricted</span> : <IdChip id={id} type={r.object_type === 'decision' ? 'decision' : undefined} />;
+    return masked(id) ? <span className="px-1.5 rounded badge-restricted text-[12px]"><Lock size={10} aria-hidden="true" />restricted</span> : <IdChip id={id} type={r.object_type === 'decision' ? 'decision' : undefined} />;
   }
   if (r.object_type === 'extraction') {
     return (
-      <button className="text-[12.5px] underline decoration-dotted cursor-pointer text-[#5B21B6]" onClick={e => { e.stopPropagation(); openEntity(id, 'extraction'); }}>
+      <button className="text-[12.5px] underline decoration-dotted cursor-pointer text-ks-gold" onClick={e => { e.stopPropagation(); openEntity(id, 'extraction'); }}>
         extraction #{id}
       </button>
     );
   }
-  return <span className="text-[12.5px] text-[#334155]" title={id}>{r.object_type} <span className="font-mono text-[11.5px]">{shortHash(id, 4)}</span></span>;
+  return <span className="text-[12.5px] text-ks-text-2" title={id}>{r.object_type} <span className="font-mono text-[11.5px]">{shortHash(id, 4)}</span></span>;
 }
 
 function Drawer({ r, rows, team, masked, openEntity, onClose }) {
@@ -274,35 +274,35 @@ function Drawer({ r, rows, team, masked, openEntity, onClose }) {
   const prev = rows.find(x => x.pos === r.pos - 1);
   return (
     <aside className="w-[21rem] xl:w-[26rem] shrink-0 paper-sheet flex flex-col overflow-hidden" aria-label={`Audit block ${r.pos}`}>
-      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-        <h3 className="font-heading font-semibold text-[14px]">Block {r.pos} <span className="font-normal text-[#475569] text-[12.5px]">(database id {r.id})</span></h3>
+      <div className="px-4 py-3 border-b border-ks-line flex items-center justify-between">
+        <h3 className="font-heading font-semibold text-[14px]">Block {r.pos} <span className="font-normal text-ks-muted text-[12.5px]">(database id {r.id})</span></h3>
         <button className="icon-btn" onClick={onClose} aria-label="Close block details"><X size={14} /></button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3 text-[13px]">
         <dl className="grid grid-cols-[7rem_1fr] gap-y-1.5">
-          <dt className="text-[#64748B]">Time</dt><dd>{ts(r.ts).ist}<span className="block text-[12px] text-[#475569] font-mono">{r.ts}</span></dd>
-          <dt className="text-[#64748B]">Actor</dt><dd>{displayName(r.actor, team)} <span className="font-mono text-[12px] text-[#475569]">{r.actor}</span></dd>
-          <dt className="text-[#64748B]">Action</dt><dd className="font-mono">{r.action}</dd>
-          <dt className="text-[#64748B]">Object</dt><dd><ObjectRef r={r} masked={masked} openEntity={openEntity} /></dd>
+          <dt className="text-ks-muted">Time</dt><dd>{ts(r.ts).ist}<span className="block text-[12px] text-ks-muted font-mono">{r.ts}</span></dd>
+          <dt className="text-ks-muted">Actor</dt><dd>{displayName(r.actor, team)} <span className="font-mono text-[12px] text-ks-muted">{r.actor}</span></dd>
+          <dt className="text-ks-muted">Action</dt><dd className="font-mono">{r.action}</dd>
+          <dt className="text-ks-muted">Object</dt><dd><ObjectRef r={r} masked={masked} openEntity={openEntity} /></dd>
         </dl>
         {r.action === 'rejected' && (
           <p className="p-2 rounded-md badge-note-slate">Reason recorded (hash <span className="font-mono">{shortHash(r.payload_hash)}</span>). The log stores only the hash of the payload, not the reason text.</p>
         )}
         <section>
-          <h4 className="text-[12px] font-semibold text-[#475569] mb-1">Canonical payload that was hashed</h4>
-          {secretIds.length > 0 && <p className="text-[12px] text-[#475569] mb-1">Restricted IDs are masked here; the hash below is recomputed on the real values.</p>}
-          <pre className="p-2.5 rounded-lg bg-slate-900 text-slate-100 text-[11.5px] whitespace-pre-wrap break-all">{shownCanonical}</pre>
-          <p className="text-[12px] text-[#475569] mt-1">
+          <h4 className="text-[12px] font-semibold text-ks-muted mb-1">Canonical payload that was hashed</h4>
+          {secretIds.length > 0 && <p className="text-[12px] text-ks-muted mb-1">Restricted IDs are masked here; the hash below is recomputed on the real values.</p>}
+          <pre className="p-2.5 rounded-lg bg-ks-bg text-ks-text text-[11.5px] whitespace-pre-wrap break-all">{shownCanonical}</pre>
+          <p className="text-[12px] text-ks-muted mt-1">
             <span className="font-mono">payload_hash</span> is the SHA-256 of the action's own payload; the payload itself is not stored.
           </p>
         </section>
         <section className="space-y-1 font-mono text-[12px]">
-          <div><span className="font-sans text-[#64748B]">Stored hash</span><div className="break-all">{r.hash}</div></div>
-          <div><span className="font-sans text-[#64748B]">Recomputed in this browser</span><div className="break-all">{recomputed ?? '…'}</div></div>
-          <div className={`font-sans ${recomputed === r.hash ? 'text-emerald-800' : 'text-rose-800'}`}>
+          <div><span className="font-sans text-ks-muted">Stored hash</span><div className="break-all">{r.hash}</div></div>
+          <div><span className="font-sans text-ks-muted">Recomputed in this browser</span><div className="break-all">{recomputed ?? '…'}</div></div>
+          <div className={`font-sans ${recomputed === r.hash ? 'text-ks-ok' : 'text-ks-red-text'}`}>
             {recomputed == null ? '' : recomputed === r.hash ? '✓ Match: this block has not changed since it was written.' : '✗ Mismatch: this block was altered.'}
           </div>
-          <div className="pt-1"><span className="font-sans text-[#64748B]">Parent hash</span><div className="break-all">{r.prev_hash}</div></div>
+          <div className="pt-1"><span className="font-sans text-ks-muted">Parent hash</span><div className="break-all">{r.prev_hash}</div></div>
           <div className="font-sans">
             {r.prev_hash === GENESIS ? 'Genesis block: its parent is 64 zeros.'
               : prev && prev.hash === r.prev_hash ? `✓ Equals block ${prev.pos}'s hash.` : `✗ Does not equal block ${prev?.pos}'s hash.`}

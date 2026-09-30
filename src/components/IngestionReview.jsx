@@ -107,19 +107,19 @@ export default function IngestionReview({ onNotify, auditLogs = [], onChanged, r
 
   return (
     <div className="flex flex-col h-full paper-sheet overflow-hidden">
-      <div className="px-4 py-3 bg-white border-b border-slate-100 flex items-center justify-between gap-3">
+      <div className="px-4 py-3 bg-ks-surface border-b border-ks-line flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="p-1 rounded-md bg-violet-50 text-[#6D28D9]"><FileSearch size={14} aria-hidden="true" /></div>
+          <div className="p-1 rounded-md bg-ks-gold/10 text-ks-gold"><FileSearch size={14} aria-hidden="true" /></div>
           <div className="min-w-0">
-            <h2 className="font-heading font-semibold text-[13px] text-[#0F172A]">Ingestion review</h2>
-            <p className="text-[12px] text-[#64748B] truncate">
+            <h2 className="font-heading font-semibold text-[13px] text-ks-text">Ingestion review</h2>
+            <p className="text-[12px] text-ks-muted truncate">
               Facts the local model extracted from meeting notes. A fact counts only after a person accepts it.
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[12px] px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-200">{plural(pending.length, 'fact')} pending</span>
-          <label className="flex items-center gap-1.5 text-[13px] text-[#334155] cursor-pointer">
+          <span className="text-[12px] px-2 py-0.5 rounded-lg bg-ks-raised border border-ks-line">{plural(pending.length, 'fact')} pending</span>
+          <label className="flex items-center gap-1.5 text-[13px] text-ks-text-2 cursor-pointer">
             <input type="checkbox" checked={showHistory} onChange={e => setShowHistory(e.target.checked)} />
             Show reviewed history ({reviewed.length})
           </label>
@@ -128,11 +128,11 @@ export default function IngestionReview({ onNotify, auditLogs = [], onChanged, r
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {error && <p className="text-rose-700 text-[13px]">Could not load extractions: {error}</p>}
-        {!error && rows === null && <p className="text-[#64748B] text-[13px]">Loading…</p>}
+        {error && <p className="text-ks-red-text text-[13px]">Could not load extractions: {error}</p>}
+        {!error && rows === null && <p className="text-ks-muted text-[13px]">Loading…</p>}
 
         {rows && pending.length === 0 && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 text-[13px] text-[#14532D]">
+          <div className="rounded-xl border border-ks-ok/30 bg-ks-ok/6 p-4 text-[13px] text-ks-ok">
             <div className="flex items-center gap-2 font-semibold"><PartyPopper size={16} aria-hidden="true" /> All caught up: no extracted facts are waiting for review.</div>
             {reviewed.length > 0 && (
               <p className="mt-1">
@@ -141,7 +141,7 @@ export default function IngestionReview({ onNotify, auditLogs = [], onChanged, r
                 {!showHistory && <> <button className="underline cursor-pointer" onClick={() => setShowHistory(true)}>Show them</button>.</>}
               </p>
             )}
-            <p className="mt-1 text-[#166534]">New facts appear here after a meeting note (Markdown or audio) is ingested.</p>
+            <p className="mt-1 text-ks-ok">New facts appear here after a meeting note (Markdown or audio) is ingested.</p>
           </div>
         )}
 
@@ -149,11 +149,11 @@ export default function IngestionReview({ onNotify, auditLogs = [], onChanged, r
           const pend = g.sentences.flatMap(s => s.facts).filter(f => f.status === 'pending').map(f => f.id);
           const date = meetingDate(g.doc);
           return (
-            <section key={g.doc} className="rounded-xl border border-slate-200">
-              <header className="px-3 py-2 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between gap-2 flex-wrap">
+            <section key={g.doc} className="rounded-xl border border-ks-line">
+              <header className="px-3 py-2 border-b border-ks-line bg-ks-raised/70 flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
                   <IdChip id={g.doc} type="meeting_note" />
-                  {date && <span className="text-[13px] text-[#334155]">Meeting of {day(date)}</span>}
+                  {date && <span className="text-[13px] text-ks-text-2">Meeting of {day(date)}</span>}
                 </div>
                 {pend.length > 0 && (
                   <div className="flex gap-1.5">
@@ -166,7 +166,7 @@ export default function IngestionReview({ onNotify, auditLogs = [], onChanged, r
                   </div>
                 )}
               </header>
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-ks-line">
                 {g.sentences.map(s => (
                   <div key={s.key} className="p-3 grid grid-cols-1 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] gap-3">
                     <Context raw={docs[g.doc]} span={s.span} />
@@ -191,20 +191,20 @@ function Context({ raw, span }) {
   const quote = polish(span.quote || '');
   if (span.start == null) {
     return (
-      <blockquote className="text-[13px] leading-relaxed text-[#334155] border-l-2 border-slate-300 pl-3">
+      <blockquote className="text-[13px] leading-relaxed text-ks-text-2 border-l-2 border-ks-line-strong pl-3">
         {quote.startsWith('added in review') ? <em>{quote}</em> : <>“{quote}”
-        <span className="block not-italic text-[12px] text-amber-800 mt-1">This quote was not found verbatim in the source document.</span></>}
+        <span className="block not-italic text-[12px] text-ks-gold mt-1">This quote was not found verbatim in the source document.</span></>}
       </blockquote>
     );
   }
   if (raw === undefined || raw === null) {
-    return <blockquote className="text-[13px] leading-relaxed text-[#334155] border-l-2 border-violet-300 pl-3">“{quote}”</blockquote>;
+    return <blockquote className="text-[13px] leading-relaxed text-ks-text-2 border-l-2 border-ks-gold/50 pl-3">“{quote}”</blockquote>;
   }
   const a = Math.max(0, span.start - 160), b = Math.min(raw.length, span.end + 160);
   return (
-    <blockquote className="text-[13px] leading-relaxed text-[#475569] border-l-2 border-violet-300 pl-3" aria-label="Source sentence in context">
+    <blockquote className="text-[13px] leading-relaxed text-ks-muted border-l-2 border-ks-gold/50 pl-3" aria-label="Source sentence in context">
       {a > 0 && '… '}{raw.slice(a, span.start)}
-      <mark className="bg-violet-100 text-[#1E1B4B] rounded px-0.5">{raw.slice(span.start, span.end)}</mark>
+      <mark className="bg-ks-gold/35 text-ks-text rounded px-0.5">{raw.slice(span.start, span.end)}</mark>
       {raw.slice(span.end, b)}{b < raw.length && ' …'}
     </blockquote>
   );
@@ -231,15 +231,15 @@ function Fact({ f, subject, team, review, busy, onReview }) {
   const origin = addedByHuman ? 'added by a reviewer' : p.extracted_by === 'human' ? 'corrected by a reviewer'
     : `extracted by ${p.extracted_by} · model-reported confidence ${p.confidence}`;
   return (
-    <li className={`rounded-lg border p-2.5 ${f.status === 'pending' ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50'}`}>
-      <div className="text-[13px] text-[#0F172A] leading-relaxed">{factText(f, subject, team)}</div>
-      <div className="text-[12px] text-[#64748B] mt-1">#{f.id} · {origin}</div>
+    <li className={`rounded-lg border p-2.5 ${f.status === 'pending' ? 'border-ks-line bg-ks-surface' : 'border-ks-line bg-ks-raised'}`}>
+      <div className="text-[13px] text-ks-text leading-relaxed">{factText(f, subject, team)}</div>
+      <div className="text-[12px] text-ks-muted mt-1">#{f.id} · {origin}</div>
       {editing ? (
         <form className="mt-2 space-y-1.5" onSubmit={e => { e.preventDefault(); onReview('edit', f.kind === 'node' ? { name } : { fact: name }); setEditing(false); }}>
-          <label className="block text-[12px] text-[#475569]">{f.kind === 'node' ? 'Name' : 'Fact text'}
+          <label className="block text-[12px] text-ks-muted">{f.kind === 'node' ? 'Name' : 'Fact text'}
             <input className="field w-full mt-0.5" value={name} onChange={e => setName(e.target.value)} required />
           </label>
-          <p className="text-[12px] text-[#64748B]">Saving calls PATCH /extractions/{f.id}: the fact is accepted with your correction.</p>
+          <p className="text-[12px] text-ks-muted">Saving calls PATCH /extractions/{f.id}: the fact is accepted with your correction.</p>
           <div className="flex gap-1.5">
             <button type="submit" className="btn-approve" disabled={busy}>Save and accept</button>
             <button type="button" className="btn-secondary" onClick={() => { setName(f.text); setEditing(false); }}>Cancel</button>

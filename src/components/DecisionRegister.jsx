@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, GitBranch, Loader2, RefreshCw, Table2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, GitBranch, Loader2, Lock, RefreshCw, Table2, X } from 'lucide-react';
 import { fetchDecisionCompliance, fetchDecisions, fetchFlags } from '../api';
 import { useApp } from '../context';
 import IdChip from './IdChip';
@@ -71,9 +71,9 @@ export default function DecisionRegister({ refreshKey = 0, focus }) {
   return (
     <div className="flex h-full gap-4 min-h-0">
       <div className="flex-1 min-w-0 paper-sheet flex flex-col overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-2">
-          <Table2 size={15} className="text-[#4F46E5]" aria-hidden="true" />
-          <h2 className="font-heading font-semibold text-sm text-[#0F172A] mr-2">Decision register</h2>
+        <div className="px-4 py-3 border-b border-ks-line flex flex-wrap items-center gap-2">
+          <Table2 size={15} className="text-ks-orange" aria-hidden="true" />
+          <h2 className="font-heading font-semibold text-sm text-ks-text mr-2">Decision register</h2>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search ID, title or reason" aria-label="Search decisions"
             className="field w-56" />
           <select value={owner} onChange={e => setOwner(e.target.value)} className="field" aria-label="Filter by owner">
@@ -84,19 +84,19 @@ export default function DecisionRegister({ refreshKey = 0, focus }) {
             <option value="">All projects</option>
             {projects.map(p => <option key={p}>{p}</option>)}
           </select>
-          <label className="flex items-center gap-1.5 text-[13px] text-[#334155] cursor-pointer">
+          <label className="flex items-center gap-1.5 text-[13px] text-ks-text-2 cursor-pointer">
             <input type="checkbox" checked={flaggedOnly} onChange={e => setFlaggedOnly(e.target.checked)} /> Flagged only
           </label>
-          <span className="ml-auto text-[12.5px] text-[#64748B]">{shown.length} of {rows.length} decisions (valid today)</span>
+          <span className="ml-auto text-[12.5px] text-ks-muted">{shown.length} of {rows.length} decisions (valid today)</span>
           <button onClick={load} className="icon-btn" aria-label="Refresh decisions" title="Refresh"><RefreshCw size={13} /></button>
         </div>
         <div className="flex-1 overflow-auto">
           <table className="w-full text-left border-collapse text-[13px]">
-            <thead className="sticky top-0 bg-slate-50 z-10">
-              <tr className="border-b border-slate-200">
+            <thead className="sticky top-0 bg-ks-raised z-10">
+              <tr className="border-b border-ks-line">
                 {COLS.map(c => (
-                  <th key={c.key} className="py-2 px-3 font-medium text-[#475569]">
-                    <button className="inline-flex items-center gap-1 cursor-pointer hover:text-[#0F172A]"
+                  <th key={c.key} className="py-2 px-3 font-medium text-ks-muted">
+                    <button className="inline-flex items-center gap-1 cursor-pointer hover:text-ks-text"
                       onClick={() => setSort(s => ({ key: c.key, dir: s.key === c.key ? -s.dir : 1 }))}
                       aria-label={`Sort by ${c.label}`}>
                       {c.label}
@@ -106,18 +106,18 @@ export default function DecisionRegister({ refreshKey = 0, focus }) {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {error && <tr><td colSpan={6} className="p-6 text-center text-rose-700">Could not load decisions: {error}</td></tr>}
-              {!error && !decisions && <tr><td colSpan={6} className="p-6 text-center text-[#64748B]">Loading…</td></tr>}
-              {decisions && shown.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-[#64748B]">No decisions match these filters.</td></tr>}
+            <tbody className="divide-y divide-ks-line">
+              {error && <tr><td colSpan={6} className="p-6 text-center text-ks-red-text">Could not load decisions: {error}</td></tr>}
+              {!error && !decisions && <tr><td colSpan={6} className="p-6 text-center text-ks-muted">Loading…</td></tr>}
+              {decisions && shown.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-ks-muted">No decisions match these filters.</td></tr>}
               {shown.map(r => (
                 <tr key={r.id} onClick={() => setOpenId(r.id)} tabIndex={0}
                   onKeyDown={e => e.key === 'Enter' && setOpenId(r.id)}
-                  className={`cursor-pointer hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-sky-600 ${openId === r.id ? 'bg-sky-50/60' : ''}`}>
-                  <td className="py-2 px-3 text-[#0F172A]">
+                  className={`cursor-pointer hover:bg-ks-raised focus-visible:outline-2 focus-visible:outline-ks-orange ${openId === r.id ? 'bg-ks-orange/6' : ''}`}>
+                  <td className="py-2 px-3 text-ks-text">
                     <span className="font-medium">{r.title}</span>
-                    <span className="block font-mono text-[11.5px] text-[#64748B]">{r.id}</span>
-                    {r.restricted && <span className="ml-1.5 text-[11.5px] px-1 rounded badge-note-slate">restricted</span>}
+                    <span className="block font-mono text-[11.5px] text-ks-muted">{r.id}</span>
+                    {r.restricted && <span className="ml-1.5 text-[11.5px] px-1 rounded badge-restricted"><Lock size={10} aria-hidden="true" />restricted</span>}
                     {r.extracted && <span className="ml-1.5 text-[11.5px] px-1 rounded badge-note-slate">extracted from a meeting note</span>}
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap">{r.ownerName}</td>
@@ -126,7 +126,7 @@ export default function DecisionRegister({ refreshKey = 0, focus }) {
                   <td className="py-2 px-3 whitespace-nowrap capitalize">{r.status}</td>
                   <td className="py-2 px-3">
                     <div className="flex flex-wrap gap-1">
-                      {r.flags.length === 0 && <span className="text-[#64748B]">None</span>}
+                      {r.flags.length === 0 && <span className="text-ks-muted">None</span>}
                       {r.flags.map(f => (
                         <span key={f.id} className={`text-[12px] px-1.5 py-0.5 rounded ${IMPACT[f.impact_type]?.cls || 'badge-note-slate'}`}>
                           {IMPACT[f.impact_type]?.label || f.impact_type} · {f.clause_id}@{f.new_version}
@@ -143,7 +143,7 @@ export default function DecisionRegister({ refreshKey = 0, focus }) {
 
       {open && (
         <aside className="w-[21rem] xl:w-[26rem] shrink-0 paper-sheet flex flex-col overflow-hidden" aria-label={`Decision ${open.id}`}>
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+          <div className="px-4 py-3 border-b border-ks-line flex items-center justify-between gap-2">
             <IdChip id={open.id} type="decision" />
             <div className="flex items-center gap-1.5">
               <button onClick={() => openEntity(open.id, 'decision', { view: 'GRAPH' })} className="btn-secondary">
@@ -153,40 +153,40 @@ export default function DecisionRegister({ refreshKey = 0, focus }) {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-4 text-[13px]">
-            <h3 className="font-heading font-semibold text-[15px] text-[#0F172A] leading-snug">{open.title}</h3>
+            <h3 className="font-heading font-semibold text-[15px] text-ks-text leading-snug">{open.title}</h3>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
-              <div><dt className="text-[12px] text-[#64748B]">Owner</dt><dd>{open.owner ? <IdChip id={open.owner} type="person" label={open.ownerName} /> : '—'}</dd></div>
-              <div><dt className="text-[12px] text-[#64748B]">Project</dt><dd>{open.project}</dd></div>
-              <div><dt className="text-[12px] text-[#64748B]">Decided</dt><dd>{day(open.decidedOn)}</dd></div>
-              <div><dt className="text-[12px] text-[#64748B]">Status · effect</dt><dd className="capitalize">{open.status}{open.effect ? ` · ${open.effect}` : ''}</dd></div>
+              <div><dt className="text-[12px] text-ks-muted">Owner</dt><dd>{open.owner ? <IdChip id={open.owner} type="person" label={open.ownerName} /> : '—'}</dd></div>
+              <div><dt className="text-[12px] text-ks-muted">Project</dt><dd>{open.project}</dd></div>
+              <div><dt className="text-[12px] text-ks-muted">Decided</dt><dd>{day(open.decidedOn)}</dd></div>
+              <div><dt className="text-[12px] text-ks-muted">Status · effect</dt><dd className="capitalize">{open.status}{open.effect ? ` · ${open.effect}` : ''}</dd></div>
             </dl>
             <section>
-              <h4 className="text-[12px] text-[#64748B] mb-1">Recorded reason</h4>
-              <p className="leading-relaxed text-[#334155]">{open.reasons || '—'}</p>
-              <p className="text-[12px] text-[#64748B] mt-1">Source: <span className="font-mono">{open.provenance?.source_doc || '—'}</span></p>
+              <h4 className="text-[12px] text-ks-muted mb-1">Recorded reason</h4>
+              <p className="leading-relaxed text-ks-text-2">{open.reasons || '—'}</p>
+              <p className="text-[12px] text-ks-muted mt-1">Source: <span className="font-mono">{open.provenance?.source_doc || '—'}</span></p>
             </section>
             <section>
-              <h4 className="text-[12px] text-[#64748B] mb-1.5">Compliance, then vs now</h4>
+              <h4 className="text-[12px] text-ks-muted mb-1.5">Compliance, then vs now</h4>
               {compliance[open.id]?.loading && (
-                <p className="flex items-center gap-2 text-[#475569]"><Loader2 size={14} className="animate-spin" /> Running the deterministic check and asking the local model to word it…</p>
+                <p className="flex items-center gap-2 text-ks-muted"><Loader2 size={14} className="animate-spin" /> Running the deterministic check and asking the local model to word it…</p>
               )}
               {compliance[open.id]?.error && (
-                <p className="text-rose-700">Check failed: {compliance[open.id].error} <button className="underline cursor-pointer" onClick={() => loadCompliance(open.id)}>Retry</button></p>
+                <p className="text-ks-red-text">Check failed: {compliance[open.id].error} <button className="underline cursor-pointer" onClick={() => loadCompliance(open.id)}>Retry</button></p>
               )}
               {compliance[open.id]?.data && <ThenNow c={compliance[open.id].data} />}
             </section>
             {open.flags.length > 0 && (
               <section>
-                <h4 className="text-[12px] text-[#64748B] mb-1.5">Policy impact flags</h4>
+                <h4 className="text-[12px] text-ks-muted mb-1.5">Policy impact flags</h4>
                 <ul className="space-y-2">
                   {open.flags.map(f => (
-                    <li key={f.id} className="rounded-lg border border-slate-200 p-2.5">
+                    <li key={f.id} className="rounded-lg border border-ks-line p-2.5">
                       <div className="flex flex-wrap items-center gap-1.5 mb-1">
                         <span className={`text-[12px] px-1.5 py-0.5 rounded ${IMPACT[f.impact_type]?.cls}`}>{IMPACT[f.impact_type]?.label || f.impact_type}</span>
                         <IdChip id={`${f.clause_id}@${f.new_version}`} type="clause" />
                         {f.proposal_id && <IdChip id={`#${f.proposal_id}`} type="proposal" label="proposal" />}
                       </div>
-                      <p className="text-[#334155] leading-relaxed">{polish(f.explanation)}</p>
+                      <p className="text-ks-text-2 leading-relaxed">{polish(f.explanation)}</p>
                     </li>
                   ))}
                 </ul>

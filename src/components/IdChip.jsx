@@ -21,7 +21,7 @@ export function TypeGlyph({ type, size }) {
 // tooltip; with `withTitle` (or an explicit `label`) the readable text leads and the ID follows, smaller.
 export default function IdChip({ id, type, label, withTitle = false, onClick, className = '', title }) {
   const { openEntity, titles } = useApp();
-  if (!id) return <span className="text-[#64748B]">—</span>;
+  if (!id) return <span className="text-ks-muted">—</span>;
   const t = type || typeOfId(id);
   const m = typeMeta(t);
   const known = titles?.get(id);
@@ -31,7 +31,7 @@ export default function IdChip({ id, type, label, withTitle = false, onClick, cl
       type="button"
       onClick={(e) => { e.stopPropagation(); (onClick || openEntity)(id, t); }}
       title={title || `${known ? `${known} (${id})` : id}. Open this ${m.label.toLowerCase()}`}
-      className={`inline-flex items-center gap-1 max-w-full px-1.5 py-0.5 rounded-md border text-[12px] leading-tight align-middle cursor-pointer hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-sky-600 ${className}`}
+      className={`inline-flex items-center gap-1 max-w-full px-1.5 py-0.5 rounded-md border text-[12px] leading-tight align-middle cursor-pointer hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ks-orange ${className}`}
       style={{ background: m.fill, borderColor: `${m.stroke}40`, color: m.text }}
     >
       <Glyph paths={m.icon} color={m.stroke} />
