@@ -11,6 +11,7 @@ import Scene from './scene/Scene';
 import Tooltip from './Tooltip';
 import { CARDS, dayAt, window01, clamp01 } from './timeline';
 import { fromDay } from './demoGraph';
+import { Words, measureCard, revealCard } from './cardReveal';
 
 // Base transform of each positioned card (see landing.css); the fade adds a small rise on top.
 const CARD_BASE = { hero: 'translateX(-50%)', graph: 'translateY(-50%)', people: 'translateY(-50%)', time: 'translateY(-50%)', final: 'translate(-50%, -50%)' };
@@ -26,6 +27,7 @@ export default function KeystoneIntro({ onLaunchConsole }) {
   const lenisRef = useRef(null);
   const invalidateRef = useRef(null);
   const last = useRef({ cards: {}, year: '', sub: '', skip: -1, yearO: -1 });
+  const groups = useRef({}); // per card: its headline words and body lines, for the scroll-scrubbed text reveal
   // raw: scroll progress now; damped: what the scene shows (eases behind raw); snap: jump without gliding.
   const [prog] = useState(() => ({ raw: 0, damped: 0, snap: false, animating: false }));
   const [lite] = useState(() => window.innerWidth < 768);
@@ -64,6 +66,21 @@ export default function KeystoneIntro({ onLaunchConsole }) {
     };
   }, [prog]);
 
+  // Measure each card's words into headline / body lines; again once fonts load and on resize (lines rewrap).
+  useEffect(() => {
+    const measureAll = () => {
+      for (const c of CARDS) {
+        const el = cardRefs.current[c.id];
+        if (el && c.id !== 'hero') groups.current[c.id] = measureCard(el);
+      }
+      invalidateRef.current?.();
+    };
+    measureAll();
+    document.fonts?.ready.then(measureAll);
+    window.addEventListener('resize', measureAll);
+    return () => window.removeEventListener('resize', measureAll);
+  }, []);
+
   // Called from inside the render loop with the damped progress; writes styles directly (no React re-render).
   const onFrame = useCallback((p) => {
     const L = last.current;
@@ -77,6 +94,10 @@ export default function KeystoneIntro({ onLaunchConsole }) {
       el.style.visibility = o > 0.002 ? 'visible' : 'hidden';
       el.style.pointerEvents = o > 0.6 ? 'auto' : 'none';
       el.style.transform = `${CARD_BASE[c.id]} translateY(${((1 - o) * 18).toFixed(2)}px)`;
+    }
+    for (const c of CARDS) {
+      const g = groups.current[c.id];
+      if (g && (L.cards[c.id] ?? 0) > 0) revealCard(g, p, c.range[0]);
     }
     if (lineRef.current) lineRef.current.style.transform = `scaleY(${p.toFixed(4)})`;
 
@@ -134,22 +155,22 @@ export default function KeystoneIntro({ onLaunchConsole }) {
           </div>
           <div ref={card('graph')} className="ks-card ks-card--left">
             <div className="ks-eyebrow">Knowledge graph</div>
-            <h2>Every decision linked to the exact rule in force.</h2>
-            <p><span className="ks-mono">DEC-007</span> relied on <span className="ks-mono">RET-2.1@v2</span>, the retention clause in force on 2025-06-18.</p>
+            <h2><Words parts="Every decision linked to the exact rule in force." /></h2>
+            <p><Words parts={[['DEC-007', 'ks-mono'], ' relied on ', ['RET-2.1@v2', 'ks-mono'], ', the retention clause in force on 2025-06-18.']} /></p>
           </div>
           <div ref={card('people')} className="ks-card ks-card--left">
             <div className="ks-eyebrow">Ownership</div>
-            <h2>Every decision has an owner, even after they leave.</h2>
-            <p>Vikram left in August 2025. His four decisions still point to him, and to the rules he relied on.</p>
+            <h2><Words parts="Every decision has an owner, even after they leave." /></h2>
+            <p><Words parts="Vikram left in August 2025. His four decisions still point to him, and to the rules he relied on." /></p>
           </div>
           <div ref={card('time')} className="ks-card ks-card--left">
             <div className="ks-eyebrow">Point-in-time compliance</div>
-            <h2>Policy changes, flagged the same day.</h2>
-            <p><span className="ks-mono">RET-2.1@v3</span> cuts retention to 90 days on 2026-09-28. <span className="ks-mono">DEC-007</span> keeps logs for 180, so it is flagged the day the rule takes effect.</p>
+            <h2><Words parts="Policy changes, flagged the same day." /></h2>
+            <p><Words parts={[['RET-2.1@v3', 'ks-mono'], ' cuts retention to 90 days on 2026-09-28. ', ['DEC-007', 'ks-mono'], ' keeps logs for 180, so it is flagged the day the rule takes effect.']} /></p>
           </div>
           <div ref={card('final')} className="ks-card ks-card--final">
             <div className="ks-eyebrow">Human in the loop · sovereign by design</div>
-            <h2>Every action approved by a human. Everything on your own hardware.</h2>
+            <h2><Words parts="Every action approved by a human. Everything on your own hardware." /></h2>
             <div className="ks-actions">
               <button type="button" className="ks-btn ks-btn--primary" onClick={launch}>Launch console →</button>
               <button type="button" className="ks-btn ks-btn--ghost" onClick={explore}>Explore ↓</button>

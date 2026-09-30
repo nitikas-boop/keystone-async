@@ -72,6 +72,9 @@
 .ks-intro .ks-card--final { left: 50%; top: 50%; text-align: center; width: min(560px, calc(100vw - 32px)); max-width: none; padding: 30px 32px; }
 .ks-intro .ks-card--final::before { display: none; }
 
+/* Scroll-revealed words (see cardReveal.jsx): inline-block so each can rise on its own */
+.ks-intro .ks-card .ks-w { display: inline-block; }
+
 /* Buttons */
 .ks-intro .ks-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 22px; }
 .ks-intro .ks-btn {

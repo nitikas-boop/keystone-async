@@ -37,7 +37,7 @@ export const timelineOn = (p) => smooth(p, 0.735, 0.78);
 // Glass cards: [in, out] in p. The first is visible from the top; the last stays to the end.
 export const CARDS = [
   { id: 'hero', range: [-1, 0.12] },
-  { id: 'graph', range: [0.5, 0.63] },
+  { id: 'graph', range: [0.56, 0.64] },
   { id: 'people', range: [0.67, 0.745] },
   { id: 'time', range: [0.8, 0.915] },
   { id: 'final', range: [0.972, 2] },

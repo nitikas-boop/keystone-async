@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShieldCheck, 
   ArrowRight, 
@@ -17,6 +17,7 @@ import {
 import Logo from './Logo';
 import { day } from '../utils/format';
 import { healthCheck } from '../api';
+import useScrollReveal from '../landing/useScrollReveal';
 
 export default function LandingPage({ onLaunchConsole }) {
   const [activeTab, setActiveTab] = useState('temporal');
@@ -28,6 +29,8 @@ export default function LandingPage({ onLaunchConsole }) {
     healthCheck().then(h => setEngineOk(!!h && !!h.ollama && Object.values(h.ollama).every(v => v === true)));
   }, []);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const revealRef = useRef(null);
+  useScrollReveal(revealRef); // sections fade and rise in as they scroll into view (landing page only)
 
   const workflowSteps = [
     {
@@ -73,7 +76,7 @@ export default function LandingPage({ onLaunchConsole }) {
   ];
 
   return (
-    <div className="relative min-h-screen bg-ks-bg text-ks-text overflow-x-hidden">
+    <div ref={revealRef} className="relative min-h-screen bg-ks-bg text-ks-text overflow-x-hidden">
       {/* Subtle Sky Ambient Blurs */}
       <div className="absolute top-0 left-1/3 w-96 h-96 bg-ks-orange/6 rounded-full filter blur-3xl pointer-events-none" />
       <div className="absolute top-1/3 right-10 w-96 h-96 bg-ks-brown/8 rounded-full filter blur-3xl pointer-events-none" />
