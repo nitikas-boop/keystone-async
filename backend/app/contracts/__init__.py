@@ -35,6 +35,11 @@ def current_user(x_user: str | None = Header(None)) -> dict:
     return user_for(x_user)
 
 
+def org_owners(org_id: str) -> list[str]:
+    """user_ids of the org's Owners (C3 authority fallback). Stub: the demo personas with role owner."""
+    return sorted(u['user_id'] for u in map(user_for, USERS) if u['role'] == 'owner' and u['org_id'] == org_id)
+
+
 def can_access(user: dict, resource: dict) -> bool:
     """Single check for reads, writes, search, notifications, exports. Stub keeps today's rule (restricted items
     only for RESTRICTED_READERS) so nothing Person 2 builds leaks before Person 1's real filter lands."""
