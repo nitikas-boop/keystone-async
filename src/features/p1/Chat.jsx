@@ -147,7 +147,7 @@ function ManageTeam({ team, people, onClose, onChanged }) {
   );
 }
 
-export default function Chat({ me, notify, can = () => false }) {
+export default function Chat({ me, notify, can = () => false, focus = null }) {
   const chans = useLoad(p1.channels);
   const dir = useLoad(p1.people);
   const teams = useLoad(p1.teams);
@@ -176,6 +176,7 @@ export default function Chat({ me, notify, can = () => false }) {
   useEffect(() => { if (current) setScope(current.scope); }, [current?.id]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const open = (id) => { setCid(id); setMsgs([]); p1.markRead(id).then(reloadChans).catch(() => {}); };
+  useEffect(() => { if (focus?.cid) open(focus.cid); }, [focus]);  // eslint-disable-line react-hooks/exhaustive-deps
   const send = (e) => {
     e.preventDefault();
     if (!text.trim()) return;

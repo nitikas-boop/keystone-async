@@ -114,3 +114,16 @@ export const proposals = (status = 'proposed') => call('GET', `/proposals${q({ s
 export const flags = () => call('GET', '/flags');
 export const approveProposal = (id) => call('POST', `/proposals/${id}/approve`);
 export const rejectProposal = (id, reason) => call('POST', `/proposals/${id}/reject`, { reason });
+
+// ---- the role-aware workspace: My Inbox, flags, proposed decisions, corrections, dashboard ----
+export const inbox = () => call('GET', '/inbox');
+export const inboxReadAll = () => call('POST', '/inbox/read-all');
+export const correctionDone = (nid) => call('POST', `/inbox/corrections/${nid}/done`);
+export const resolveFlag = (id, note) => call('POST', `/flags/${encodeURIComponent(id)}/resolve`, { note });
+export const proposeDecision = (markdown) => call('POST', '/decision-proposals', { markdown });
+export const decisionProposals = (status) => call('GET', `/decision-proposals${q({ status })}`);
+export const acceptDecisionProposal = (id) => call('POST', `/decision-proposals/${id}/accept`);
+export const rejectDecisionProposal = (id, reason) => call('POST', `/decision-proposals/${id}/reject`, { reason });
+export const flagAnswer = (id, note) => call('POST', `/answers/${encodeURIComponent(id)}/flag`, { note });
+export const editProposal = (id, body) => call('PATCH', `/proposals/${id}`, body);
+export const dashboard = () => call('GET', '/dashboard');

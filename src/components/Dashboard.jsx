@@ -27,6 +27,8 @@ import DecisionRegister from './DecisionRegister';
 import PoliciesView from './PoliciesView';
 import CommandPalette from './CommandPalette';
 import Inbox from './Inbox';
+import ReviewHub from './ReviewHub';
+import * as p1api from '../api/p1';
 import AuthorModal from './AuthorModal';
 import { AppContext } from '../context';
 import { RESTRICTED_READERS, userKey as toUserKey } from '../utils/people';
@@ -52,7 +54,7 @@ const VIEWS = [
   { id: 'GRAPH', label: 'Graph', short: 'Graph', Icon: GitBranch, cap: 'graph' },
   { id: 'UNIFIED', label: 'Ask Keystone', short: 'Ask', Icon: MessageSquare, cap: 'ask' },
   { id: 'INBOX', label: 'Inbox', short: 'Inbox', Icon: InboxIcon },
-  { id: 'DECISIONS', label: 'Decisions', short: 'Decisions', Icon: Table2 },
+  { id: 'DECISIONS', label: 'Decisions', short: 'Decisions', Icon: Table2, hidden: true },  // the Inbox's Decision Registry
   { id: 'POLICIES', label: 'Policies', short: 'Policies', Icon: BookOpen, cap: 'policies.read' },
   { id: 'AUDIT', label: 'Audit Log', short: 'Audit', Icon: ShieldCheck, cap: 'audit.own' },
 ];
@@ -83,7 +85,11 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
   const [auditFocus, setAuditFocus] = useState(null);
   const [policyFocus, setPolicyFocus] = useState(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [inboxTab, setInboxTab] = useState('proposals');
+  const [inboxTab, setInboxTab] = useState('proposals');   // the review screens (REVIEW): proposals | facts
+  const [inboxSegment, setInboxSegment] = useState('mine'); // Inbox: mine | registry
+  const [registryFocus, setRegistryFocus] = useState(null);
+  const [chatFocus, setChatFocus] = useState(null);
+  const [inboxCounts, setInboxCounts] = useState(null);
   const [authorMode, setAuthorMode] = useState(null);  // 'decision' | 'policy' while the authoring form is open
   const [openedAnswer, setOpenedAnswer] = useState(null);  // {res} from a #answer= link
   const [titles, setTitles] = useState(() => new Map());
@@ -297,9 +303,10 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
   // Any ID chip in the app lands here.
   const openEntity = useCallback((id, type, opts = {}) => {
     if (opts.view === 'POLICIES') { setPolicyFocus(String(id)); setActiveView('POLICIES'); return; }
-    if (type === 'proposal') { setQueueFocus(String(id).replace(/\D/g, '')); setInboxTab('proposals'); setActiveView('INBOX'); return; }
+    if (opts.view === 'REGISTRY') { setRegistryFocus(String(id)); setInboxSegment('registry'); setActiveView('INBOX'); return; }
+    if (type === 'proposal') { setQueueFocus(String(id).replace(/\D/g, '')); setInboxTab('proposals'); setActiveView('REVIEW'); return; }
     if (type === 'audit') { setAuditFocus(String(id).replace(/\D/g, '')); setActiveView('AUDIT'); return; }
-    if (type === 'extraction') { setInboxTab('facts'); setActiveView('INBOX'); return; }
+    if (type === 'extraction') { setInboxTab('facts'); setActiveView('REVIEW'); return; }
     setSelectedNodeId(id);
     setHighlightNodeIds([id]);
     setInspectKey(k => k + 1);
@@ -315,7 +322,27 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
   // No approval authority (an employee): ingesting and authoring go through a lead; the backend refuses amounts above it.
   const noAuthority = currentUser.p1?.approval_authority_inr === 0;
   const pendingProposals = queueItems.filter(i => i.status === 'proposed').length;
-  const inboxBadge = pendingProposals + pendingFacts;
+  // Sidebar badge = pending actions + unread, exactly as GET /inbox counts them.
+  const loadInbox = useCallback(() => p1api.inbox().then(d => setInboxCounts(d.counts)).catch(() => {}), []);
+  useEffect(() => { loadInbox(); const t = setInterval(loadInbox, 15000); return () => clearInterval(t); }, [loadInbox, activeView]);
+  const inboxBadge = inboxCounts?.badge ?? 0;
+  // An Inbox item opens its source.
+  const openInboxItem = (item) => {
+    const r = item.ref || {};
+    const decisionId = r.decision_id || (/^(DEC|MTG)-/.test(r.id || '') ? r.id : null);
+    const nk = r.notification_kind;
+    if (r.kind === 'channel') { setChatFocus({ cid: r.id, at: Date.now() }); setActiveView('P1_CHAT'); }
+    else if (r.kind === 'proposal' || nk?.startsWith('proposal_')) openEntity(r.id, 'proposal');
+    else if (r.kind === 'extraction' || nk === 'note_saved') openEntity(r.id, 'extraction');
+    else if (r.kind === 'agent_action' || nk?.startsWith('action_')) setActiveView('P1_AGENT');
+    else if (r.kind === 'answer') window.location.hash = `answer=${encodeURIComponent(r.id)}`;
+    else if (nk === 'team_added') { setChatFocus(null); setActiveView('P1_CHAT'); }
+    else if (nk === 'policy_uploaded') openEntity(r.id, 'policy', { view: 'POLICIES' });
+    else if (decisionId) openEntity(decisionId, 'decision', { view: 'REGISTRY' });
+    else setInboxSegment('mine');
+  };
+  const recordDecision = can('decision.create') ? () => setAuthorMode('decision')
+    : can('decision.propose') ? () => setAuthorMode('propose') : undefined;
 
   return (
     <AppContext.Provider value={ctx}>
@@ -490,7 +517,16 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
         {activeView === 'INBOX' && (
           <div className="flex-1 h-full min-h-0">
-            <Inbox tab={inboxTab} onTab={setInboxTab} pendingProposals={pendingProposals} pendingFacts={pendingFacts}
+            <Inbox segment={inboxSegment} onSegment={setInboxSegment} onOpen={openInboxItem}
+              onChanged={() => { loadProposals(); loadAudit(); loadPendingFacts(); loadInbox(); }}
+              registry={<DecisionRegister refreshKey={policyRefresh} focus={registryFocus} proposals={queueItems} auditLogs={auditLogs}
+                onRecord={recordDecision} recordLabel={can('decision.create') ? 'Record a decision' : 'Propose decision'} />} />
+          </div>
+        )}
+
+        {activeView === 'REVIEW' && (
+          <div className="flex-1 h-full min-h-0">
+            <ReviewHub tab={inboxTab} onTab={setInboxTab} pendingProposals={pendingProposals} pendingFacts={pendingFacts}
               proposals={<ReviewQueue
               queueItems={queueItems}
               auditLogs={auditLogs}
@@ -510,13 +546,13 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
         {activeView === 'DECISIONS' && (
           <div className="flex-1 h-full min-h-0">
-            <DecisionRegister refreshKey={policyRefresh} proposals={queueItems} auditLogs={auditLogs} onRecord={noAuthority ? undefined : () => setAuthorMode('decision')} />
+            <DecisionRegister refreshKey={policyRefresh} proposals={queueItems} auditLogs={auditLogs} onRecord={recordDecision} />
           </div>
         )}
 
         {activeView === 'POLICIES' && (
           <div className="flex-1 h-full min-h-0">
-            <PoliciesView focus={policyFocus} refreshKey={policyRefresh} asOfDate={todayIST()} onAdd={canApprove ? () => setAuthorMode('policy') : undefined} />
+            <PoliciesView focus={policyFocus} refreshKey={policyRefresh} asOfDate={todayIST()} onAdd={can('policy.upload') ? () => setAuthorMode('policy') : undefined} />
           </div>
         )}
 
@@ -532,7 +568,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
         {extraViews.filter(v => v.render && v.id === activeView).map(v => (
           <div key={v.id} className="flex-1 h-full min-h-0 overflow-y-auto">
-            {v.render({ asOfDate, currentUser, notify: showNotification, refreshKey: policyRefresh, auditLogs, can,
+            {v.render({ asOfDate, currentUser, notify: showNotification, refreshKey: policyRefresh, auditLogs, can, chatFocus,
                         onChanged: () => { loadAudit(); loadPendingFacts(); loadProposals(); setPolicyRefresh(k => k + 1); } })}
           </div>
         ))}
@@ -551,7 +587,10 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
       />
 
       <AuthorModal
-        mode={authorMode}
+        mode={authorMode === 'propose' ? 'decision' : authorMode}
+        propose={authorMode === 'propose'}
+        canPolicy={can('policy.upload')}
+        onProposed={(r) => { showNotification(`Proposed decision #${r.id} sent to a ${r.domain || ''} lead for review.`, 'success'); loadInbox(); }}
         onMode={setAuthorMode}
         onClose={() => setAuthorMode(null)}
         onSaved={handlePolicyUploaded}

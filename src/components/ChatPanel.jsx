@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import * as p1 from '../api/p1';
 import {
+  Flag,
   AlertTriangle,
   Check,
   ChevronDown,
@@ -392,8 +394,16 @@ function AnswerActions({ res, auditRow, askedBy }) {
           {done === 'link' ? <Check size={12} /> : <Link2 size={12} />} Copy link
         </button>
       )}
-      {done === 'failed' && <span className="text-[12px] text-rose-700">The browser blocked it.</span>}
-      {done && done !== 'failed' && <span className="text-[12px] text-emerald-700">{done === 'download' ? 'Saved' : 'Copied'}</span>}
+      {res.answer_id && (
+        <button className={btn} onClick={() => {
+          const note = window.prompt('What is wrong with this answer? (the Compliance Lead gets it as a correction)');
+          if (note !== null) p1.flagAnswer(res.answer_id, note).then(() => flash('flagged'), () => flash('flag', false));
+        }} title="Report this answer as wrong: it lands in the Compliance Lead's inbox">
+          <Flag size={12} /> This answer is wrong
+        </button>
+      )}
+      {done === 'failed' && <span className="text-[12px] text-rose-700">That did not work.</span>}
+      {done && done !== 'failed' && <span className="text-[12px] text-emerald-700">{done === 'download' ? 'Saved' : done === 'flagged' ? 'Reported to the Compliance Lead' : 'Copied'}</span>}
     </div>
   );
 }

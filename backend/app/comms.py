@@ -20,7 +20,7 @@ TEXT = {
     'dm': 'sent you a message (approved agent message)',
     'join_request': 'A new join request is waiting for approval',
     'join_approved': 'Your join request was approved',
-    'action_proposed': 'An agent action is waiting for your approval',
+    'action_proposed': 'Your agent action was proposed and waits for a reviewer',
     'action_executed': 'An agent action you approved was delivered',
     'note_saved': 'A chat thread was saved as a meeting note and is in Ingestion Review',
     'note_failed': 'Saving a chat thread as a meeting note failed',

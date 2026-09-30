@@ -150,3 +150,130 @@ async def reject_decision(pid: int, body: Reason | None = None, u: dict = Depend
                        {'status': 'rejected', 'reason': reason}, conn=c)
         await comms.notify(r['proposed_by'], 'decision_rejected', str(pid), conn=c, detail=reason)
     return _dp_out(row)
+
+
+# ---- "this answer is wrong" ----
+
+@router.post('/answers/{answer_id}/flag', status_code=201)
+async def flag_answer(answer_id: str, body: Note | None = None, u: dict = Depends(permissions.need('answer.flag'))):
+    """Anyone can report a wrong answer; it lands as a correction in the Compliance Lead's inbox."""
+    if not await db.pool.fetchval('SELECT 1 FROM answers WHERE id::text = $1', answer_id):
+        raise HTTPException(404, 'no such answer')
+    note = (body and body.note or '').strip() or None
+    async with db.pool.acquire() as c, c.transaction():
+        await db.audit(f"user:{u['user_id']}", 'answer_flagged', 'answer', answer_id, [], {'note': note}, conn=c)
+        for r in await c.fetch("SELECT user_id FROM memberships WHERE org_id = $1 AND role = 'compliance' "
+                               "AND status = 'active'", u['org_id']):
+            await comms.notify(r['user_id'], 'answer_flagged', answer_id, conn=c, detail=note)
+    return {'answer_id': answer_id, 'flagged': True}
+
+
+# ---- My Inbox: everything this person must deal with ----
+
+def _item(key, category, kind, title, detail, ref, created_at, **extra) -> dict:
+    return {'key': key, 'category': category, 'type': kind, 'title': title, 'detail': detail, 'ref': ref,
+            'created_at': created_at, **extra}
+
+
+async def inbox(u: dict) -> dict:
+    """Needs my action (approvals I may give, flags I own or may resolve, facts to review, proposed decisions,
+    corrections), unread conversations, and notifications. Actions first, urgent first, newest first."""
+    from .. import graph, main
+    items = []
+    rows = await db.pool.fetch("SELECT * FROM proposals WHERE status = 'proposed' ORDER BY id DESC")
+    hidden = await graph.hidden_keys([r['decision_id'] for r in rows])
+    for r in rows:
+        if r['decision_id'] in hidden or await permissions.approval_block(u, **await main.proposal_gate(r)):
+            continue
+        items.append(_item(f"proposal:{r['id']}", 'action', 'approval', r['subject'],
+                           f"{r['impact_type'].replace('_', ' ').lower()} · {r['domain'] or 'no domain'}",
+                           {'kind': 'proposal', 'id': r['id'], 'decision_id': r['decision_id']},
+                           r['created_at'].isoformat(), urgent=r['impact_type'] == 'ONGOING_PRACTICE_BREACH'))
+    for r in await db.pool.fetch("SELECT * FROM proposed_actions WHERE org_id = $1 AND status = 'proposed' "
+                                 'ORDER BY id DESC', u['org_id']):
+        if await permissions.approval_block(u, domain=r['domain'], proposer=r['proposed_by']) is None:
+            items.append(_item(f"action:{r['id']}", 'action', 'agent_action',
+                               f"Agent {r['tool'].replace('_', ' ')} proposed by {r['proposed_by']}",
+                               r['payload'].get('reason') or r['payload'].get('body'),
+                               {'kind': 'agent_action', 'id': r['id']}, r['created_at'].isoformat()))
+    flags = await db.pool.fetch("SELECT * FROM flags WHERE resolved_at IS NULL AND impact_type <> 'SUPERSEDED' "
+                                'ORDER BY created_at DESC')
+    hidden = await graph.hidden_keys([f['decision_id'] for f in flags])
+    owners = {r['k']: r['o'] for r in await graph.q(
+        'MATCH (d:Entity {group_id: $g}) WHERE d.key IN $k RETURN d.key AS k, d.owner AS o', g=graph.gid(),
+        k=[f['decision_id'] for f in flags])} if flags else {}
+    for f in flags:
+        mine = owners.get(f['decision_id']) in (u.get('person_key'), u['user_id'])
+        resolvable = permissions.can(u, 'flag.resolve') and (permissions.can(u, 'approve.any')
+                                                             or f['domain'] in permissions.domains(u))
+        if f['decision_id'] in hidden or not (mine or resolvable):
+            continue
+        items.append(_item(f"flag:{f['id']}", 'action', 'flag',
+                           f"{f['decision_id']} is stale under {f['clause_id']}@{f['new_version']}",
+                           ('you own this decision' if mine else f"{f['domain']} domain")
+                           + f" · {f['impact_type'].replace('_', ' ').lower()}",
+                           {'kind': 'flag', 'id': f['id'], 'decision_id': f['decision_id'], 'can_resolve': resolvable},
+                           f['created_at'].isoformat(), urgent=f['impact_type'] == 'ONGOING_PRACTICE_BREACH'))
+    if permissions.can(u, 'ingestion.review'):
+        for r in await db.pool.fetch("SELECT document_id, count(*) AS n, max(created_at) AS at, "
+                                     "bool_or(visibility = 'restricted') AS secret FROM extractions "
+                                     "WHERE status = 'pending' GROUP BY document_id ORDER BY max(created_at) DESC"):
+            if r['secret'] and not permissions.can(u, 'audit.full'):
+                continue
+            items.append(_item(f"extraction:{r['document_id']}", 'action', 'ingestion',
+                               f"{r['n']} extracted fact(s) from {r['document_id']} to review",
+                               'accept, edit or reject in Ingestion Review',
+                               {'kind': 'extraction', 'id': r['document_id']}, r['at'].isoformat()))
+    for r in await db.pool.fetch("SELECT * FROM decision_proposals WHERE org_id = $1 AND status = 'proposed' "
+                                 'ORDER BY id DESC', u['org_id']):
+        if await _dp_block(u, r) is None:
+            items.append(_item(f"decision_proposal:{r['id']}", 'action', 'decision_review',
+                               f"Proposed decision: {r['title']}", f"from {r['proposed_by']} · {r['domain'] or 'no domain'}",
+                               {'kind': 'decision_proposal', 'id': r['id']}, r['created_at'].isoformat()))
+    for c in await comms.channels(u):
+        if c['unread']:
+            dm = c['scope'] == 'dm'
+            items.append(_item(f"channel:{c['id']}", 'unread', 'dm' if dm else 'mention' if c['mentions'] else 'channel',
+                               c['name'] if dm else f"#{c['name']}",
+                               f"{c['unread']} unread message(s)"
+                               + (f", {c['mentions']} mention(s) of you" if c['mentions'] else ''),
+                               {'kind': 'channel', 'id': c['id']}, c['last_at'], urgent=dm or bool(c['mentions'])))
+    for n in await comms.notifications(u, 60):
+        ref = {'kind': 'notification', 'id': n['ref_id'], 'notification_id': n['id'], 'notification_kind': n['kind']}
+        if n['kind'] == 'answer_flagged':
+            if not n['read']:
+                items.append(_item(f"note:{n['id']}", 'action', 'correction', 'Correction: an answer was reported wrong',
+                                   n['detail'], {**ref, 'kind': 'answer'}, n['created_at']))
+        elif n['kind'] not in ('mention', 'decision_proposed'):  # those are already listed above
+            items.append(_item(f"note:{n['id']}", 'notification', n['kind'], n['text'], n['detail'], ref,
+                               n['created_at'], read=n['read'], restricted=n['restricted']))
+    items.sort(key=lambda i: i['created_at'] or '', reverse=True)
+    items.sort(key=lambda i: (i['category'] != 'action', not i.get('urgent'), i.get('read', False)))
+    pending = sum(i['category'] == 'action' for i in items)
+    unread = sum(i['category'] == 'unread' or (i['category'] == 'notification' and not i['read']) for i in items)
+    return {'counts': {'pending': pending, 'unread': unread, 'badge': pending + unread}, 'items': items}
+
+
+@router.get('/inbox')
+async def my_inbox(u: dict = Depends(signed_in)):
+    return await inbox(u)
+
+
+@router.post('/inbox/read-all')
+async def inbox_read_all(u: dict = Depends(signed_in)):
+    """Mark every notification and conversation read (pending actions stay: they need a decision)."""
+    await db.pool.execute("UPDATE notifications SET read_at = now() WHERE user_id = $1 AND read_at IS NULL "
+                          "AND kind <> 'answer_flagged'", u['user_id'])
+    for c in await comms.channels(u):
+        if c['unread']:
+            await comms.mark_read(u, c['id'])
+    return {'ok': True}
+
+
+@router.post('/inbox/corrections/{nid}/done')
+async def correction_done(nid: int, u: dict = Depends(signed_in)):
+    if await db.pool.fetchval('UPDATE notifications SET read_at = now() WHERE id = $1 AND user_id = $2 '
+                              'AND read_at IS NULL RETURNING id', nid, u['user_id']) is None:
+        raise HTTPException(404, 'no such open correction')
+    await db.audit(f"user:{u['user_id']}", 'correction_handled', 'notification', str(nid), [], {})
+    return {'ok': True}

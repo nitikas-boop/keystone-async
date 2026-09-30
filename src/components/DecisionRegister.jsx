@@ -4,6 +4,7 @@ import { fetchDecisions, fetchFlags, fetchGraphView } from '../api';
 import { useApp } from '../context';
 import IdChip from './IdChip';
 import DecisionPage from './DecisionPage';
+import DateField from './DateField';
 import { day, polish, todayIST } from '../utils/format';
 import { displayName } from '../utils/people';
 import { IMPACT } from '../utils/entities';
@@ -13,14 +14,18 @@ import { IMPACT } from '../utils/entities';
 const COLS = [
   { key: 'title', label: 'Decision' },
   { key: 'ownerName', label: 'Owner' },
+  { key: 'decidedOn', label: 'Decided on' },
   { key: 'project', label: 'Project' },
-  { key: 'decidedOn', label: 'Decided' },
-  { key: 'status', label: 'Status' },
+  { key: 'reliedOn', label: 'Relied on' },
+  { key: 'state', label: 'Status' },
   { key: 'flagCount', label: 'Policy impact' },
 ];
+const STATE_CLS = { active: 'badge-note-green', superseded: 'badge-note-slate', stale: 'badge-note-amber' };
 
 
-export default function DecisionRegister({ refreshKey = 0, focus, proposals = [], auditLogs = [], onRecord }) {
+// asOf: the register as of that date (the same "as of" control as the graph); onRecord: Record (executives, leads)
+// or Propose (members) a decision.
+export default function DecisionRegister({ refreshKey = 0, focus, proposals = [], auditLogs = [], onRecord, recordLabel = 'Record a decision' }) {
   const { team, isReader, openEntity } = useApp();
   const [decisions, setDecisions] = useState(null);
   const [flags, setFlags] = useState([]);
@@ -32,14 +37,20 @@ export default function DecisionRegister({ refreshKey = 0, focus, proposals = []
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [openId, setOpenId] = useState(null);
   const [supersedes, setSupersedes] = useState({});  // decision -> the decision it replaced
+  const [relied, setRelied] = useState({});          // decision -> ['RET-2.1@v2', ...]
+  const [state, setState] = useState('');
+  const [asOf, setAsOf] = useState(() => todayIST());
 
-  const load = () => Promise.all([fetchDecisions(), fetchFlags(), fetchGraphView(todayIST(), isReader)])
+  const load = () => Promise.all([fetchDecisions(asOf), fetchFlags(), fetchGraphView(asOf, isReader)])
     .then(([d, f, g]) => {
       setDecisions(d); setFlags(f); setError(null);
       setSupersedes(Object.fromEntries(g.edges.filter(e => e.relation === 'SUPERSEDES' && /^DEC-/.test(e.source)).map(e => [e.source, e.target])));
+      const r = {};
+      g.edges.filter(e => e.relation === 'RELIED_ON').forEach(e => { (r[e.source] ||= []).push(e.target); });
+      setRelied(r);
     })
     .catch(e => setError(e.message));
-  useEffect(() => { load(); }, [refreshKey]);
+  useEffect(() => { load(); }, [refreshKey, asOf]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (focus) setOpenId(focus); }, [focus]);
 
   const rows = useMemo(() => (decisions || [])
@@ -49,18 +60,22 @@ export default function DecisionRegister({ refreshKey = 0, focus, proposals = []
     .map(d => {
       const a = d.attributes || {};
       const fl = flags.filter(f => f.decision_id === d.id);
+      const replaced = a.status === 'superseded' || Object.values(supersedes).includes(d.id);
+      const stale = fl.some(f => f.impact_type !== 'SUPERSEDED' && !f.resolved_at);
       return { id: d.id, title: polish(d.label), owner: a.owner, ownerName: a.owner ? displayName(a.owner, team) : '—',
         project: a.project || '—', decidedOn: a.decided_on || d.valid_from, status: a.status || '—', effect: a.effect,
         reasons: polish(a.reasons), flags: fl, flagCount: fl.length, restricted: d.provenance?.visibility === 'restricted',
         extracted: d.provenance?.extracted_by && d.provenance.extracted_by !== 'human', provenance: d.provenance,
-        supersedes: supersedes[d.id] };
-    }), [decisions, flags, team, isReader, supersedes]);
+        supersedes: supersedes[d.id], reliedOn: (relied[d.id] || []).join(', '),
+        state: replaced ? 'superseded' : stale ? 'stale' : 'active' };
+    }), [decisions, flags, team, isReader, supersedes, relied]);
 
   const owners = [...new Set(rows.map(r => r.ownerName))].sort();
   const projects = [...new Set(rows.map(r => r.project))].sort();
   const shown = rows
     .filter(r => (!q || `${r.id} ${r.title} ${r.reasons}`.toLowerCase().includes(q.toLowerCase()))
-      && (!owner || r.ownerName === owner) && (!project || r.project === project) && (!flaggedOnly || r.flagCount))
+      && (!owner || r.ownerName === owner) && (!project || r.project === project) && (!flaggedOnly || r.flagCount)
+      && (!state || r.state === state))
     .sort((a, b) => String(a[sort.key] ?? '').localeCompare(String(b[sort.key] ?? ''), undefined, { numeric: true }) * sort.dir);
 
   const open = rows.find(r => r.id === openId);
@@ -84,12 +99,19 @@ export default function DecisionRegister({ refreshKey = 0, focus, proposals = []
             <option value="">All projects</option>
             {projects.map(p => <option key={p}>{p}</option>)}
           </select>
+          <select value={state} onChange={e => setState(e.target.value)} className="field" aria-label="Filter by status">
+            <option value="">Any status</option>
+            <option value="active">Active</option>
+            <option value="superseded">Superseded</option>
+            <option value="stale">Stale</option>
+          </select>
           <label className="flex items-center gap-1.5 text-[13px] text-[#334155] cursor-pointer">
             <input type="checkbox" checked={flaggedOnly} onChange={e => setFlaggedOnly(e.target.checked)} /> Flagged only
           </label>
-          <span className="ml-auto text-[12.5px] text-[#64748B]">{shown.length} of {rows.length} decisions (valid today)</span>
+          <span className="flex items-center gap-1.5 text-[12.5px] text-[#64748B]">As of <DateField value={asOf} onChange={v => v && setAsOf(v)} label="Registry as of" /></span>
+          <span className="ml-auto text-[12.5px] text-[#64748B]">{shown.length} of {rows.length} decisions</span>
           <button onClick={load} className="icon-btn" aria-label="Refresh decisions" title="Refresh"><RefreshCw size={13} /></button>
-          {onRecord && <button onClick={onRecord} className="btn-secondary"><FilePlus2 size={13} /> Record a decision</button>}
+          {onRecord && <button onClick={onRecord} className="btn-secondary"><FilePlus2 size={13} /> {recordLabel}</button>}
         </div>
         <div className="flex-1 overflow-auto">
           <table className="w-full text-left border-collapse text-[13px]">
@@ -108,9 +130,9 @@ export default function DecisionRegister({ refreshKey = 0, focus, proposals = []
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {error && <tr><td colSpan={6} className="p-6 text-center text-rose-700">Could not load decisions: {error}</td></tr>}
-              {!error && !decisions && <tr><td colSpan={6} className="p-6 text-center text-[#64748B]">Loading…</td></tr>}
-              {decisions && shown.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-[#64748B]">No decisions match these filters.</td></tr>}
+              {error && <tr><td colSpan={COLS.length} className="p-6 text-center text-rose-700">Could not load decisions: {error}</td></tr>}
+              {!error && !decisions && <tr><td colSpan={COLS.length} className="p-6 text-center text-[#64748B]">Loading…</td></tr>}
+              {decisions && shown.length === 0 && <tr><td colSpan={COLS.length} className="p-6 text-center text-[#64748B]">No decisions match these filters.</td></tr>}
               {shown.map(r => (
                 <tr key={r.id} onClick={() => setOpenId(r.id)} tabIndex={0}
                   onKeyDown={e => e.key === 'Enter' && setOpenId(r.id)}
@@ -122,9 +144,10 @@ export default function DecisionRegister({ refreshKey = 0, focus, proposals = []
                     {r.extracted && <span className="ml-1.5 text-[11.5px] px-1 rounded badge-note-slate">extracted from a meeting note</span>}
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap">{r.ownerName}</td>
-                  <td className="py-2 px-3 whitespace-nowrap">{r.project}</td>
                   <td className="py-2 px-3 whitespace-nowrap">{day(r.decidedOn)}</td>
-                  <td className="py-2 px-3 whitespace-nowrap capitalize">{r.status}</td>
+                  <td className="py-2 px-3 whitespace-nowrap">{r.project}</td>
+                  <td className="py-2 px-3 whitespace-nowrap font-mono text-[12px]">{r.reliedOn || '—'}</td>
+                  <td className="py-2 px-3 whitespace-nowrap"><span className={`text-[12px] px-1.5 py-0.5 rounded capitalize ${STATE_CLS[r.state]}`}>{r.state}</span></td>
                   <td className="py-2 px-3">
                     <div className="flex flex-wrap gap-1">
                       {r.flags.length === 0 && <span className="text-[#64748B]">None</span>}

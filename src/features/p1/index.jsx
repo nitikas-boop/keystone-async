@@ -53,8 +53,8 @@ export function AuthGate({ children }) {
 // Extra dashboard views: {id, label, short, Icon, render: ({ currentUser, asOfDate, notify }) => element}
 export const views = [
   { id: 'P1_CHAT', label: 'Chat', short: 'Chat', Icon: MessagesSquare,
-    render: ({ currentUser, notify, can }) => <Chat me={currentUser.p1} notify={notify} can={can} /> },
-  { id: 'P1_AGENT', label: 'Agent actions', short: 'Agent', Icon: Bot,
+    render: ({ currentUser, notify, can, chatFocus }) => <Chat me={currentUser.p1} notify={notify} can={can} focus={chatFocus} /> },
+  { id: 'P1_AGENT', label: 'Agent actions', short: 'Agent', Icon: Bot, hidden: true,  // listed in the Inbox
     render: ({ currentUser }) => <AgentActions me={currentUser.p1} /> },
   { id: 'P1_ORG', label: 'Admin', short: 'Admin', Icon: Building2, cap: 'admin.panel',
     render: ({ currentUser, notify }) => <OrgAdmin me={currentUser.p1} notify={notify} /> },

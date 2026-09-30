@@ -1,3 +1,4 @@
+import * as p1 from '../api/p1';
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, FilePlus2, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { fetchDecisions, fetchDocument, fetchPolicies, uploadDocument } from '../api';
@@ -12,7 +13,9 @@ import {
 
 // "Record a decision" and "Add policy version": forms that write the same Markdown + front-matter a person would,
 // show it before saving, and send it to the existing POST /documents. Nothing here writes anywhere else.
-export default function AuthorModal({ mode, onMode, onClose, onSaved, onProceed }) {
+// propose: a member's decision goes to a lead for review (POST /decision-proposals) instead of straight to ingestion.
+// canPolicy: whether the Policy version tab is offered (CEO, Compliance Lead).
+export default function AuthorModal({ mode, onMode, onClose, onSaved, onProceed, propose = false, canPolicy = true, onProposed }) {
   const [known, setKnown] = useState(null);  // {decisions, policies}
   const [loadError, setLoadError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -32,6 +35,11 @@ export default function AuthorModal({ mode, onMode, onClose, onSaved, onProceed 
   const save = async (id, markdown) => {
     setSaving(true); setFailure(null);
     try {
+      if (propose) {
+        onProposed?.(await p1.proposeDecision(markdown));
+        onClose();
+        return;
+      }
       const res = await uploadDocument(new File([markdown], `${id}.md`, { type: 'text/markdown' }));
       setResult(res);
       onSaved(res);
@@ -49,11 +57,11 @@ export default function AuthorModal({ mode, onMode, onClose, onSaved, onProceed 
         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3">
           <div className="p-2 rounded-lg bg-sky-50 text-[#0284C7]"><FilePlus2 size={18} aria-hidden="true" /></div>
           <h3 id="author-title" className="font-heading font-bold text-[15px] text-[#0F172A]">
-            {mode === 'decision' ? 'Record a decision' : 'Add a policy version'}
+            {mode === 'decision' ? (propose ? 'Propose a decision (a lead reviews it)' : 'Record a decision') : 'Add a policy version'}
           </h3>
           {!result && (
             <div className="flex gap-1 p-0.5 rounded-lg bg-slate-100 border border-slate-200 ml-2" role="tablist">
-              {[['decision', 'Decision'], ['policy', 'Policy version']].map(([m, label]) => (
+              {[['decision', 'Decision'], ...(canPolicy ? [['policy', 'Policy version']] : [])].map(([m, label]) => (
                 <button key={m} role="tab" aria-selected={mode === m} onClick={() => onMode(m)}
                   className={`h-7 px-2.5 rounded-md cursor-pointer ${mode === m ? 'bg-white font-semibold shadow-xs' : 'text-[#475569]'}`}>{label}</button>
               ))}
