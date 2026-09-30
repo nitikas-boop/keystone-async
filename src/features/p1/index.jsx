@@ -63,8 +63,9 @@ export const views = [
 // An employee's workspace opens on their jurisdiction (My workspace) instead of Ask.
 const EMPLOYEE_VIEW = { id: 'P1_MINE', label: 'My workspace', short: 'Mine', Icon: NotebookPen,
   render: ({ currentUser }) => <EmployeeDashboard me={currentUser.p1} /> };
-export const viewsFor = (user) => (isEmployee(user?.p1) ? [EMPLOYEE_VIEW, ...views] : views);
-export const homeView = (user) => (isEmployee(user?.p1) ? EMPLOYEE_VIEW.id : undefined);
+// The employee jurisdiction page stays reachable by id; the Dashboard is everyone's home now.
+export const viewsFor = (user) => (isEmployee(user?.p1) ? [{ ...EMPLOYEE_VIEW, hidden: true }, ...views] : views);
+export const homeView = () => 'DASHBOARD';
 
 export function HeaderExtras() {
   return <Bell />;

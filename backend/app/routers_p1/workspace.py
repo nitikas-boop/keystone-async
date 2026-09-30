@@ -277,3 +277,138 @@ async def correction_done(nid: int, u: dict = Depends(signed_in)):
         raise HTTPException(404, 'no such open correction')
     await db.audit(f"user:{u['user_id']}", 'correction_handled', 'notification', str(nid), [], {})
     return {'ok': True}
+
+
+# ---- Dashboard: one endpoint, content scoped by tier (no number is computed in the browser) ----
+
+async def _decisions(u: dict) -> tuple[list[dict], list[dict], dict]:
+    """Decisions the user may see today (graph.read applies the retrieval filter), their unresolved flags, and
+    decision -> relied-on clause ids."""
+    from datetime import date
+    from .. import graph
+    g = await graph.read(date.today())
+    decs = [n for n in g['nodes'] if n['type'] == 'Decision']
+    ids = {d['id'] for d in decs}
+    replaced = {e['target'] for e in g['edges'] if e['relation'] == 'SUPERSEDES'}
+    relied = {}
+    for e in g['edges']:
+        if e['relation'] == 'RELIED_ON' and e['source'] in ids:
+            relied.setdefault(e['source'], set()).add(e['target'].split('@')[0])
+    flags = [dict(f) for f in await db.pool.fetch("SELECT * FROM flags WHERE resolved_at IS NULL "
+                                                  "AND impact_type <> 'SUPERSEDED'") if f['decision_id'] in ids]
+    stale = {f['decision_id'] for f in flags}
+    for d in decs:
+        a = d['attributes']
+        d['state'] = 'superseded' if a.get('status') == 'superseded' or d['id'] in replaced else \
+            'stale' if d['id'] in stale else 'active'
+    return decs, flags, relied
+
+
+def _dec_out(d: dict) -> dict:
+    a = d['attributes']
+    return {'id': d['id'], 'title': d['label'], 'decided_on': a.get('decided_on'), 'project': a.get('project'),
+            'owner': a.get('owner'), 'state': d['state']}
+
+
+async def _team_activity(u: dict, only_mine: bool) -> list[dict]:
+    """Per team: members and message count in its channels over the last 7 days (counts only, never content)."""
+    rows = await db.pool.fetch(
+        "SELECT t.id, t.name, t.lead_id, array(SELECT user_id FROM team_members WHERE team_id = t.id) AS members, "
+        "(SELECT count(*) FROM messages m JOIN channels c ON c.id = m.channel_id WHERE c.team_id = t.id "
+        " AND m.created_at > now() - interval '7 days') AS messages_7d, "
+        "(SELECT max(m.created_at) FROM messages m JOIN channels c ON c.id = m.channel_id WHERE c.team_id = t.id) AS last_at "
+        "FROM teams t WHERE t.org_id = $1 ORDER BY t.name", u['org_id'])
+    out = []
+    for r in rows:
+        if only_mine and u['user_id'] not in r['members'] and r['lead_id'] != u['user_id']:
+            continue
+        out.append({'id': r['id'], 'name': r['name'], 'members': len(set(r['members']) | {r['lead_id']} - {None}),
+                    'messages_7d': r['messages_7d'], 'last_at': r['last_at'] and r['last_at'].isoformat()})
+    return out
+
+
+async def _recent_audit(u: dict, n: int = 8) -> list[dict]:
+    sql = 'SELECT id, ts, actor, action, object_type, object_id FROM audit_log '
+    if permissions.can(u, 'audit.full'):
+        rows = await db.pool.fetch(sql + 'ORDER BY id DESC LIMIT $1', n)
+    else:
+        rows = await db.pool.fetch(sql + "WHERE actor IN ($2, $2 || ':mcp') ORDER BY id DESC LIMIT $1", n,
+                                   f"user:{u['user_id']}")
+    return [{**dict(r), 'ts': r['ts'].isoformat()} for r in rows]
+
+
+async def _policy_changes(u: dict, relied_mine: set[str]) -> list[dict]:
+    """Policy versions that took effect in the last 12 months (or take effect later), with whether they touch a
+    clause one of my decisions relied on or a policy my department owns."""
+    from .. import access
+    ok = access.visible_filter(u)
+    mine_dept = {p for p, t in access.POLICY_TEAM.get(u['org_id'], {}).items() if t in u.get('teams', [])}
+    rows = await db.pool.fetch("SELECT policy_id, version, document_id, min(effective_from) AS starts, "
+                               "array_agg(clause_id ORDER BY clause_id) AS clauses FROM policy_clauses "
+                               "WHERE effective_from > now() - interval '365 days' GROUP BY 1, 2, 3 ORDER BY 4 DESC")
+    return [{'policy_id': r['policy_id'], 'version': r['version'], 'document_id': r['document_id'],
+             'effective_from': r['starts'].isoformat(), 'clauses': r['clauses'],
+             'affects_me': bool(set(r['clauses']) & relied_mine) or r['policy_id'] in mine_dept}
+            for r in rows if ok({'type': 'PolicyVersion', 'key': r['document_id'], 'policy_id': r['policy_id']})]
+
+
+@router.get('/dashboard')
+async def dashboard(u: dict = Depends(signed_in)):
+    """Executive: org-wide. Lead: their domain and teams. Member: their own work. Every figure comes from the same
+    tables and filters as the rest of the API."""
+    scope = permissions.view(u)['dashboard_scope']
+    box = await inbox(u)
+    decs, flags, relied = await _decisions(u)
+    mine = [d for d in decs if d['attributes'].get('owner') in (u.get('person_key'), u['user_id'])]
+    out = {'scope': scope, 'tier': permissions.tier(u), 'domains': sorted(permissions.domains(u)),
+           'inbox': box['counts'],
+           'my_pending': [{k: i[k] for k in ('key', 'type', 'title', 'detail', 'ref')} for i in box['items']
+                          if i['category'] == 'action'][:8],
+           'my_decisions': [_dec_out(d) for d in mine]}
+    by_status = lambda ds: {s: sum(d['state'] == s for d in ds) for s in ('active', 'superseded', 'stale')}
+    if scope == 'org':
+        pending = await db.pool.fetchrow(
+            "SELECT (SELECT count(*) FROM proposals WHERE status = 'proposed') AS proposals, "
+            "(SELECT count(*) FROM proposed_actions WHERE org_id = $1 AND status = 'proposed') AS agent_actions, "
+            "(SELECT count(*) FROM decision_proposals WHERE org_id = $1 AND status = 'proposed') AS decisions", u['org_id'])
+        runs = await db.pool.fetch('SELECT id, kind, status, started_at, finished_at, stats FROM ingestion_runs '
+                                   'ORDER BY id DESC LIMIT 5')
+        out.update({
+            'pending_approvals': {**dict(pending), 'total': sum(pending.values())},
+            'active_flags': {'total': len(flags), 'by_domain': {d: sum(f['domain'] == d for f in flags)
+                                                                for d in permissions.DOMAINS}},
+            'decisions_by_status': by_status(decs),
+            'recent_audit': await _recent_audit(u),
+            'ingestion': {'pending_facts': await db.pool.fetchval("SELECT count(*) FROM extractions WHERE status = 'pending'"),
+                          'runs': [{'id': r['id'], 'kind': r['kind'], 'status': r['status'],
+                                    'started_at': r['started_at'].isoformat(), 'ok': (r['stats'] or {}).get('ok'),
+                                    'failed': (r['stats'] or {}).get('failed')} for r in runs]},
+            'team_activity': await _team_activity(u, only_mine=False),
+        })
+    elif scope == 'domain':
+        doms = permissions.domains(u)
+        dflags = [f for f in flags if f['domain'] in doms]
+        out.update({
+            'domain_flags': [{'id': f['id'], 'decision_id': f['decision_id'], 'clause': f"{f['clause_id']}@{f['new_version']}",
+                              'impact_type': f['impact_type'], 'domain': f['domain']} for f in dflags],
+            'pending_approvals': {'total': sum(i['type'] in ('approval', 'agent_action', 'decision_review')
+                                               for i in box['items'])},
+            'team_activity': await _team_activity(u, only_mine=True),
+            'decisions_by_status': by_status(mine),
+            'recent_audit': await _recent_audit(u, 5),
+        })
+    else:
+        mine_relied = set().union(*(relied.get(d['id'], set()) for d in mine)) if mine else set()
+        props = await db.pool.fetch("SELECT id, title, status, reason, created_at FROM decision_proposals "
+                                    "WHERE proposed_by = $1 ORDER BY id DESC LIMIT 5", u['user_id'])
+        acts = await db.pool.fetch("SELECT id, tool, status, created_at FROM proposed_actions WHERE proposed_by = $1 "
+                                   "ORDER BY id DESC LIMIT 5", u['user_id'])
+        out.update({
+            'my_proposals': [{'kind': 'decision', 'id': r['id'], 'title': r['title'], 'status': r['status'],
+                              'reason': r['reason']} for r in props]
+                            + [{'kind': 'agent_action', 'id': r['id'], 'title': r['tool'].replace('_', ' '),
+                                'status': r['status'], 'reason': None} for r in acts],
+            'policy_changes': await _policy_changes(u, mine_relied),
+            'team_activity': await _team_activity(u, only_mine=True),
+        })
+    return out

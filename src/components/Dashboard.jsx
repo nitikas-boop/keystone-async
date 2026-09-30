@@ -12,7 +12,8 @@ import {
   Table2,
   BookOpen,
   Search,
-  Inbox as InboxIcon
+  Inbox as InboxIcon,
+  LayoutDashboard
 } from 'lucide-react';
 import Logo from './Logo';
 import Sidebar from './Sidebar';
@@ -28,6 +29,7 @@ import PoliciesView from './PoliciesView';
 import CommandPalette from './CommandPalette';
 import Inbox from './Inbox';
 import ReviewHub from './ReviewHub';
+import WorkspaceDashboard from './WorkspaceDashboard';
 import * as p1api from '../api/p1';
 import AuthorModal from './AuthorModal';
 import { AppContext } from '../context';
@@ -51,6 +53,7 @@ import {
 
 // cap: the capability (GET /me/permissions) a view needs; views without one are open to every role.
 const VIEWS = [
+  { id: 'DASHBOARD', label: 'Dashboard', short: 'Home', Icon: LayoutDashboard, cap: 'dashboard' },
   { id: 'GRAPH', label: 'Graph', short: 'Graph', Icon: GitBranch, cap: 'graph' },
   { id: 'UNIFIED', label: 'Ask Keystone', short: 'Ask', Icon: MessageSquare, cap: 'ask' },
   { id: 'INBOX', label: 'Inbox', short: 'Inbox', Icon: InboxIcon },
@@ -63,7 +66,7 @@ const NAV_ORDER = ['DASHBOARD', 'GRAPH', 'UNIFIED', 'INBOX', 'P1_CHAT', 'DECISIO
 
 // extraViews / headerExtras: Person 1 and Person 2 screens (src/features/p1, p2), mounted by App.jsx.
 export default function Dashboard({ currentUser, onSignOut, onHome, extraViews = [], headerExtras = null,
-  initialView = 'UNIFIED', canApprove = true, employee = false, userSwitcher = null }) {
+  initialView = 'DASHBOARD', canApprove = true, employee = false, userSwitcher = null }) {
   const [asOfDate, setAsOfDate] = useState(() => todayIST());
   const [activeView, setActiveView] = useState(initialView);
   // The demo opens on the retention story; an employee opens with nothing selected (DEC-007 may be outside their
@@ -521,6 +524,13 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
               onChanged={() => { loadProposals(); loadAudit(); loadPendingFacts(); loadInbox(); }}
               registry={<DecisionRegister refreshKey={policyRefresh} focus={registryFocus} proposals={queueItems} auditLogs={auditLogs}
                 onRecord={recordDecision} recordLabel={can('decision.create') ? 'Record a decision' : 'Propose decision'} />} />
+          </div>
+        )}
+
+        {activeView === 'DASHBOARD' && (
+          <div className="flex-1 h-full min-h-0 overflow-y-auto">
+            <WorkspaceDashboard onOpenInbox={() => { setInboxSegment('mine'); setActiveView('INBOX'); }}
+              onOpenItem={openInboxItem} onNavigate={setActiveView} />
           </div>
         )}
 
