@@ -9,7 +9,7 @@ ALTER TABLE audit_log ADD CONSTRAINT audit_log_action_check CHECK (action IN (
     'join_requested', 'join_approved', 'code_rotated', 'device_paired', 'access_granted', 'restricted_view',
     'agent_message_proposed', 'agent_message_sent',
     -- Person 2
-    'claim_created', 'claim_blocked', 'claim_overridden', 'collision_resolved', 'proposal_approved',
+    'claim_created', 'claim_blocked', 'claim_overridden', 'collision_opened', 'collision_resolved', 'proposal_approved',
     'proposal_rejected', 'policy_proposed', 'simulation_run', 'dir_scan_started', 'dir_scan_completed',
     'file_access_removed'));
 
