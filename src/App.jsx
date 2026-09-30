@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import LandingPage from './components/LandingPage';
 import Dashboard from './components/Dashboard';
+import KeystoneIntro from './landing';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -34,9 +35,12 @@ export default function App() {
           onHome={handleSignOut}
         />
       ) : (
+        <>
+        <KeystoneIntro onLaunchConsole={handleLaunchConsole} />
         <LandingPage 
           onLaunchConsole={handleLaunchConsole} 
         />
+        </>
       )}
     </div>
   );
