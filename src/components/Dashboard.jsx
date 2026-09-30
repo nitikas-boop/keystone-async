@@ -56,11 +56,14 @@ const VIEWS = [
 ];
 
 // extraViews / headerExtras: Person 1 and Person 2 screens (src/features/p1, p2), mounted by App.jsx.
-export default function Dashboard({ currentUser, onSignOut, onHome, extraViews = [], headerExtras = null }) {
+export default function Dashboard({ currentUser, onSignOut, onHome, extraViews = [], headerExtras = null,
+  initialView = 'UNIFIED', canApprove = true, employee = false, userSwitcher = null }) {
   const [asOfDate, setAsOfDate] = useState(() => todayIST());
-  const [activeView, setActiveView] = useState('UNIFIED');
-  const [selectedNodeId, setSelectedNodeId] = useState('DEC-007');
-  const [highlightNodeIds, setHighlightNodeIds] = useState(['DEC-007', 'RET-2.1@v2']);
+  const [activeView, setActiveView] = useState(initialView);
+  // The demo opens on the retention story; an employee opens with nothing selected (DEC-007 may be outside their
+  // jurisdiction, and opening a locked node is an audited access attempt).
+  const [selectedNodeId, setSelectedNodeId] = useState(employee ? null : 'DEC-007');
+  const [highlightNodeIds, setHighlightNodeIds] = useState(employee ? [] : ['DEC-007', 'RET-2.1@v2']);
   const [chatCollapsed, setChatCollapsed] = useState(true);  // Temporal Graph opens graph-first; Ask always shows the console
   // Only ever backend data: an empty list is shown as empty, never padded with mock rows.
   const [queueItems, setQueueItems] = useState([]);
@@ -191,12 +194,13 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
   // Load audit trail from GET /audit
   const loadAudit = useCallback(async () => {
+    if (!isReader) return;  // the audit log is open to the owner and compliance roles only (403 for everyone else)
     try {
       setAuditLogs(await fetchAuditAll());
     } catch (err) {
       showNotification(`Audit log unavailable: ${err.message}`, "warning");
     }
-  }, [showNotification]);
+  }, [showNotification, isReader]);
 
   // Pending extracted facts for the Ingestion Review badge (restricted ones are not counted for non-readers).
   const loadPendingFacts = useCallback(() => {
@@ -298,8 +302,10 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
     setActiveView(v => (opts.view || (v === 'UNIFIED' || v === 'GRAPH' ? v : 'GRAPH')));
   }, []);
 
-  const ctx = useMemo(() => ({ userKey, isReader, team, openEntity, notify: showNotification, restrictedIds, titles }),
-    [userKey, isReader, team, openEntity, showNotification, restrictedIds, titles]);
+  const ctx = useMemo(() => ({ userKey, isReader, canApprove, team, openEntity, notify: showNotification, restrictedIds, titles }),
+    [userKey, isReader, canApprove, team, openEntity, showNotification, restrictedIds, titles]);
+  // No approval authority (an employee): ingesting and authoring go through a lead; the backend refuses amounts above it.
+  const noAuthority = currentUser.p1?.approval_authority_inr === 0;
   const pendingProposals = queueItems.filter(i => i.status === 'proposed').length;
 
   return (
@@ -307,7 +313,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
     <div className="h-dvh bg-[#F8FAFC] text-[#0F172A] flex flex-col overflow-hidden">
       {/* Top Header Bar */}
       <header className="h-14 shrink-0 bg-white border-b border-slate-200/80 px-4 flex items-center justify-between gap-3 z-30 select-none shadow-xs">
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             onClick={onHome}
             className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center text-[#64748B] hover:bg-slate-100 hover:text-[#0284C7] transition-colors cursor-pointer"
@@ -330,7 +336,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
         </div>
 
         {/* View Switcher Segmented Pills */}
-        <nav aria-label="Views" className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 text-[13px] shrink-0">
+        <nav aria-label="Views" className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 text-[13px] min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {[...VIEWS, ...extraViews].map(({ id, label, short, Icon }, i) => (
             <button
               key={id}
@@ -362,8 +368,9 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
           </button>
           <button
             onClick={() => setIsIngestModalOpen(true)}
-            className="h-8 px-3 rounded-lg btn-sky-gradient text-white text-[13px] font-medium flex items-center gap-1.5 shadow-xs cursor-pointer"
-            title="Upload a policy version, decision or meeting note (Markdown or meeting audio)"
+            disabled={noAuthority}
+            className="h-8 px-3 rounded-lg btn-sky-gradient text-white text-[13px] font-medium flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title={noAuthority ? 'Your approval authority is ₹0: ask your lead to ingest documents' : 'Upload a policy version, decision or meeting note (Markdown or meeting audio)'}
           >
             <Upload size={14} />
             <span className="hidden min-[1280px]:inline">Ingest Document</span>
@@ -373,7 +380,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
           {headerExtras}
           <div className="h-8 flex items-center gap-2 pl-3 border-l border-slate-200">
             <div className="flex flex-col justify-center text-right leading-tight" title={`Signed in (demo role picker) as ${currentUser.id}`}>
-              <span className="text-[#0F172A] font-semibold text-[13px]">{displayUser}</span>
+              <span className="text-[#0F172A] font-semibold text-[13px]">{userSwitcher ? userSwitcher(displayUser) : displayUser}</span>
               <span className="hidden min-[1280px]:inline text-[#64748B] text-[11.5px]">{currentUser.role} · <span className="font-mono">{currentUser.id}</span></span>
             </div>
             <button
@@ -439,6 +446,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
                 asOfDate={asOfDate}
                 health={health}
                 viewer={{ name: displayUser, role: currentUser.role }}
+                employee={employee}
                 onCitationClick={(citId) => {
                   setSelectedNodeId(citId);
                   setHighlightNodeIds([citId]);
@@ -512,13 +520,13 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
         {activeView === 'DECISIONS' && (
           <div className="flex-1 h-full min-h-0">
-            <DecisionRegister refreshKey={policyRefresh} proposals={queueItems} auditLogs={auditLogs} onRecord={() => setAuthorMode('decision')} />
+            <DecisionRegister refreshKey={policyRefresh} proposals={queueItems} auditLogs={auditLogs} onRecord={noAuthority ? undefined : () => setAuthorMode('decision')} />
           </div>
         )}
 
         {activeView === 'POLICIES' && (
           <div className="flex-1 h-full min-h-0">
-            <PoliciesView focus={policyFocus} refreshKey={policyRefresh} asOfDate={todayIST()} onAdd={() => setAuthorMode('policy')} />
+            <PoliciesView focus={policyFocus} refreshKey={policyRefresh} asOfDate={todayIST()} onAdd={canApprove ? () => setAuthorMode('policy') : undefined} />
           </div>
         )}
 

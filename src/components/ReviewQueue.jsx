@@ -178,7 +178,7 @@ function clauseValue(policies, clauseId, version) {
 }
 
 function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onApprove, onReject, onEdit }) {
-  const { titles } = useApp();
+  const { titles, canApprove } = useApp();
   const [mode, setMode] = useState('view');  // view | edit | reject
   const [draft, setDraft] = useState({ to: p.to, subject: p.subject, body: p.body });
   const [reason, setReason] = useState('');
@@ -273,7 +273,7 @@ function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onAppr
             <Mail size={13} aria-hidden="true" /> The proposal (as stored)
           </h4>
           {mode === 'view' && stage === 'proposed' && (
-            <button className="btn-secondary" onClick={() => setMode('edit')}><Edit3 size={13} /> Edit draft</button>
+            <button className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canApprove} onClick={() => setMode('edit')}><Edit3 size={13} /> Edit draft</button>
           )}
         </div>
         {mode === 'edit' ? (
@@ -341,10 +341,11 @@ function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onAppr
             </form>
           ) : (
             <div className="flex items-center gap-2 flex-wrap">
-              <button className="btn-approve" disabled={busy} onClick={() => act(() => onApprove(p.id))}>
+              <button className="btn-approve disabled:opacity-50 disabled:cursor-not-allowed" disabled={busy || !canApprove} onClick={() => act(() => onApprove(p.id))}>
                 <CheckCircle2 size={15} /> Approve: executor writes the email file
               </button>
-              <button className="btn-danger" onClick={() => setMode('reject')}><XCircle size={14} /> Reject…</button>
+              <button className="btn-danger disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canApprove} onClick={() => setMode('reject')}><XCircle size={14} /> Reject…</button>
+              {!canApprove && <p className="text-[12px] text-[#64748B] w-full">Read-only for you: only a team lead, compliance or the owner can decide.</p>}
             </div>
           )}
         </section>

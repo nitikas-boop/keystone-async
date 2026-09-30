@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from . import compliance, config, db, grounding, llm
+from . import access, compliance, config, db, grounding, llm
 from .memory import conversation_memory
 from .prompts import ANSWER_REFUSAL_SENTENCE, REASONING_SYSTEM_PROMPT
 from .retrieval import BaseRetrievalAdapter, get_retrieval_adapter
@@ -113,12 +113,14 @@ class ModelUnavailable(RuntimeError):
     """The local LLM could not be reached; surfaced to the API as 503."""
 
 
-def drop_restricted(r):
-    """Retrieval-time visibility filter: restricted nodes, their edges and sources never reach the prompt, and a
-    question answered only by restricted facts gets the ordinary refusal (no hint that something is hidden)."""
-    hidden = {n.id for n in r.nodes if (n.provenance or {}).get('visibility') == 'restricted'}
+def drop_restricted(r, ok=None):
+    """Retrieval-time access filter (B): nodes the asker may not see, their edges and sources never reach the prompt,
+    and a question answered only by hidden facts gets a refusal. ok: the asker's predicate over node properties
+    (access.visible_filter); without one (no signed-in asker) everything restricted is dropped."""
+    ok = ok or (lambda p: p.get('visibility') != 'restricted')
+    hidden = {n.id for n in r.nodes if not ok({**(n.attributes or {}), **(n.provenance or {}), 'key': n.id, 'type': n.type})}
     edges = [e for e in r.edges if e.source not in hidden and e.target not in hidden
-             and (e.provenance or {}).get('visibility') != 'restricted']
+             and ((e.provenance or {}).get('visibility') != 'restricted' or ok({**(e.provenance or {}), 'type': 'edge'}))]
     return replace(r, nodes=[n for n in r.nodes if n.id not in hidden], edges=edges,
                    seed_keys=[k for k in r.seed_keys if k not in hidden],
                    sources={k: v for k, v in r.sources.items() if k not in hidden},
@@ -138,10 +140,17 @@ class ReasoningEngine:
         # retrieve with the recent questions first; fall back to the question alone if that finds nothing.
         # A standalone question gets no history at all: earlier turns in retrieval or the prompt only add noise
         # (the AWS answer lost its decision date after an Atlas question in the same session).
-        reader = actor.removeprefix('user:') in config.RESTRICTED_READERS
-        if await grounding.unrecorded(question, reader):
+        from . import contracts
+        user = contracts.current_user()
+        # An employee (member) asking about records outside their jurisdiction is told who to ask, not "no record".
+        employee = bool(user and user.get('role') == 'member' and user.get('user_id'))
+        if await grounding.unrecorded(question, user):
             # The question names something no visible record mentions: the ordinary refusal, before any retrieval
-            # (a 7B model otherwise answers a nearby decision instead of "no recorded decision").
+            # (a 7B model otherwise answers a nearby decision instead of "no recorded decision"). If the records do
+            # mention it and only this employee may not see them, the jurisdiction refusal instead.
+            if employee and not await grounding.unrecorded(question, None):
+                found = await self.adapter.retrieve(question, as_of)
+                return await self._restricted(question, as_of, actor, session_id, user, found.withheld)
             return await self._format_response(
                 question=question, as_of=as_of, actor=actor, sentences=[], sources={}, subgraph_nodes=[],
                 subgraph_edges=[], checks=[], refused=True, ranked=[],
@@ -153,8 +162,13 @@ class ReasoningEngine:
             retrieval = await self.adapter.retrieve(f"{' '.join(user_queries[-2:])} {question}", as_of)
         if retrieval is None or retrieval.is_empty:
             retrieval = await self.adapter.retrieve(question, as_of)
-        if not reader:
-            retrieval = drop_restricted(retrieval)
+        retrieval = drop_restricted(retrieval, access.visible_filter(user) if user else None)
+        if employee and retrieval.withheld:
+            # The best match is a record this employee may not see: say so and who to ask. Its text never left
+            # the retrieval step; only its id picks the contact.
+            best_visible = max((x['score'] for x in retrieval.ranked_scores), default=0)
+            if retrieval.is_empty or retrieval.withheld[0]['score'] >= best_visible:
+                return await self._restricted(question, as_of, actor, session_id, user, retrieval.withheld)
 
         subgraph_nodes = [n.to_dict() for n in retrieval.nodes]
         subgraph_edges = [e.to_dict() for e in retrieval.edges]
@@ -260,11 +274,29 @@ class ReasoningEngine:
             session_id=session_id
         )
 
+    async def _restricted(self, question: str, as_of: date, actor: str, session_id: Optional[str], user: dict,
+                          withheld: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """The jurisdiction refusal: who to ask (the lead owning the best hidden match, and the asker's department
+        head), and an ACCESS_DENIED_ATTEMPT audit row. Nothing about the hidden record but its owner is used."""
+        from . import graph
+        keys = [w['key'] for w in withheld]
+        key = keys[0] if keys else None
+        rows = {r['p']['key']: r['p'] for r in await graph.q(
+            'MATCH (n:Entity {group_id: $g}) WHERE n.key IN $k RETURN n {.key, .type, .project, .team, .policy_id, '
+            '.visibility} AS p', g=graph.gid(), k=keys)} if keys else {}
+        who = await access.contact_for(user, [rows[k] for k in keys if k in rows])
+        await access.deny(user, key or 'query', f'question outside the asker\'s jurisdiction: "{question}"', 'ask')
+        return await self._format_response(
+            question=question, as_of=as_of, actor=actor, sentences=[], sources={}, subgraph_nodes=[],
+            subgraph_edges=[], checks=[], refused=True, ranked=[], threshold=getattr(self.adapter, 'relevance_min', 0.0),
+            session_id=session_id, restricted={**who, 'message': access.refusal_text(user, who)})
+
     async def _format_response(self, question: str, as_of: date, actor: str,
                                sentences: List[Dict[str, Any]], sources: Dict[str, Any],
                                subgraph_nodes: List[Dict[str, Any]], subgraph_edges: List[Dict[str, Any]],
                                checks: List[Dict[str, Any]], refused: bool, ranked: List[Dict[str, Any]],
-                               threshold: float, session_id: Optional[str] = None) -> Dict[str, Any]:
+                               threshold: float, session_id: Optional[str] = None,
+                               restricted: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         cited_ids = list(dict.fromkeys(i for s in sentences for i in s['source_ids']))
         citations = []
         for i in cited_ids:
@@ -282,7 +314,9 @@ class ReasoningEngine:
                 'span': prov.get('source_span')
             })
 
-        if refused:
+        if restricted:
+            answer = restricted['message']
+        elif refused:
             answer = ANSWER_REFUSAL_SENTENCE
         else:
             answer = ' '.join(f"{s['text']} " + ''.join(f'[{i}]' for i in s['source_ids']) for s in sentences)
@@ -317,7 +351,8 @@ class ReasoningEngine:
             'retrieval': {
                 'threshold': threshold,
                 'top': ranked
-            }
+            },
+            'restricted': restricted
         }
 
         # Update short term conversation memory

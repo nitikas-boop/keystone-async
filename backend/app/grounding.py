@@ -8,7 +8,7 @@ AWS decision that answers "why did we move off AWS?" scores 0.75. Names separate
   their cosine is below the threshold ("why did we move off aws" -> "Move from AWS to ...")."""
 import re
 
-from . import config, db, graph, llm
+from . import access, db, graph, llm
 from .prompts_p2 import NAMES_PROMPT
 
 # Words that name dates or the app itself, not recorded subjects; digits (2025, Q2, ₹4) are handled by as-of logic.
@@ -42,48 +42,60 @@ def content_words(question: str) -> list[str]:
                               and not any(c.isdigit() for c in w)))
 
 
+_NAMES: dict[str, list[str]] = {}  # question -> model names: the jurisdiction check asks twice (asker, then org-wide)
+
+
 async def model_names(question: str) -> list[str]:
     """Names the local model finds in any casing, kept only if they appear verbatim in the question (so it cannot
     add one). Model unavailable -> [] (the answer step then fails visibly anyway)."""
+    if question in _NAMES:
+        return _NAMES[question]
     try:
         out = await llm.chat_json(NAMES_PROMPT, question, {'type': 'object', 'required': ['names'], 'properties': {
             'names': {'type': 'array', 'items': {'type': 'string'}}}}, timeout=60)
     except Exception:
         return []
     q = (question or '').lower()
-    return list(dict.fromkeys(n.strip() for n in out.get('names', [])
-                              if isinstance(n, str) and n.strip() and n.strip().lower() in q
-                              and not any(c.isdigit() for c in n) and n.strip().lower() not in STOP_LOWER))
+    names = list(dict.fromkeys(n.strip() for n in out.get('names', [])
+                               if isinstance(n, str) and n.strip() and n.strip().lower() in q
+                               and not any(c.isdigit() for c in n) and n.strip().lower() not in STOP_LOWER))
+    if len(_NAMES) > 64:
+        _NAMES.clear()
+    _NAMES[question] = names
+    return names
 
 
-async def unknown_terms(terms: list[str], reader: bool) -> list[str]:
-    """Terms found in no document and no graph node this asker may see. A term known only from restricted
-    records counts as unknown for a non-reader, so the refusal looks the same as for a term never recorded."""
+async def unknown_terms(terms: list[str], user: dict | None) -> list[str]:
+    """Terms found in no document and no graph node this asker may see (the access check, B; user None = a system
+    process, which sees everything). A term known only from hidden records counts as unknown, so the refusal looks
+    the same as for a term never recorded."""
     if not terms or db.pool is None or graph.g is None:
         return []
+    ok = access.visible_filter(user)
     pats = [r'\m' + re.escape(t) + r'\M' for t in terms]
-    in_docs = {r['i'] for r in await db.pool.fetch(
-        'SELECT i FROM generate_subscripts($1::text[], 1) i WHERE EXISTS (SELECT 1 FROM documents '
-        "WHERE raw ~* ($1::text[])[i] AND (visibility = 'org' OR $2))", pats, reader)}
+    docs = await db.pool.fetch('SELECT i, d.id, d.front_matter, d.visibility FROM generate_subscripts($1::text[], 1) i '
+                               'JOIN documents d ON d.raw ~* ($1::text[])[i]', pats)
+    in_docs = {r['i'] for r in docs if ok({**(r['front_matter'] or {}), 'key': r['id'], 'visibility': r['visibility']})}
     rows = await graph.q('UNWIND range(0, size($ts) - 1) AS i MATCH (n:Entity {group_id: $g}) '
                          'WHERE (toLower(n.name) CONTAINS toLower($ts[i]) OR toLower(coalesce(n.role, "")) = toLower($ts[i])) '
-                         'AND coalesce(n.rejected, false) = false AND (coalesce(n.visibility, "org") = "org" OR $r) '
-                         'RETURN DISTINCT i', ts=terms, g=config.GROUP_ID, r=reader)
-    known = in_docs | {r['i'] + 1 for r in rows}  # generate_subscripts is 1-based
+                         'AND coalesce(n.rejected, false) = false '
+                         'RETURN i, n {.key, .type, .project, .team, .policy_id, .visibility, .decided_on, .meeting_date, '
+                         '.valid_from} AS p', ts=terms, g=graph.gid())
+    known = in_docs | {r['i'] + 1 for r in rows if ok(r['p'])}  # generate_subscripts is 1-based
     return [t for i, t in enumerate(terms, 1) if i not in known]
 
 
-async def unrecorded(question: str, reader: bool) -> list[str]:
+async def unrecorded(question: str, user: dict | None) -> list[str]:
     """Names in the question that no visible record mentions; any -> refuse.
     Pattern names are strict (each must be known). A model-proposed name counts as unknown only when none of its
     words is known, so a loosely extracted "project atlas history" is still known through "atlas"."""
     strict = salient_terms(question)
-    if unknown := await unknown_terms(strict, reader):
+    if unknown := await unknown_terms(strict, user):
         return unknown
     seen = {t.lower() for t in strict}
     names = [n for n in await model_names(question) if n.lower() not in seen]
     words = {n: [w for w in WORD.findall(n) if len(w) > 2 and w.lower() not in FUNCTION] or [n] for n in names}
-    missing = set(await unknown_terms(sorted({w for ws in words.values() for w in ws}), reader))
+    missing = set(await unknown_terms(sorted({w for ws in words.values() for w in ws}), user))
     return [n for n, ws in words.items() if all(w in missing for w in ws)]
 
 

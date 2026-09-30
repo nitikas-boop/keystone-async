@@ -229,6 +229,7 @@ function factText(f, subject, team) {
 }
 
 function Fact({ f, subject, team, review, busy, onReview }) {
+  const { canApprove } = useApp();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(f.text);
   const p = f.provenance;
@@ -251,12 +252,13 @@ function Fact({ f, subject, team, review, busy, onReview }) {
           </div>
         </form>
       ) : f.status === 'pending' ? (
-        <div className="flex gap-1.5 mt-2">
-          <button className="btn-approve" disabled={busy} onClick={() => onReview('accept')}>
+        <div className={`flex gap-1.5 mt-2 flex-wrap ${canApprove ? '' : 'opacity-50 cursor-not-allowed'}`}>
+          <button className="btn-approve disabled:cursor-not-allowed" disabled={busy || !canApprove} onClick={() => onReview('accept')}>
             {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Accept
           </button>
-          <button className="btn-secondary" disabled={busy} onClick={() => setEditing(true)}><Edit3 size={13} /> Edit</button>
-          <button className="btn-danger" disabled={busy} onClick={() => onReview('reject')}><XCircle size={13} /> Reject</button>
+          <button className="btn-secondary disabled:cursor-not-allowed" disabled={busy || !canApprove} onClick={() => setEditing(true)}><Edit3 size={13} /> Edit</button>
+          <button className="btn-danger disabled:cursor-not-allowed" disabled={busy || !canApprove} onClick={() => onReview('reject')}><XCircle size={13} /> Reject</button>
+          {!canApprove && <p className="text-[12px] text-[#64748B] w-full">Read-only for you: only a team lead, compliance or the owner can decide.</p>}
         </div>
       ) : (
         <div className={`mt-1.5 inline-flex items-center gap-1 text-[12px] px-1.5 py-0.5 rounded ${f.status === 'accepted' ? 'badge-note-green' : 'badge-note-rose'}`}>

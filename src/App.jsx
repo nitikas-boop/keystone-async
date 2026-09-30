@@ -14,7 +14,11 @@ export default function App() {
             currentUser={user}
             onSignOut={signOut}
             onHome={signOut}
-            extraViews={[...P1.views, ...P2.views]}
+            extraViews={[...P1.viewsFor(user), ...P2.views]}
+            initialView={P1.homeView(user)}
+            canApprove={P1.canApprove(user.p1)}
+            employee={P1.isEmployee(user.p1)}
+            userSwitcher={(name) => <P1.DemoSwitcher me={user.p1} fallback={name} />}
             headerExtras={<>{P2.HeaderWidget && <P2.HeaderWidget currentUser={user} />}<P1.HeaderExtras user={user} /></>}
           />
         )}

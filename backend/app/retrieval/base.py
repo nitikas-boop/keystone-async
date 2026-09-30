@@ -82,6 +82,9 @@ class RetrievalResult:
     sources: Dict[str, SourceRecord]
     ranked_scores: List[Dict[str, Any]] = field(default_factory=list)
     relevance_threshold: float = 0.66
+    # Hits the access filter dropped that would otherwise have answered: [{key, score}], best first. Only ids and
+    # scores, never text; /ask uses them to tell an employee who to ask instead of "no recorded decision".
+    withheld: List[Dict[str, Any]] = field(default_factory=list)
 
     @property
     def is_empty(self) -> bool:

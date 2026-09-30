@@ -21,10 +21,10 @@ _ph = PasswordHasher()
 
 # The synthetic Nimbus Ledger org (data/vault/people.yaml), seeded on an empty database. user id = the X-User key the
 # existing tests and scripts use; person_key = the Person node in the graph.
-DEMO_TEAMS = [  # (id, name, lead, projects)
-    ('team-engineering', 'Engineering', 'karthik', ['Project Atlas', 'Internal Ops']),
-    ('team-operations', 'Operations', 'priya', ['Procurement']),
-    ('team-compliance', 'Compliance', 'farhan', ['Data Governance']),
+DEMO_TEAMS = [  # (id, name, lead, projects, policies the department owns)
+    ('team-engineering', 'Engineering', 'karthik', ['Project Atlas', 'Internal Ops'], []),
+    ('team-operations', 'Operations', 'priya', ['Procurement'], ['POL-PROC']),
+    ('team-compliance', 'Compliance', 'farhan', ['Data Governance'], ['POL-RET']),
 ]
 DEMO_USERS = [  # (id, employee_id, name, designation, role, team, person_key)
     ('nitika', 'NL-000', 'Nitika', 'Keystone Admin', 'owner', None, None),
@@ -36,7 +36,12 @@ DEMO_USERS = [  # (id, employee_id, name, designation, role, team, person_key)
     ('sneha', 'NL-007', 'Sneha Iyer', 'Analyst', 'member', 'team-operations', 'p-sneha'),
     ('karthik', 'NL-008', 'Karthik Rao', 'CTO', 'lead', 'team-engineering', 'p-karthik'),
     ('meera', 'AUD-001', 'Meera Pillai', 'External auditor', 'auditor', None, None),
+    ('aarav', 'NL-009', 'Aarav Mehta', 'Junior Software Engineer', 'member', 'team-engineering', None),
 ]
+# Jurisdiction (B): an employee with assigned projects sees only those (plus their department's policies and the org
+# chart). approval_authority_inr: the largest amount a person may approve; leads 5 lakh, employees none, others no cap.
+DEMO_ASSIGNED = {'aarav': ['Project Atlas']}
+DEMO_AUTHORITY = {'lead': 500000, 'member': 0}
 DEMO_AUDITOR = {'audit_from': date(2025, 1, 1), 'audit_to': date(2025, 12, 31)}
 
 
@@ -117,8 +122,10 @@ async def load_user(user_id: str, via: str = 'web', device_id: int | None = None
         return _demo_user(user_id)
     r = await db.pool.fetchrow(
         'SELECT u.id, u.org_id, u.employee_id, u.display_name, u.designation, u.person_key, m.role, m.team_id, '
-        'm.audit_from, m.audit_to, o.name AS org_name FROM users u JOIN memberships m ON m.user_id = u.id '
-        "JOIN organizations o ON o.id = m.org_id WHERE u.id = $1 AND m.status = 'active' "
+        'm.audit_from, m.audit_to, m.assigned_projects, m.approval_authority_inr, o.name AS org_name, '
+        't.name AS department FROM users u JOIN memberships m ON m.user_id = u.id '
+        'JOIN organizations o ON o.id = m.org_id LEFT JOIN teams t ON t.id = m.team_id '
+        "WHERE u.id = $1 AND m.status = 'active' "
         'AND (m.expires_at IS NULL OR m.expires_at > now())', user_id)
     if r is None:
         return None
@@ -135,6 +142,8 @@ async def load_user(user_id: str, via: str = 'web', device_id: int | None = None
             'teams': sorted(x['t'] for x in teams), 'grants': sorted(g['resource_id'] for g in grants),
             'via': via, 'device_id': device_id, 'display_name': r['display_name'], 'designation': r['designation'],
             'employee_id': r['employee_id'], 'person_key': r['person_key'], 'org_name': r['org_name'],
+            'department': r['department'], 'assigned_projects': r['assigned_projects'] or [],
+            'approval_authority_inr': r['approval_authority_inr'],
             'audit_from': r['audit_from'] and r['audit_from'].isoformat(),
             'audit_to': r['audit_to'] and r['audit_to'].isoformat()}
 
@@ -145,7 +154,9 @@ def _demo_user(user_id: str) -> dict | None:
         return None
     return {'user_id': u[0], 'org_id': config.GROUP_ID, 'role': u[4], 'team_id': u[5], 'actor': f'user:{u[0]}', 'teams': [u[5]] if u[5] else [],
             'grants': [], 'via': 'web', 'device_id': None, 'display_name': u[2], 'designation': u[3],
-            'employee_id': u[1], 'person_key': u[6], 'org_name': 'Nimbus Ledger', 'audit_from': None, 'audit_to': None}
+            'employee_id': u[1], 'person_key': u[6], 'org_name': 'Nimbus Ledger', 'audit_from': None, 'audit_to': None,
+            'department': next((t[1] for t in DEMO_TEAMS if t[0] == u[5]), None),
+            'assigned_projects': DEMO_ASSIGNED.get(u[0], []), 'approval_authority_inr': DEMO_AUTHORITY.get(u[4])}
 
 
 async def resolve(request) -> dict | None:
@@ -165,7 +176,8 @@ async def resolve(request) -> dict | None:
 def me(u: dict) -> dict:
     """What the browser may know about the signed-in user (no grants list, no token)."""
     keys = ('user_id', 'org_id', 'org_name', 'role', 'team_id', 'teams', 'display_name', 'designation',
-            'employee_id', 'person_key', 'via', 'audit_from', 'audit_to')
+            'employee_id', 'person_key', 'via', 'audit_from', 'audit_to', 'department', 'assigned_projects',
+            'approval_authority_inr')
     return {k: u.get(k) for k in keys}
 
 
@@ -176,34 +188,41 @@ _seed_lock = asyncio.Lock()
 
 
 async def ensure_seed():
-    """Create the demo org on an empty database (config.DEMO_SEED). Its id is GROUP_ID, so it owns the existing graph."""
+    """Create the demo org on an empty database (config.DEMO_SEED). Its id is GROUP_ID, so it owns the existing graph.
+    An already seeded demo org gets any demo user added since (Aarav Mehta), without touching existing rows."""
     global _seeded
     if _seeded or db.pool is None:
         return
     async with _seed_lock:
-        if not _seeded and config.DEMO_SEED and not await db.pool.fetchval('SELECT count(*) FROM organizations'):
-            await _seed()
+        if not _seeded and config.DEMO_SEED:
+            empty = not await db.pool.fetchval('SELECT count(*) FROM organizations')
+            have = {r['id'] for r in await db.pool.fetch('SELECT id FROM users WHERE org_id = $1', config.GROUP_ID)}
+            if empty or (have and {u[0] for u in DEMO_USERS} - have):
+                await _seed(have)
         _seeded = True
 
 
-async def _seed():
+async def _seed(have: set = frozenset()):
     from . import comms
     org, pw = config.GROUP_ID, hash_password(config.DEMO_PASSWORD)
+    new = [u for u in DEMO_USERS if u[0] not in have]
     async with db.pool.acquire() as c, c.transaction():
         await c.execute('INSERT INTO organizations (id, name, join_code_hash) VALUES ($1, $2, $3) '
                         'ON CONFLICT DO NOTHING', org, 'Nimbus Ledger', sha(normalise_code(config.DEMO_JOIN_CODE)))
-        for uid, emp, name, desig, role, team, person in DEMO_USERS:
+        for uid, emp, name, desig, role, team, person in new:
             await c.execute('INSERT INTO users (id, org_id, employee_id, password_hash, display_name, designation, '
                             'person_key) VALUES ($1,$2,$3,$4,$5,$6,$7)', uid, org, emp, pw, name, desig, person)
-        for tid, name, lead, projects in DEMO_TEAMS:
-            await c.execute('INSERT INTO teams (id, org_id, name, lead_id, projects) VALUES ($1,$2,$3,$4,$5)',
-                            tid, org, name, lead, projects)
-        for uid, _, _, _, role, team, _ in DEMO_USERS:
+        for tid, name, lead, projects, policies in DEMO_TEAMS:
+            await c.execute('INSERT INTO teams (id, org_id, name, lead_id, projects, policies) '
+                            'VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING', tid, org, name, lead, projects, policies)
+        for uid, _, _, _, role, team, _ in new:
             aud = DEMO_AUDITOR if role == 'auditor' else {}
             await c.execute("INSERT INTO memberships (user_id, org_id, role, team_id, status, expires_at, audit_from, "
-                            "audit_to) VALUES ($1,$2,$3,$4,'active',$5,$6,$7)", uid, org, role, team,
+                            "audit_to, assigned_projects, approval_authority_inr) "
+                            "VALUES ($1,$2,$3,$4,'active',$5,$6,$7,$8,$9)", uid, org, role, team,
                             datetime(2026, 12, 31, tzinfo=timezone.utc) if aud else None,
-                            aud.get('audit_from'), aud.get('audit_to'))
+                            aud.get('audit_from'), aud.get('audit_to'), DEMO_ASSIGNED.get(uid),
+                            DEMO_AUTHORITY.get(role))
             if team:
                 await c.execute('INSERT INTO team_members VALUES ($1,$2,$3)', team, uid, org)
         await comms.ensure_org_channels(c, org)

@@ -8,6 +8,10 @@ import { RELATIONS, TYPES, impactLabel, nodeTitle, typeMeta } from '../utils/ent
 import { layout } from '../utils/graphLayout';
 import { day, inr, month, polish, todayIST, ts } from '../utils/format';
 import { displayName } from '../utils/people';
+import { JurisdictionDrawer } from '../features/p1/Jurisdiction';
+
+// A decision outside an employee's jurisdiction (node.locked): a padlock, dashed and soft; opening it says who to ask.
+const LOCK_ICON = ['M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z', 'M7 11V7a5 5 0 0 1 10 0v4'];
 
 // The temporal graph, from GET /graph/view (server-side visibility filter). Positions come from a deterministic
 // layout over every node known today (x = date, one lane per type), so nodes stay put while the as-of date moves;
@@ -342,8 +346,8 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
                   const isSel = n.id === selectedNodeId;
                   const lit = highlighted.has(n.id);
                   const inFocus = neighbours ? neighbours.has(n.id) : true;
-                  const opacity = st === 'absent' ? 0.1 : st === 'future' ? 0.35 : neighbours && !inFocus ? 0.3 : 1;
-                  const grey = st === 'superseded' || st === 'future';
+                  const opacity = st === 'absent' ? 0.1 : st === 'future' ? 0.35 : neighbours && !inFocus ? 0.3 : n.locked ? 0.7 : 1;
+                  const grey = st === 'superseded' || st === 'future' || n.locked;
                   const lb = labels[n.id];
                   const label = lb ? labelOf(n) : null;
                   return (
@@ -351,16 +355,16 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
                        className={st === 'absent' ? '' : 'cursor-pointer'} pointerEvents={st === 'absent' ? 'none' : 'auto'}
                        onClick={(ev) => { ev.stopPropagation(); onSelectNode(n.id === selectedNodeId ? null : n.id); }}
                        onPointerEnter={() => setHoverNode(n.id)} onPointerLeave={() => setHoverNode(null)}
-                       role="button" tabIndex={st === 'absent' ? -1 : 0} aria-label={`${m.label} ${n.id}, ${st}`}
+                       role="button" tabIndex={st === 'absent' ? -1 : 0} aria-label={n.locked ? `Locked decision ${n.id}, outside your jurisdiction` : `${m.label} ${n.id}, ${st}`}
                        onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && onSelectNode(n.id === selectedNodeId ? null : n.id)}>
                       {(isSel || lit) && <circle r={R + 5} fill="none" stroke={st === 'flagged' ? '#E11D48' : '#0284C7'} strokeWidth="2.5" />}
                       <circle r={R} fill={grey ? '#F1F5F9' : st === 'flagged' ? '#FFE4E6' : m.fill}
                               stroke={grey ? '#94A3B8' : st === 'flagged' ? '#E11D48' : m.stroke}
-                              strokeWidth={isSel ? 2.5 : 1.6} strokeDasharray={st === 'future' ? '3 2' : ''}
-                              style={{ transition: 'fill 450ms, stroke 450ms' }} />
+                              strokeWidth={isSel ? 2.5 : 1.6} strokeDasharray={n.locked ? '4 3' : st === 'future' ? '3 2' : ''}
+                              style={{ transition: 'fill 450ms, stroke 450ms', filter: n.locked ? 'blur(0.6px)' : undefined }} />
                       <g transform="translate(-8 -8) scale(0.667)" fill="none" stroke={grey ? '#64748B' : m.stroke} strokeWidth="2.2"
                          strokeLinecap="round" strokeLinejoin="round">
-                        {m.icon.map((d, i) => <path key={i} d={d} />)}
+                        {(n.locked ? LOCK_ICON : m.icon).map((d, i) => <path key={i} d={d} />)}
                       </g>
                       {st === 'flagged' && (
                         <g transform={`translate(${R - 4} ${-R - 2})`}>
@@ -387,7 +391,9 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
 
       {inspectorOpen && (
         <aside className="w-72 xl:w-80 shrink-0 border-l border-slate-200 bg-white overflow-y-auto" aria-label="Inspector">
-          {selected
+          {selected?.locked
+            ? <JurisdictionDrawer nodeId={selected.id} onClose={() => onSelectNode(null)} />
+            : selected
             ? <Inspector node={selected} state={stateById[selected.id]} st={nodeState(selected.id)} asOfDate={asOfDate}
                          allEdges={allEdges} baseById={baseById} decisions={decisions} policies={policies} flags={flags}
                          team={team} openEntity={openEntity} onClear={() => onSelectNode(null)}

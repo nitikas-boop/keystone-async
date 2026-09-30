@@ -3,7 +3,7 @@ before retrieval, and a name known only from restricted records gives a non-read
 import httpx
 import pytest
 
-from app import config, db, graph, grounding
+from app import config, contracts, db, graph, grounding
 from conftest import TEST_GROUP, wipe
 from p2util import TEST_DB, H, post_doc
 
@@ -44,12 +44,13 @@ async def test_restricted_only_name_is_unknown_to_non_readers(secret, monkeypatc
     await db.connect(TEST_DB)
     graph.make()
     try:
-        assert await grounding.unknown_terms(['Zephyrine', 'Kubernetes'], reader=True) == ['Kubernetes']
-        assert await grounding.unknown_terms(['Zephyrine', 'Kubernetes'], reader=False) == ['Zephyrine', 'Kubernetes']
+        reader, lead = contracts.user_for('farhan'), contracts.user_for('priya')  # compliance reads restricted
+        assert await grounding.unknown_terms(['Zephyrine', 'Kubernetes'], reader) == ['Kubernetes']
+        assert await grounding.unknown_terms(['Zephyrine', 'Kubernetes'], lead) == ['Zephyrine', 'Kubernetes']
         # lower case: the local model proposes the name, the records decide
-        assert await grounding.unrecorded('why did we pick kubernetes', reader=True) == ['kubernetes']
-        assert await grounding.unrecorded('why did we adopt zephyrine?', reader=True) == []
-        assert await grounding.unrecorded('why did we adopt zephyrine?', reader=False) == ['zephyrine']
+        assert await grounding.unrecorded('why did we pick kubernetes', reader) == ['kubernetes']
+        assert await grounding.unrecorded('why did we adopt zephyrine?', reader) == []
+        assert await grounding.unrecorded('why did we adopt zephyrine?', lead) == ['zephyrine']
     finally:
         await db.pool.close()
         await graph.g.close()

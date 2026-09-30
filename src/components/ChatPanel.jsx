@@ -17,7 +17,8 @@ import {
   Square,
   WifiOff
 } from 'lucide-react';
-import { DEMO_QUERIES } from '../data/demoQueries';
+import { DEMO_QUERIES, EMPLOYEE_QUERIES } from '../data/demoQueries';
+import { RestrictedAnswer } from '../features/p1/Jurisdiction';
 import { ask, transcribe } from '../api';
 import { useTranslation } from 'react-i18next';
 import { SlashResult, parseSlash, runSlash, SLASH_HELP } from '../features/p2/Slash';
@@ -44,7 +45,7 @@ function loadHistory(key) {
 }
 
 export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, onQueryExecuted, onNodeHighlight, onAnswer, onReset, headerAction,
-  storageKey = null, auditLogs = [], opened = null }) {
+  storageKey = null, auditLogs = [], opened = null, employee = false }) {
   const [messages, setMessages] = useState(() => (storageKey && loadHistory(storageKey)?.messages) || []);
   const [sessionId, setSessionId] = useState(() => (storageKey && loadHistory(storageKey)?.sessionId) || newSession());
   const [inputValue, setInputValue] = useState('');
@@ -180,7 +181,7 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
         <span className="text-[12px] text-[#475569] flex items-center gap-1">
           <Sparkles size={12} className="text-[#0284C7]" aria-hidden="true" /> Try:
         </span>
-        {DEMO_QUERIES.map(q => (
+        {(employee ? EMPLOYEE_QUERIES : DEMO_QUERIES).map(q => (
           <button key={q.id} onClick={() => { setInputValue(q.query); executeQuestion(q.query, q); }} disabled={!!pending}
             title={`${q.query} (as of ${day(q.asOfDateSuggested)})`}
             className="px-2 py-0.5 text-[12px] rounded-md bg-white hover:bg-sky-50 text-[#334155] hover:text-[#0369A1] border border-slate-200 hover:border-sky-300 cursor-pointer disabled:opacity-50">
@@ -299,6 +300,7 @@ function Sentence({ s, onCitationClick }) {
 }
 
 function Answer({ res, onCitationClick, actions }) {
+  if (res.restricted) return <RestrictedAnswer res={res} actions={actions} />;
   if (res.refused) {
     // One look for every refusal: no evidence and restricted evidence are indistinguishable by design.
     return (

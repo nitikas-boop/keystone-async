@@ -14,7 +14,7 @@ import { displayName } from '../utils/people';
 const ACTIONS = ['policy_ingested', 'query', 'flag_created', 'action_proposed', 'approved', 'rejected', 'executed',
   'edited', 'extraction_reviewed'];
 const ACTION_STYLE = { approved: 'badge-note-green', executed: 'badge-note-green', rejected: 'badge-note-rose',
-  flag_created: 'badge-note-amber', action_proposed: 'badge-note-amber' };
+  flag_created: 'badge-note-amber', action_proposed: 'badge-note-amber', ACCESS_DENIED_ATTEMPT: 'badge-note-rose' };
 const GENESIS = '0'.repeat(64);
 const TAMPER_ENABLED = import.meta.env.VITE_DEV_TAMPER === '1';
 
@@ -130,7 +130,7 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
             </select>
             <select className="field" value={filters.action} onChange={e => setFilters(f => ({ ...f, action: e.target.value }))} aria-label="Filter by action">
               <option value="">All actions</option>
-              {ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+              {[...new Set([...ACTIONS, ...auditLogs.map(r => r.action)])].map(a => <option key={a} value={a}>{a}</option>)}
             </select>
             <span className="flex items-center gap-1 text-[#475569]">From <DateField label="From date" placeholder="Start" value={filters.from} onChange={v => setFilters(f => ({ ...f, from: v }))} /></span>
             <span className="flex items-center gap-1 text-[#475569]">to <DateField label="To date" placeholder="End" value={filters.to} onChange={v => setFilters(f => ({ ...f, to: v }))} /></span>

@@ -6,5 +6,6 @@ ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check;
 ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_object_type_check;
 ALTER TABLE audit_log ADD CONSTRAINT audit_log_actor_check
     CHECK (actor ~ '^(user:[a-z0-9_.-]+(:mcp)?|system:[a-z_]+|executor)$');
-ALTER TABLE audit_log ADD CONSTRAINT audit_log_action_check CHECK (action ~ '^[a-z_]{2,40}$');
+-- Security events are upper case (ACCESS_DENIED_ATTEMPT), so they stand out in the trail.
+ALTER TABLE audit_log ADD CONSTRAINT audit_log_action_check CHECK (action ~ '^([a-z_]{2,40}|[A-Z_]{2,40})$');
 ALTER TABLE audit_log ADD CONSTRAINT audit_log_object_type_check CHECK (object_type ~ '^[a-z_]{2,40}$');

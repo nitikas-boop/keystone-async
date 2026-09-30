@@ -6,22 +6,27 @@ Labels: every node and source carries visibility (org | team | restricted) and a
   owner       everything, every team, restricted included; grants and revokes
   compliance  everything (read), across teams
   lead        org items, their team's items; approves joins; authority for their domain
-  member      org items, their team's items
+  member      org items, their team's items; with assigned projects (jurisdiction) only those projects' items,
+              their department's policies and the org chart
   auditor     read-only, time-limited, non-restricted items dated inside their invited range
 A per-user grant (access_grants) opens one item to one person whatever its label.
 """
+from datetime import datetime, timezone
+
 from . import config, db
 
 ROLES = ('owner', 'lead', 'member', 'compliance', 'auditor')
 READ_ALL = {'owner', 'compliance'}
 PROJECT_TEAM: dict[str, dict[str, str]] = {}  # org_id -> {project name: team id}, refreshed per request
 TEAM_BY_NAME: dict[str, dict[str, str]] = {}  # org_id -> {lower-case team name or id: team id}
+POLICY_TEAM: dict[str, dict[str, str]] = {}   # org_id -> {policy id: the department (team id) that owns it}
 
 
 async def refresh_projects(org_id: str):
-    rows = await db.pool.fetch('SELECT id, name, projects FROM teams WHERE org_id = $1', org_id)
+    rows = await db.pool.fetch('SELECT id, name, projects, policies FROM teams WHERE org_id = $1', org_id)
     PROJECT_TEAM[org_id] = {p: r['id'] for r in rows for p in r['projects']}
     TEAM_BY_NAME[org_id] = {k.lower(): r['id'] for r in rows for k in (r['name'], r['id'])}
+    POLICY_TEAM[org_id] = {p: r['id'] for r in rows for p in r['policies']}
 
 
 def _org() -> str:
@@ -40,7 +45,8 @@ def label_for(source: dict) -> dict:
     Team/... -> team (the scanning user's team), Groups/... -> restricted."""
     project, scope = source.get('project'), source.get('scope') or 'org'
     named = TEAM_BY_NAME.get(_org(), {})
-    team = named.get(str(source.get('team') or '').lower()) or source.get('team') or PROJECT_TEAM.get(_org(), {}).get(project)
+    team = (named.get(str(source.get('team') or '').lower()) or source.get('team')
+            or PROJECT_TEAM.get(_org(), {}).get(project) or POLICY_TEAM.get(_org(), {}).get(source.get('policy_id')))
     vis = source.get('visibility')
     if not vis:
         if scope.lower() in ('org', 'organisation'):
@@ -50,6 +56,19 @@ def label_for(source: dict) -> dict:
         else:
             vis = 'restricted'  # a group folder, or a team folder no team matches: nobody is widened by accident
     return {'team': team, 'project': project, 'visibility': vis, 'date': item_date(source)}
+
+
+def in_jurisdiction(user: dict, resource: dict) -> bool:
+    """An employee with assigned projects: the org chart, their projects' items, and items (policies) owned by their
+    department. Anything tied to neither (another project, another department's policy, a meeting note, a flag) is
+    outside it. Without assigned projects there is no extra limit."""
+    if user.get('role') != 'member' or not user.get('assigned_projects'):
+        return True
+    if (resource.get('type') or '').lower() == 'person':
+        return True
+    if resource.get('project'):
+        return resource['project'] in user['assigned_projects']
+    return resource.get('team') is not None and resource['team'] in user.get('teams', ())
 
 
 def can_access(user: dict | None, resource: dict, action: str = 'read') -> bool:
@@ -69,6 +88,8 @@ def can_access(user: dict | None, resource: dict, action: str = 'read') -> bool:
         return role in READ_ALL
     if role in READ_ALL or resource.get('id') in user.get('grants', ()):
         return True
+    if not in_jurisdiction(user, resource):
+        return False
     vis = resource.get('visibility') or 'org'
     if role == 'auditor':
         d = resource.get('date')
@@ -82,8 +103,11 @@ def can_access(user: dict | None, resource: dict, action: str = 'read') -> bool:
 
 def resource_of(props: dict, org_id: str | None = None) -> dict:
     """A graph node's (or edge's) property dict as a can_access resource."""
+    label = label_for(props)
+    if props.get('type') == 'Project':  # a project node is its own project
+        label['project'] = props.get('key')
     return {'type': props.get('type') or 'edge', 'id': props.get('key') or props.get('id') or props.get('uuid'),
-            'org_id': org_id, **label_for(props)}
+            'org_id': org_id, **label}
 
 
 def visible_filter(user: dict | None):
@@ -97,6 +121,47 @@ async def log_view(user: dict | None, resource: dict):
     if user and user.get('user_id') and (resource.get('visibility') == 'restricted'):
         await db.audit(f"user:{user['user_id']}", 'restricted_view', (resource.get('type') or 'item').lower(),
                        str(resource.get('id')), [str(resource.get('id'))], {'via': user.get('via')})
+
+
+# ---- jurisdiction refusals: who to ask, and the audit row ----
+
+async def _person(user_id: str | None) -> dict | None:
+    r = user_id and await db.pool.fetchrow('SELECT id, display_name, designation FROM users WHERE id = $1', user_id)
+    return r and {'user_id': r['id'], 'name': r['display_name'], 'designation': r['designation']}
+
+
+async def contact_for(user: dict, items: list[dict]) -> dict:
+    """Who an employee should ask about items outside their jurisdiction (best match first): the lead of the first
+    one's owning team (its project's or policy's department), else the compliance lead; and their own department
+    head."""
+    team = next((t for p in items if (t := resource_of(p, user['org_id']).get('team'))), None)
+    lead = team and await db.pool.fetchval('SELECT lead_id FROM teams WHERE id = $1 AND org_id = $2', team, user['org_id'])
+    if not lead:
+        lead = await db.pool.fetchval("SELECT user_id FROM memberships WHERE org_id = $1 AND role = 'compliance' "
+                                      "AND status = 'active' ORDER BY user_id LIMIT 1", user['org_id'])
+    head = user.get('team_id') and await db.pool.fetchval('SELECT lead_id FROM teams WHERE id = $1', user['team_id'])
+    contact, dept_head = await _person(lead), await _person(head)
+    return {'contact': contact, 'department_head': dept_head if dept_head != contact else None}
+
+
+def refusal_text(user: dict, who: dict) -> str:
+    scope = ' / '.join(x for x in (user.get('department'), user.get('designation')) if x) or user.get('role')
+    c, h = who.get('contact'), who.get('department_head')
+    ask = f"the project lead {c['name']} ({c['designation']})" if c else 'your team lead'
+    if h:
+        ask += f" or your department head {h['name']} ({h['designation']})"
+    return (f'Access restricted: this falls outside your assigned role jurisdiction [{scope}]. '
+            f'To request context or access, please contact {ask}.')
+
+
+async def deny(user: dict, attempted: str, reason: str, via: str) -> None:
+    """ACCESS_DENIED_ATTEMPT in the hash-chained audit log (owner and compliance read it). The row carries the user
+    (actor), the attempted resource (object_id), where it came from (object_type question | node) and the time; the
+    reason and the question text are in the payload, which the chain stores as its hash only."""
+    await db.audit(f"user:{user['user_id']}", 'ACCESS_DENIED_ATTEMPT', 'question' if via == 'ask' else 'node',
+                   str(attempted), [str(attempted)],
+                   {'user': user['user_id'], 'attempted_resource': attempted, 'reason': reason, 'via': via,
+                    'timestamp': datetime.now(timezone.utc).isoformat()})
 
 
 async def relabel(doc_id: str, visibility: str, team: str | None = None) -> dict:

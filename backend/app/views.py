@@ -8,7 +8,7 @@ from datetime import date, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
-from . import contracts, db, graph
+from . import access, contracts, db, graph
 
 router = APIRouter()
 
@@ -241,6 +241,17 @@ async def graph_view(as_of: date | None = None, include_restricted: bool = False
                           'provenance': {'sourceDoc': 'flags', 'sourceSpan': None, 'confidence': 1.0,
                                          'extractedBy': 'system:scanner', 'humanVerified': False,
                                          'visibility': 'org'}})
+    # An employee sees the decisions outside their jurisdiction as locked placeholders: id and date only, no title,
+    # no edges. Opening one (GET /nodes/{id}/source) says who to ask and is audited.
+    u = contracts.current_user()
+    if u and u.get('role') == 'member':
+        for p in all_nodes:
+            if p.get('type') == 'Decision' and p['key'] not in nodes and (p.get('valid_from') or '0000') <= d:
+                x, y = pos.get(p['key'], (WIDTH // 2, HEIGHT // 2))
+                nodes[p['key']] = {'id': p['key'], 'label': f"{p['key']}\n(locked)", 'type': 'decision', 'locked': True,
+                                   'color': '#94A3B8', 'glow': '#CBD5E1', 'x': x, 'y': y, 'isActive': True,
+                                   'isStale': False, 'validFrom': p.get('valid_from'), 'validTo': None,
+                                   'date': p.get('decided_on'), 'provenance': {'visibility': 'locked'}}
     return {'asOf': d, 'nodes': list(nodes.values()), 'edges': edges}
 
 
@@ -287,9 +298,19 @@ async def project_timeline(project_id: str, include_restricted: bool = False):
 async def node_source(node_id: str, include_restricted: bool = False):
     """Citation target for a graph node: source document, exact passage (chunk) and provenance."""
     rows = await graph.q('MATCH (n:Entity {uuid: $u}) RETURN properties(n) AS p', u=graph.uid(node_id))
-    if not rows or rows[0]['p'].get('rejected') or not _visible(rows[0]['p'], include_restricted):
+    if not rows or rows[0]['p'].get('rejected'):
         raise HTTPException(404, f'no such node {node_id}')
     p = rows[0]['p']
+    if not _visible(p, include_restricted):
+        u = contracts.current_user()
+        if not (u and u.get('role') == 'member'):
+            raise HTTPException(404, f'no such node {node_id}')  # no hint that something is hidden
+        # An employee opening a node outside their jurisdiction (a locked graph node): who to ask, and an audit row.
+        who = await access.contact_for(u, [p])
+        await access.deny(u, p['key'], "opened a node outside the asker's jurisdiction", 'graph')
+        raise HTTPException(403, {'restricted': True, 'node': p['key'], **who,
+                                  'message': f"You do not have active clearance for node {p['key']}. "
+                                             + access.refusal_text(u, who)})
     await contracts.log_view({'type': p.get('type'), 'id': p['key'], **contracts.label_for(p)})
     t = p.get('type')
     doc_id = {'Decision': p['key'], 'PolicyVersion': p['key'], 'MeetingNote': p['key'],

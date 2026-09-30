@@ -7,8 +7,9 @@ export const API = import.meta.env.VITE_API_URL
 
 export class P1Error extends Error {
   constructor(status, detail) {
-    super(typeof detail === 'string' ? detail : JSON.stringify(detail));
+    super(typeof detail === 'string' ? detail : detail?.message || JSON.stringify(detail));
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -63,6 +64,15 @@ export const revokeGrant = (id) => call('DELETE', `/access/grants/${id}`);
 export const relabel = (docId, visibility, team) => call('PATCH', `/access/labels/${encodeURIComponent(docId)}`, { visibility, team: team || null });
 export const people = () => call('GET', '/people');
 export const personCard = (userId) => call('GET', `/people/${encodeURIComponent(userId)}`);
+// Jurisdiction (B): opening a node outside it answers 403 with who to ask (and is audited as ACCESS_DENIED_ATTEMPT).
+export const nodeAccess = (id) => call('GET', `/nodes/${encodeURIComponent(id)}/source`);
+export const decisions = () => call('GET', '/decisions');
+export const policies = () => call('GET', '/policies');
+// An access request is a plain 1:1 message to the lead, so it is in their bell and in the chat history.
+export async function requestAccess(userId, what) {
+  const ch = await openDm([userId]);
+  return postMessage(ch.id, `Access request: I need context on ${what}, which is outside my jurisdiction. Could you share what I need or grant me access?`);
+}
 
 // ---- E: chat and notifications ----
 export const channels = () => call('GET', '/channels');

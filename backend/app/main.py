@@ -1,4 +1,5 @@
 import asyncio
+import json
 import importlib
 import logging
 import pkgutil
@@ -102,6 +103,11 @@ async def health():
 async def upload(file: UploadFile, who: str = Depends(writer)):
     try:
         raw = (await file.read()).decode('utf-8')
+        try:
+            fields = ingest.parse(raw)[0].get('fields') or {}
+        except Exception:
+            fields = {}  # ingest reports the format error itself
+        _authority(fields.get('amount_inr') if isinstance(fields, dict) else None, 'upload')
         return await ingest.ingest(raw, file.filename or 'upload.md', who)
     except (ValueError, UnicodeDecodeError) as e:
         raise HTTPException(422, str(e))
@@ -191,6 +197,8 @@ async def decision_compliance(decision_id: str, as_of: date | None = None):
 @app.get('/policies')
 async def policies():
     rows = await db.pool.fetch('SELECT * FROM policy_clauses ORDER BY policy_id, effective_from, clause_id')
+    ok = contracts.visible_filter(contracts.current_user())  # a department's policies: jurisdiction (B)
+    rows = [r for r in rows if ok({'type': 'PolicyVersion', 'key': r['document_id'], 'policy_id': r['policy_id']})]
     out = {}
     for r in rows:
         v = out.setdefault(r['policy_id'], {}).setdefault(r['version'], {
@@ -342,11 +350,33 @@ async def add_extraction(body: EdgeIn, who: str = Depends(human)):
 
 @app.patch('/extractions/{ext_id}')
 async def edit_extraction(ext_id: int, changes: dict, who: str = Depends(human)):
+    await _within_authority(ext_id, changes)
     return await _review(ext_id, who, 'edit', changes)
+
+
+def _authority(amount, verb: str = 'approve'):
+    """An amount above the signed-in person's approval authority (memberships.approval_authority_inr) is refused."""
+    cap = (contracts.current_user() or {}).get('approval_authority_inr')
+    if cap is not None and isinstance(amount, (int, float)) and amount > cap:
+        raise HTTPException(403, f'₹{amount:,.0f} is above your approval authority (₹{cap:,.0f}); a lead with a '
+                                 f'higher limit or the owner must {verb} it')
+
+
+async def _within_authority(ext_id: int, changes: dict | None = None):
+    """Accepting an extracted decision approves it: its amount must be within the approver's authority."""
+    cap = (contracts.current_user() or {}).get('approval_authority_inr')
+    key = cap is not None and await db.pool.fetchval(
+        "SELECT source_key FROM extractions WHERE id=$1 AND kind='node' AND type='Decision'", ext_id)
+    if not key:
+        return
+    rows = await graph.q('MATCH (n:Entity {uuid: $u}) RETURN n.fields_json AS f', u=graph.uid(key))
+    fields = (changes or {}).get('fields') or json.loads((rows and rows[0]['f']) or '{}')
+    _authority(fields.get('amount_inr') if isinstance(fields, dict) else None)
 
 
 @app.post('/extractions/{ext_id}/accept')
 async def accept_extraction(ext_id: int, who: str = Depends(human)):
+    await _within_authority(ext_id)
     return await _review(ext_id, who, 'accept')
 
 

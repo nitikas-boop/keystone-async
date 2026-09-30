@@ -108,6 +108,7 @@ class GraphitiRetrievalAdapter(BaseRetrievalAdapter):
         # Access filter (B) before anything else: a hit touching an item the caller may not see is dropped whole, so
         # hidden keys never seed the subgraph, never reach the prompt and never show up in retrieval.top.
         hidden = await graph.hidden_keys(list({k for r in ranked for k in r['keys']}))
+        dropped = [r for r in ranked if hidden & set(r['keys'])]
         ranked = [r for r in ranked if not hidden & set(r['keys'])]
         seeds: List[str] = []
         for r in ranked:
@@ -117,10 +118,16 @@ class GraphitiRetrievalAdapter(BaseRetrievalAdapter):
         # is evidence even when its cosine is low: nomic-embed-text scores short titles in a narrow band, so the
         # threshold alone refused on-topic questions. Off-topic names are refused earlier (app/grounding.py).
         words = grounding.content_words(question)
-        seeds += [k for k in (n.attributes.get('key') for n in res.nodes
-                              if set(grounding.WORD.findall((n.name or '').lower())) & set(words))
-                  if k and k not in seeds]
+        titled = [n.attributes.get('key') for n in res.nodes
+                  if set(grounding.WORD.findall((n.name or '').lower())) & set(words)]
+        seeds += [k for k in titled if k and k not in hidden and k not in seeds]
         seeds = seeds[:10]
+        withheld: Dict[str, float] = {}
+        for r in dropped:  # hidden hits that would have seeded: above the threshold, or a title sharing a word
+            for k in r['keys']:
+                if k in hidden and (r['score'] >= self.relevance_min or k in titled):
+                    withheld[k] = max(withheld.get(k, 0), r['score'])
+        withheld_list = [{'key': k, 'score': s} for k, s in sorted(withheld.items(), key=lambda x: -x[1])]
 
         if not seeds:
             return RetrievalResult(
@@ -131,7 +138,8 @@ class GraphitiRetrievalAdapter(BaseRetrievalAdapter):
                 edges=[],
                 sources={},
                 ranked_scores=ranked[:8],
-                relevance_threshold=self.relevance_min
+                relevance_threshold=self.relevance_min,
+                withheld=withheld_list
             )
 
         keys = list(dict.fromkeys(seeds + (await graph.neighbours(seeds, as_of) if seeds else [])))
@@ -178,5 +186,6 @@ class GraphitiRetrievalAdapter(BaseRetrievalAdapter):
             edges=edges,
             sources=sources,
             ranked_scores=ranked[:8],
-            relevance_threshold=self.relevance_min
+            relevance_threshold=self.relevance_min,
+            withheld=withheld_list
         )

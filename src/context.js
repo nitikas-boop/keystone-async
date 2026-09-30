@@ -4,6 +4,7 @@ import { createContext, useContext } from 'react';
 export const AppContext = createContext({
   userKey: 'priya',
   isReader: false,
+  canApprove: true,  // owner, lead or compliance in a browser session (the backend enforces it either way)
   team: [],
   openEntity: () => {},
   notify: () => {},

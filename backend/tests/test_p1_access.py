@@ -107,14 +107,20 @@ def test_every_read_view_obeys_the_filter(labelled):
         assert mine(n['id'] for n in g['nodes']) == sees, user
         assert not {e['source'] for e in g['edges']} & (set(DOCS) - sees), user
         v = get(api, '/graph/view', user, as_of='2026-06-01', include_restricted='true').json()
-        assert mine(n['id'] for n in v['nodes']) == sees, user  # include_restricted opens nothing
+        assert mine(n['id'] for n in v['nodes'] if not n.get('locked')) == sees, user  # include_restricted opens nothing
+        locked = [n for n in v['nodes'] if n.get('locked')]
+        # an employee (member) sees hidden decisions as locked placeholders: id only, no title, no edges
+        assert mine(n['id'] for n in locked) == (set(DOCS) - sees if user == 'divya' else set()), user
+        assert all(n['label'].endswith('(locked)') for n in locked) and not {e['source'] for e in v['edges']} & mine(n['id'] for n in locked)
         events = ' '.join(e['event'] for e in get(api, '/timeline', user, include_restricted='true').json())
         assert {d for d in DOCS if d in events} == sees, user
         atlas = get(api, '/projects/prj-atlas/timeline', user).json()
         assert mine(d['id'] for d in atlas['decisions']) == sees - {'T-P1-SECRET'}, user
         for did in DOCS:
             src, doc = get(api, f'/nodes/{did}/source', user), get(api, f'/documents/{did}', user)
-            assert (src.status_code, doc.status_code) == ((200, 200) if did in sees else (404, 404)), (user, did)
+            # opening a hidden node: an employee is told who to ask (403, audited); anyone else sees plain 404
+            hidden = 403 if user == 'divya' else 404
+            assert (src.status_code, doc.status_code) == ((200, 200) if did in sees else (hidden, 404)), (user, did)
             if did not in sees:  # the same answer as for an id that does not exist: no hint something is hidden
                 assert doc.json() == get(api, '/documents/T-P1-NOPE', user).json()
 
