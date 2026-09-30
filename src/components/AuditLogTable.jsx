@@ -30,7 +30,10 @@ function download(name, text, type) {
 }
 
 export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
-  const { team, isReader, restrictedIds, openEntity } = useApp();
+  const { team, isReader, restrictedIds, openEntity, perms } = useApp();
+  // CEO and Compliance Lead read the whole chain and can verify it; everyone else sees only their own rows, which
+  // are not a contiguous chain, so there is nothing to verify client-side.
+  const full = !perms || perms.audit_scope === 'full';
   const [server, setServer] = useState(null);     // {ok, rows, first_broken_id, message, at} | {error}
   const [browser, setBrowser] = useState(null);   // {ok, checked, total, brokenPos, brokenId, message, at} | {running}
   const [filters, setFilters] = useState({ actor: '', action: '', from: '', to: '', q: '' });
@@ -56,7 +59,7 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
   }, [rows]);
 
   // Verify on open and whenever the rows change, so the status shown is always the result of a check that ran.
-  useEffect(() => { if (rows.length) verify(); }, [rows, verify]);
+  useEffect(() => { if (rows.length && full) verify(); }, [rows, verify, full]);
   useEffect(() => {
     if (focusBlock == null) return;
     const r = rows.find(x => x.id === Number(focusBlock));
@@ -106,15 +109,19 @@ export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               {onRefresh && <button onClick={onRefresh} className="icon-btn" aria-label="Reload the audit log" title="Reload"><RefreshCw size={13} /></button>}
-              <button onClick={() => { setSim(null); verify(); }} className="btn-secondary" disabled={browser?.running}>
+              {full && <button onClick={() => { setSim(null); verify(); }} className="btn-secondary" disabled={browser?.running}>
                 <ShieldCheck size={13} /> Verify Full Chain
-              </button>
+              </button>}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          {!full && (
+            <p className="p-2 rounded-lg badge-note-slate text-[12.5px]">Showing only the entries you made ({rows.length}). The full chain and its
+              verification are open to the CEO and the Compliance Lead. No one can edit or delete a row, admins included.</p>
+          )}
+          {full && <div className="grid grid-cols-2 gap-2">
             <VerifyCard title="Server check (GET /audit/verify)" v={server} kind="server" />
             <VerifyCard title={sim ? 'Browser check · SIMULATED TAMPER' : 'Browser check (recomputed here)'} v={sim ? { ...sim.result, total: rows.length, at: new Date().toISOString() } : browser} kind="browser" sim={!!sim} />
-          </div>
+          </div>}
           {sim && (
             <div className="p-2 rounded-lg badge-note-amber text-[12.5px] flex items-center justify-between gap-2">
               <span>Simulation: block {sim.pos}'s actor was changed to <span className="font-mono">user:mallory</span> in an in-memory copy in this browser.

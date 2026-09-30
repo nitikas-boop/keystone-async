@@ -207,7 +207,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
   // Load audit trail from GET /audit
   const loadAudit = useCallback(async () => {
-    if (!isReader) return;  // the audit log is open to the owner and compliance roles only (403 for everyone else)
+    // Everyone gets rows: the whole chain for the CEO and Compliance Lead, their own entries for everyone else.
     try {
       setAuditLogs(await fetchAuditAll());
     } catch (err) {
@@ -388,7 +388,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
           </button>
           <button
             onClick={() => setIsIngestModalOpen(true)}
-            disabled={noAuthority}
+            disabled={noAuthority || perms?.read_only}
             className="h-8 px-3 rounded-lg btn-sky-gradient text-white text-[13px] font-medium flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             title={noAuthority ? 'Your approval authority is ₹0: ask your lead to ingest documents' : 'Upload a policy version, decision or meeting note (Markdown or meeting audio)'}
           >

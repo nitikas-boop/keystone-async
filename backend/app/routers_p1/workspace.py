@@ -11,7 +11,8 @@ router = APIRouter(tags=['p1 workspace'])
 
 @router.get('/me/permissions')
 async def my_permissions(u: dict = Depends(signed_in)):
-    return {**permissions.view(u), 'user': identity.me(u)}
+    limit, clause = await permissions.procurement_threshold()
+    return {**permissions.view(u), 'user': identity.me(u), 'procurement': {'cto_limit_inr': limit, 'clause': clause}}
 
 
 # ---- staleness flags ----

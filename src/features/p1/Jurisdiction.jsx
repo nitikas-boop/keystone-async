@@ -98,8 +98,8 @@ export function DemoSwitcher({ me, fallback }) {
   if (!accounts.some(a => a.employee_id === me?.employee_id)) return fallback;
   const switchTo = (emp) => p1.demoLogin(emp).then(() => window.location.reload());
   return (
-    <select value={me.employee_id} onChange={(e) => switchTo(e.target.value)} aria-label="Workspace role (demo accounts)"
-      title="Workspace role: switch to another demo account"
+    <select value={me.employee_id} onChange={(e) => switchTo(e.target.value)} aria-label="Switch user (demo accounts)"
+      title="Switch user: sign in as another demo account to see what that role sees"
       className="max-w-40 bg-transparent text-right font-semibold text-[13px] text-[#0F172A] cursor-pointer hover:text-[#0284C7] focus:outline-none">
       {accounts.map(a => <option key={a.employee_id} value={a.employee_id}>{a.display_name} ({a.designation})</option>)}
     </select>

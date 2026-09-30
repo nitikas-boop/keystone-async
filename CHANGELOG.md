@@ -1,5 +1,34 @@
 # Changelog
 
+## Role-aware workspace (branch workspace-roles, 1 Oct 2026)
+
+Setup on an existing volume: `docker compose exec postgres sh /docker-entrypoint-initdb.d/migrate.sh`
+(adds `backend/sql/p1/005_workspace.sql`), `docker compose restart backend executor`, then
+`docker compose exec backend python -m app.seed_workspace` for the demo messages and pending items.
+
+- **One permission map** (`backend/app/permissions.py`, exposed at `GET /me/permissions`). Tiers: executive
+  (CEO, CTO, the admin account), lead (Ops Lead, Compliance Lead), member (engineers, analyst, auditor
+  read-only). Every endpoint enforces it; a refusal is a 403 with a plain message and a `PERMISSION_DENIED`
+  audit row. Approvals check separation of duties (not your own proposal, not your own decision), the lead's
+  domain (compliance, procurement, engineering, ops), and for procurement the CTO limit read from the clause
+  in force (above it only the CEO). Policy uploads: CEO or Compliance Lead. Audit log: full for the CEO and
+  Compliance Lead, own entries for everyone else.
+- **Left sidebar** replaces the top tab bar: a 56px rail that expands on hover or focus as an overlay, pin to
+  keep it open, tap to toggle on touch. Only items the role can use.
+- **Chat**: Organization (#general, #announcements for executives to post, #compliance, #engineering, plus
+  channels executives and leads create, public or private), Teams (only yours; membership is the access,
+  history included, removal revokes at once) and DMs (everyone, only the two participants read them).
+  Unread and mention counts from per-user read state, basic formatting, 3 s polling. A message can be
+  promoted to a decision note (Ingestion Review); chat is otherwise never ingested.
+- **Inbox** = My Inbox (`GET /inbox`: approvals with inline approve / edit / reject and the decision's context,
+  staleness flags, facts to review, proposed decisions, corrections, unread conversations, notifications) and
+  the Decision Registry (as-of control, relied-on clause@version, active / superseded / stale). The sidebar
+  badge is pending + unread from the same endpoint. The old review screens stay behind the deep links.
+- **Dashboard** for every role (`GET /dashboard`), scoped on the server: organisation, domain or personal.
+- Members propose decisions for a lead of the domain; anyone can report an answer as wrong (a correction in
+  the Compliance Lead's inbox).
+- Tests: `backend/tests/test_workspace.py` (11 acceptance checks).
+
 ## Person 2: knowledge, conflicts and reasoning (branch hemanth-split2, 30 Sept 2026)
 
 Built on Commit 0 (the shared contract in `backend/app/contracts`). Every endpoint calls `current_user` and
