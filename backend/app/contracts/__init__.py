@@ -8,65 +8,107 @@ Agreed shapes:
   resource = {type, id, team, project, visibility}     visibility: org | team | restricted
   rule     = see app/plugins (rule-pack YAML format)
 """
+import logging
 from contextvars import ContextVar
 from types import SimpleNamespace
 
-from fastapi import Header, HTTPException
+from fastapi import HTTPException
+from fastapi.responses import JSONResponse
 
-from .. import config, db
+from .. import access, config, db, identity, plugins
 
-USERS = set(config.E('KEYSTONE_USERS', 'nitika,priya,farhan,ananya,karthik').split(','))
-DEMO_OWNER = {'user_id': 'nitika', 'org_id': config.GROUP_ID, 'role': 'owner', 'team_id': None}
+log = logging.getLogger('keystone.contracts')
+# Dev-only (config.DEV_AUTH): a request with no identity at all reads as this owner, exactly as the Commit 0 stub did,
+# so tests that read without signing in keep working. It cannot write: actor() refuses it.
+DEMO_OWNER = {'user_id': 'nitika', 'org_id': config.GROUP_ID, 'role': 'owner', 'team_id': None, 'teams': [],
+              'grants': [], 'via': 'web'}
+ANON = {'user_id': None, 'org_id': None, 'role': 'anonymous', 'team_id': None, 'teams': [], 'grants': []}
+PUBLIC = {'/health', '/auth/login', '/auth/register', '/auth/join', '/auth/logout', '/auth/me', '/auth/demo', '/devices/claim',
+          '/docs', '/docs/oauth2-redirect', '/redoc', '/openapi.json'}
 _user: ContextVar[dict | None] = ContextVar('keystone_user', default=None)
 
 
 # ---- who is asking (A) ----
 
 def current_user() -> dict | None:
-    """The signed-in user for this request; None outside a request (watcher, scanner, executor)."""
+    """The signed-in user for this request (ANON on a public route); None outside a request (watcher, scanner,
+    executor). Beyond the agreed keys it carries teams, grants, via (web | mcp | device) and display fields."""
     return _user.get()
 
 
 async def bind_user(request, call_next):
-    """HTTP middleware: resolves the caller once per request so current_user() works anywhere below it."""
-    x = request.headers.get('x-user')
-    token = _user.set({**DEMO_OWNER, 'user_id': x} if x in USERS else DEMO_OWNER)
+    """HTTP middleware: resolves the caller once per request so current_user() works anywhere below it. Everything
+    except PUBLIC needs a session: an unknown caller gets 401 before any route runs."""
+    try:
+        await identity.ensure_seed()
+        user = await identity.resolve(request)
+        if user and db.pool is not None:
+            await access.refresh_projects(user['org_id'])
+            if user['org_id'] not in plugins.ENABLED:
+                await plugins.refresh(user['org_id'])
+    except Exception as e:  # outside surface_errors: say why instead of a bare 500 (e.g. P1 migrations not applied)
+        log.exception('resolving the caller failed')
+        return JSONResponse({'detail': f'cannot resolve the signed-in user: {type(e).__name__}: {e}'}, 500)
+    if user and user.get('via') == 'mcp' and not plugins.is_enabled(user['org_id'], 'keystone-mcp'):
+        return JSONResponse({'detail': 'the Keystone MCP plugin is disabled for this organisation'}, 403)
+    if user is None:
+        creds = request.cookies.get(identity.COOKIE) or request.headers.get('authorization') or             request.headers.get('x-user')
+        if config.DEV_AUTH and not creds:  # an expired or revoked session never falls back to this
+            user = {**DEMO_OWNER, 'anonymous': True}
+        elif request.url.path in PUBLIC or request.method == 'OPTIONS':
+            user = ANON
+        else:
+            return JSONResponse({'detail': 'sign in required'}, 401)
+    token = _user.set(user)
     try:
         return await call_next(request)
     finally:
         _user.reset(token)
 
 
-def actor(x_user: str | None = Header(None)) -> str:
+def actor() -> str:
     """FastAPI dependency: any signed-in user, as the audit actor string 'user:<user_id>'."""
-    if x_user not in USERS:
-        raise HTTPException(401, f'X-User header must be one of {sorted(USERS)}')
-    return f'user:{x_user}'
+    u = current_user()
+    if not u or not u.get('user_id') or u.get('anonymous'):
+        raise HTTPException(401, 'sign in required')
+    return f"user:{u['user_id']}"
 
 
-writer = actor  # signed in and allowed to change things (not an auditor)
-human = actor   # writer, and a person at a browser, not an agent token (approvals)
+def writer() -> str:
+    """Signed in and allowed to change things: not an auditor (read-only guest)."""
+    who = actor()
+    if current_user()['role'] == 'auditor':
+        raise HTTPException(403, 'auditors have read-only access')
+    return who
+
+
+def human() -> str:
+    """A writer who is a person at a browser or a paired phone, not an agent token (approvals)."""
+    who = writer()
+    if current_user().get('via') == 'mcp':
+        raise HTTPException(403, 'an agent (MCP) session cannot approve; a person must')
+    return who
 
 
 # ---- who may see what (B) ----
 
 def can_access(user: dict | None, resource: dict, action: str = 'read') -> bool:
-    return True
+    return access.can_access(user, resource, action)
 
 
 def visible_filter(user: dict | None):
     """A predicate over node/edge property dicts (or provenance dicts): True if the user may see it."""
-    return lambda props: True
+    return access.visible_filter(user)
 
 
 def label_for(source: dict) -> dict:
-    """Access label for a document's front-matter or a graph node's properties."""
-    return {'team': source.get('team'), 'project': source.get('project'),
-            'visibility': source.get('visibility') or 'org'}
+    """Access label for a document's front-matter or a graph node's properties: {team, project, visibility, date}."""
+    return access.label_for(source)
 
 
 async def log_view(resource: dict) -> None:
     """Audit a successful view of a restricted item (restricted_view)."""
+    await access.log_view(current_user(), resource)
 
 
 # ---- events ----
@@ -80,15 +122,21 @@ class _Hook:
         return fn
 
     async def fire(self, user: dict):
+        """Each handler runs even if an earlier one fails; a failure is logged, never raised into the login."""
         for fn in self.handlers:
-            await fn(user)
+            try:
+                await fn(user)
+            except Exception:
+                log.exception('on_login handler %s failed', getattr(fn, '__name__', fn))
 
 
 on_login = _Hook()  # Person 2 registers warm_model and scan_directory; Person 1 fires it after a real login
 
 
 async def notify(user_id: str, kind: str, ref_id: str) -> None:
-    """In-app notification for one user (E)."""
+    """In-app notification for one user (E). The text is built when it is read, so it never carries data."""
+    from .. import comms
+    await comms.notify(user_id, kind, ref_id)
 
 
 async def _audit_write(event_type: str, actor: str, payload, object_type: str = 'org', object_id: str = '',
@@ -108,5 +156,7 @@ async def ingest_source(raw: str, path: str, actor: str, visibility: str = 'org'
 
 
 def load_rules(org_id: str) -> list[dict]:
-    """Enabled rule-pack rules for an org (Person 1's loader); Person 2's checker accepts this list."""
-    return []
+    """Enabled rule-pack rules for an org (Person 1's loader); Person 2's checker accepts this list.
+    Rule shape: see app/plugins/__init__.py."""
+    from .. import plugins
+    return plugins.load_rules(org_id)

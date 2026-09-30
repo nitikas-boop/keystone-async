@@ -42,5 +42,19 @@ WHISPER_MODEL = E('WHISPER_MODEL', 'base.en')
 CORS_ORIGIN_REGEX = E('CORS_ORIGIN_REGEX', r'http://(localhost|127\.0\.0\.1)(:\d+)?')
 
 # --- P1 --- (access, identity, comms)
+# Signs the session JWT. Unset: a random key per process start, so a restart signs everyone out.
+JWT_SECRET = E('JWT_SECRET') or os.urandom(32).hex()
+SESSION_HOURS = int(E('SESSION_HOURS', '8'))
+DEVICE_SESSION_DAYS = int(E('DEVICE_SESSION_DAYS', '30'))
+# Dev-only: X-User header sign-in (tests and scripts). Never set on a real deployment.
+DEV_AUTH = E('KEYSTONE_DEV_AUTH') == '1'
+# On an empty organizations table the backend creates the synthetic Nimbus Ledger org and its demo users
+# (identity.DEMO_USERS), all with DEMO_PASSWORD, joinable with DEMO_JOIN_CODE. Set DEMO_SEED=0 to start empty.
+DEMO_SEED = E('DEMO_SEED', '1') == '1'
+DEMO_PASSWORD = E('DEMO_PASSWORD', 'nimbus-demo-2026')
+DEMO_JOIN_CODE = E('DEMO_JOIN_CODE', 'NMBL-7K2Q')
+# One-click sign-in buttons for the demo accounts (still only while their password is DEMO_PASSWORD). Demo only.
+DEMO_LOGIN = E('DEMO_LOGIN', '1' if DEMO_SEED else '0') == '1'
+PAIRING_TTL_SECONDS = int(E('PAIRING_TTL_SECONDS', '60'))
 
 # --- P2 --- (knowledge, conflicts, reasoning)

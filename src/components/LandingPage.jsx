@@ -27,7 +27,6 @@ export default function LandingPage({ onLaunchConsole }) {
   useEffect(() => {
     healthCheck().then(h => setEngineOk(!!h && !!h.ollama && Object.values(h.ollama).every(v => v === true)));
   }, []);
-  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const workflowSteps = [
     {
@@ -100,7 +99,7 @@ export default function LandingPage({ onLaunchConsole }) {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowLoginModal(true)}
+            onClick={() => onLaunchConsole()}
             className="px-4 py-2 rounded-lg btn-sky-gradient text-white text-xs font-mono font-medium flex items-center gap-2 group cursor-pointer shadow-sm"
           >
             <span>Sign In / Launch Console</span>
@@ -133,7 +132,7 @@ export default function LandingPage({ onLaunchConsole }) {
         {/* Action CTAs */}
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3.5">
           <button
-            onClick={() => setShowLoginModal(true)}
+            onClick={() => onLaunchConsole()}
             className="px-6 py-3.5 rounded-xl btn-sky-gradient text-white text-sm font-mono font-semibold flex items-center gap-2 shadow-md hover:scale-102 transition-all cursor-pointer"
           >
             <Sparkles size={16} />
@@ -517,100 +516,6 @@ export default function LandingPage({ onLaunchConsole }) {
           </table>
         </div>
       </section>
-
-      {/* Sign-In Modal */}
-      {showLoginModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="w-full max-w-md paper-sheet-elevated p-6 relative">
-            <button
-              onClick={() => setShowLoginModal(false)}
-              className="absolute top-4 right-4 text-[#64748B] hover:text-[#0F172A] text-xs font-mono cursor-pointer"
-            >
-              ✕ Close
-            </button>
-
-            <div className="flex items-center gap-2 mb-4">
-              <Key size={18} className="text-[#0284C7]" />
-              <h3 className="font-heading font-bold text-base text-[#0F172A]">
-                Enter Workspace
-              </h3>
-            </div>
-
-            <p className="text-xs text-[#64748B] mb-4">
-              Nimbus Ledger demo workspace. Pick a role to continue as:
-            </p>
-
-            <div className="space-y-2 mb-4">
-              <button
-                onClick={() => {
-                  setShowLoginModal(false);
-                  onLaunchConsole("p-priya", "Priya Menon (Ops Lead)");
-                }}
-                className="w-full p-3 rounded-xl bg-white hover:bg-sky-50 border border-slate-200 hover:border-sky-200 text-left flex items-center justify-between text-xs transition-colors group cursor-pointer shadow-2xs"
-              >
-                <div>
-                  <div className="font-heading font-semibold text-[#0F172A] group-hover:text-[#0284C7]">
-                    Priya Menon
-                  </div>
-                  <div className="text-[12px] font-mono text-[#64748B]">
-                    Role: Ops Lead
-                  </div>
-                </div>
-                <span className="text-[12px] font-mono text-[#0284C7] font-medium">Select Role →</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowLoginModal(false);
-                  onLaunchConsole("p-karthik", "Karthik Rao (CTO)");
-                }}
-                className="w-full p-3 rounded-xl bg-white hover:bg-sky-50 border border-slate-200 hover:border-sky-200 text-left flex items-center justify-between text-xs transition-colors group cursor-pointer shadow-2xs"
-              >
-                <div>
-                  <div className="font-heading font-semibold text-[#0F172A] group-hover:text-[#0284C7]">
-                    Karthik Rao
-                  </div>
-                  <div className="text-[12px] font-mono text-[#64748B]">
-                    Role: Chief Technology Officer
-                  </div>
-                </div>
-                <span className="text-[12px] font-mono text-[#0284C7] font-medium">Select Role →</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowLoginModal(false);
-                  onLaunchConsole("p-ananya", "Ananya Rao (CEO)");
-                }}
-                className="w-full p-3 rounded-xl bg-white hover:bg-sky-50 border border-slate-200 hover:border-sky-200 text-left flex items-center justify-between text-xs transition-colors group cursor-pointer shadow-2xs"
-              >
-                <div>
-                  <div className="font-heading font-semibold text-[#0F172A] group-hover:text-[#0284C7]">
-                    Ananya Rao
-                  </div>
-                  <div className="text-[12px] font-mono text-[#64748B]">
-                    Role: Chief Executive Officer
-                  </div>
-                </div>
-                <span className="text-[12px] font-mono text-[#0284C7] font-medium">Select Role →</span>
-              </button>
-            </div>
-
-            <div className="pt-3 border-t border-slate-100">
-              <button
-                onClick={() => {
-                  setShowLoginModal(false);
-                  onLaunchConsole("nitika", "Nitika (Keystone Admin)");
-                }}
-                className="w-full py-2.5 rounded-lg btn-sky-gradient text-white text-xs font-mono font-medium flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Terminal size={13} />
-                <span>Continue as Keystone Admin</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Footer */}
       <footer className="py-8 px-6 border-t border-slate-200 text-center text-xs font-mono text-[#64748B] bg-white">

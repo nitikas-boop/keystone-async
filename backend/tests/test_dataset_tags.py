@@ -59,8 +59,8 @@ def nimbus(api):
     wipe()
 
 
-def ids(api, project, **params):
-    r = httpx.get(f'{api}/projects/{project}/timeline', params=params, timeout=60)
+def ids(api, project, headers=None, **params):
+    r = httpx.get(f'{api}/projects/{project}/timeline', params=params, headers=headers, timeout=60)
     assert r.status_code == 200, r.text
     return [d['id'] for d in r.json()['decisions']]
 
@@ -76,19 +76,21 @@ def test_project_timelines(nimbus):
 
 
 def test_restricted_hidden_by_default(nimbus):
-    assert ids(nimbus, 'prj-internal-ops') == ['DEC-001', 'DEC-005']
-    assert ids(nimbus, 'prj-internal-ops', include_restricted='true') == ['DEC-001', 'DEC-005', 'DEC-008']
+    """The server decides (B): a member never sees DEC-008, and include_restricted opens nothing; the owner does."""
+    member, owner = {'X-User': 'priya'}, {'X-User': 'nitika'}
+    assert ids(nimbus, 'prj-internal-ops', headers=member) == ['DEC-001', 'DEC-005']
+    assert ids(nimbus, 'prj-internal-ops', headers=member, include_restricted='true') == ['DEC-001', 'DEC-005']
+    assert ids(nimbus, 'prj-internal-ops', headers=owner) == ['DEC-001', 'DEC-005', 'DEC-008']
 
-    g = httpx.get(f'{nimbus}/graph/view', params={'as_of': '2026-01-01'}).json()
-    assert 'DEC-008' not in {n['id'] for n in g['nodes']}
-    assert not any('DEC-008' in (e['source'], e['target']) for e in g['edges'])
-    g = httpx.get(f'{nimbus}/graph/view', params={'as_of': '2026-01-01', 'include_restricted': 'true'}).json()
-    assert 'DEC-008' in {n['id'] for n in g['nodes']}
+    for h, seen in ((member, False), (owner, True)):
+        g = httpx.get(f'{nimbus}/graph/view', params={'as_of': '2026-01-01', 'include_restricted': 'true'},
+                      headers=h).json()
+        assert ('DEC-008' in {n['id'] for n in g['nodes']}) is seen
+        assert any('DEC-008' in (e['source'], e['target']) for e in g['edges']) is seen
+        events = ' '.join(x['event'] for x in httpx.get(f'{nimbus}/timeline', headers=h).json())
+        assert ('DEC-008' in events) is seen
 
-    events = lambda **p: ' '.join(x['event'] for x in httpx.get(f'{nimbus}/timeline', params=p).json())
-    assert 'DEC-008' not in events() and 'DEC-008' in events(include_restricted='true')
-
-    assert httpx.get(f'{nimbus}/nodes/DEC-008/source').status_code == 404
-    s = httpx.get(f'{nimbus}/nodes/DEC-008/source', params={'include_restricted': 'true'}).json()
+    assert httpx.get(f'{nimbus}/nodes/DEC-008/source', headers=member).status_code == 404
+    s = httpx.get(f'{nimbus}/nodes/DEC-008/source', headers=owner).json()
     assert s['document']['visibility'] == 'restricted' and s['provenance']['visibility'] == 'restricted'
-    assert httpx.get(f'{nimbus}/documents/DEC-007').json()['visibility'] == 'org'
+    assert httpx.get(f'{nimbus}/documents/DEC-007', headers=member).json()['visibility'] == 'org'

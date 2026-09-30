@@ -1,0 +1,14 @@
+id: rbi-outsourcing
+name: RBI outsourcing pack (illustrative)
+description: >-
+  Synthetic vendor-contract rules in the spirit of RBI outsourcing guidance, for the demo. Not legal advice.
+version: 1
+rules:
+  - id: RBI-OUT-1
+    title: Vendor contracts above ₹3,00,000 are signed off by the CEO
+    when: {field: amount_inr, op: '>', value: 300000}
+    field: approver_role
+    op: in
+    value: [CEO]
+    severity: action_needed
+    source: Illustrative board-approved outsourcing policy (demo only)

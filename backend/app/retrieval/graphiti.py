@@ -95,7 +95,7 @@ class GraphitiRetrievalAdapter(BaseRetrievalAdapter):
             valid_at=[[DateFilter(date=dt, comparison_operator=ComparisonOperator.less_than_equal)]],
             invalid_at=[[DateFilter(date=dt, comparison_operator=ComparisonOperator.greater_than)],
                         [DateFilter(comparison_operator=ComparisonOperator.is_null)]])
-        res = await graph.g.search_(question, config=SEARCH, group_ids=[config.GROUP_ID], search_filter=filt)
+        res = await graph.g.search_(question, config=SEARCH, group_ids=[graph.gid()], search_filter=filt)
         vec = await graph.g.embedder.create(input_data=[question])
         scored = await graph.q(
             f'UNWIND $n AS u MATCH (n:Entity {{uuid: u}}) WHERE {graph.node_ok("n")} '
@@ -105,6 +105,10 @@ class GraphitiRetrievalAdapter(BaseRetrievalAdapter):
             'RETURN [a.key, b.key] AS keys, vector.similarity.cosine(e.fact_embedding, $v) AS s',
             n=[x.uuid for x in res.nodes], e=[x.uuid for x in res.edges], v=vec, d=d, dt=dt)
         ranked = sorted(({'keys': r['keys'], 'score': round(r['s'], 3)} for r in scored), key=lambda r: -r['score'])
+        # Access filter (B) before anything else: a hit touching an item the caller may not see is dropped whole, so
+        # hidden keys never seed the subgraph, never reach the prompt and never show up in retrieval.top.
+        hidden = await graph.hidden_keys(list({k for r in ranked for k in r['keys']}))
+        ranked = [r for r in ranked if not hidden & set(r['keys'])]
         seeds: List[str] = []
         for r in ranked:
             if r['score'] >= self.relevance_min:

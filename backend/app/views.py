@@ -1,13 +1,14 @@
 """Read views for the frontend (Member 4): shapes and camelCase keys follow the original frontend mock data (since removed).
 Everything is read from backend's own graph and tables. Ids stay backend-style (RET-2.1@v2, DEC-004, p-vikram).
-Restricted items (visibility: restricted) are hidden unless ?include_restricted=true."""
+What a caller sees is decided on the server by the access filter (app/access.py); include_restricted is accepted
+for old clients and ignored."""
 import json
 import re
 from datetime import date, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
-from . import config, db, graph
+from . import contracts, db, graph
 
 router = APIRouter()
 
@@ -47,8 +48,9 @@ def slug(project: str) -> str:
     return 'prj-' + re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
 
 
-def _visible(p: dict, include_restricted: bool) -> bool:
-    return include_restricted or p.get('visibility', 'org') != 'restricted'
+def _visible(p: dict, include_restricted: bool = False) -> bool:
+    """The caller's access filter; include_restricted no longer opens anything."""
+    return contracts.visible_filter(contracts.current_user())(p)
 
 
 def _active(p: dict, d: str) -> bool:
@@ -107,7 +109,7 @@ def compute_layout(nodes: list[dict]) -> dict[str, tuple[int, int]]:
 
 async def _nodes() -> list[dict]:
     rows = await graph.q('MATCH (n:Entity {group_id: $g}) WHERE coalesce(n.rejected, false) = false '
-                         'RETURN properties(n) AS p', g=config.GROUP_ID)
+                         'RETURN properties(n) AS p', g=graph.gid())
     return [{k: v for k, v in r['p'].items() if not k.endswith('_embedding')} for r in rows]
 
 
@@ -215,11 +217,11 @@ async def graph_view(as_of: date | None = None, include_restricted: bool = False
 
     rows = await graph.q('MATCH (a:Entity)-[e:RELATES_TO {group_id: $g}]->(b:Entity) '
                          'WHERE coalesce(e.rejected, false) = false AND a.key IN $keys AND b.key IN $keys '
-                         'RETURN properties(e) AS p', g=config.GROUP_ID, keys=list(nodes))
+                         'RETURN properties(e) AS p', g=graph.gid(), keys=list(nodes))
     edges = []
     for r in rows:
         e = r['p']
-        if not _visible(e, include_restricted):
+        if e.get('visibility') == 'restricted' and not _visible(e):
             continue
         va, ia = e.get('valid_at'), e.get('invalid_at')
         if va is not None and va.to_native() > dt and not (
@@ -246,7 +248,7 @@ async def graph_view(as_of: date | None = None, include_restricted: bool = False
 
 async def _project(project_id: str) -> dict:
     rows = await graph.q('MATCH (n:Entity {group_id: $g, type: "Project"}) WHERE coalesce(n.rejected, false) = false '
-                         'RETURN n.key AS key', g=config.GROUP_ID)
+                         'RETURN n.key AS key', g=graph.gid())
     for r in rows:
         if project_id in (r['key'], slug(r['key'])):
             return {'projectId': slug(r['key']), 'name': r['key']}
@@ -269,7 +271,7 @@ async def project_timeline(project_id: str, include_restricted: bool = False):
         'OPTIONAL MATCH (d)-[m:RELATES_TO {name: "MADE_BY"}]->(o:Entity) WHERE coalesce(m.rejected, false) = false '
         'OPTIONAL MATCH (d)-[s:RELATES_TO {name: "SUPERSEDES"}]->(x:Entity) WHERE coalesce(s.rejected, false) = false '
         'RETURN properties(d) AS d, o.key AS owner_id, o.name AS owner_name, collect(DISTINCT x.key) AS sup',
-        g=config.GROUP_ID, k=proj['name'])
+        g=graph.gid(), k=proj['name'])
     decisions = [{'id': r['d']['key'], 'title': r['d']['name'], 'decidedOn': r['d'].get('decided_on'),
                   'status': r['d'].get('status'),
                   'owner': {'id': r['owner_id'], 'name': r['owner_name']} if r['owner_id'] else None,
@@ -288,6 +290,7 @@ async def node_source(node_id: str, include_restricted: bool = False):
     if not rows or rows[0]['p'].get('rejected') or not _visible(rows[0]['p'], include_restricted):
         raise HTTPException(404, f'no such node {node_id}')
     p = rows[0]['p']
+    await contracts.log_view({'type': p.get('type'), 'id': p['key'], **contracts.label_for(p)})
     t = p.get('type')
     doc_id = {'Decision': p['key'], 'PolicyVersion': p['key'], 'MeetingNote': p['key'],
               'Clause': p.get('policy_id') and f"{p.get('policy_id')}@{p.get('version')}"}.get(t)
