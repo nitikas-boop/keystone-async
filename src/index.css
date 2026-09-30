@@ -1,5 +1,3 @@
-/* Scan only the frontend: by default Tailwind v4 watches every file in the repo, so editing backend code
-   (or anything else not gitignored) full-reloads the page and signs the user out. */
 @import "tailwindcss" source(none);
 @source "../src";
 @source "../index.html";
@@ -9,157 +7,50 @@
     --font-heading: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
     --font-body: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono Variable', Consolas, monospace;
-    
-    --bg-page: #F8FAFC;
+    --bg-page: #F4F8FF;
     --bg-paper: #FFFFFF;
-    --bg-slate-tint: #F1F5F9;
-    --text-primary: #0F172A;
-    --text-muted: #64748B;
-    --border-subtle: #E2E8F0;
-
-    --brand-sky: #0284C7;
-    --brand-sky-light: #E0F2FE;
-    --brand-indigo: #6366F1;
-    --brand-indigo-light: #EEF2FF;
-    
-    --pastel-amber: #FEF3C7;
-    --pastel-amber-text: #92400E;
-    --pastel-green: #DCFCE7;
-    --pastel-green-text: #166534;
-    --pastel-lavender: #E0E7FF;
-    --pastel-lavender-text: #3730A3;
-    --pastel-rose: #FEE2E2;
-    --pastel-rose-text: #991B1B;
+    --bg-slate-tint: #EAF3FF;
+    --text-primary: #071A3D;
+    --text-muted: #52739A;
+    --border-subtle: #8AB6E8;
+    --brand-sky: #1477D4;
+    --brand-sky-light: #DDF1FF;
+    --brand-indigo: #123469;
+    --brand-indigo-light: #E6EEFF;
+    --pastel-amber: #E0F2FF;
+    --pastel-amber-text: #14539B;
+    --pastel-green: #D8F7F1;
+    --pastel-green-text: #087F7A;
+    --pastel-lavender: #E6EEFF;
+    --pastel-lavender-text: #123469;
+    --pastel-rose: #DCEBFF;
+    --pastel-rose-text: #14539B;
   }
 
-  html {
-    font-family: var(--font-body);
-    background-color: var(--bg-page);
-    color: var(--text-primary);
-    scroll-behavior: smooth;
-  }
-
-  h1, h2, h3, h4, h5, h6, .font-heading {
-    font-family: var(--font-heading);
-    letter-spacing: -0.025em;
-  }
-
-  code, pre, .font-mono {
-    font-family: var(--font-mono);
-  }
+  html { font-family: var(--font-body); background: var(--bg-page); color: var(--text-primary); scroll-behavior: smooth; }
+  h1, h2, h3, h4, h5, h6, .font-heading { font-family: var(--font-heading); letter-spacing: -0.025em; }
+  code, pre, .font-mono { font-family: var(--font-mono); }
 }
 
-/* Airy Paper Sheet & Note Card Metaphor */
-.paper-sheet {
-  background-color: #FFFFFF;
-  border-radius: 1rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+.blue-grid {
+  background-image: linear-gradient(rgba(20, 119, 212, 0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(20, 119, 212, 0.12) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
-.paper-sheet-elevated {
-  background-color: #FFFFFF;
-  border-radius: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(226, 232, 240, 0.85);
-}
+.paper-sheet { background: #fff; border: 1px solid rgba(138, 182, 232, 0.8); box-shadow: 4px 4px 0 rgba(20, 119, 212, 0.12); }
+.paper-sheet-elevated { background: #fff; border: 2px solid #071a3d; box-shadow: 8px 8px 0 #1477d4; }
+.btn-sky-gradient { background: #1477d4; color: #fff; transition: background .2s ease, transform .2s ease; }
+.btn-sky-gradient:hover { background: #071a3d; transform: translateY(-1px); }
+.badge-note-lavender, .badge-note-sky, .badge-note-amber, .badge-note-green, .badge-note-rose { background: #eaf3ff; color: #14539b; border: 1px solid #8ab6e8; }
 
-.paper-sheet-interactive {
-  background-color: #FFFFFF;
-  border-radius: 1rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  transition: all 0.2s ease;
-}
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: #eaf3ff; }
+::-webkit-scrollbar-thumb { background: #8ab6e8; }
+::-webkit-scrollbar-thumb:hover { background: #1477d4; }
 
-.paper-sheet-interactive:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px -2px rgba(2, 132, 199, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  border-color: #BAE6FD;
-}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.animate-blink { animation: blink 1s step-end infinite; }
 
-/* Subtle Sky-Indigo Gradient for Primary CTA */
-.btn-sky-gradient {
-  background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
-  color: #FFFFFF;
-  border: 1px solid rgba(2, 132, 199, 0.2);
-  box-shadow: 0 2px 8px -1px rgba(2, 132, 199, 0.25);
-  transition: all 0.2s ease;
-}
-
-.btn-sky-gradient:hover {
-  background: linear-gradient(135deg, #0369A1 0%, #075985 100%);
-  box-shadow: 0 4px 12px -1px rgba(2, 132, 199, 0.35);
-  transform: translateY(-0.5px);
-}
-
-/* Gentle Pastel Notes Badges */
-.badge-note-amber {
-  background-color: #FEF3C7;
-  color: #92400E;
-  border: 1px solid #FDE68A;
-}
-
-.badge-note-green {
-  background-color: #DCFCE7;
-  color: #166534;
-  border: 1px solid #BBF7D0;
-}
-
-.badge-note-lavender {
-  background-color: #E0E7FF;
-  color: #3730A3;
-  border: 1px solid #C7D2FE;
-}
-
-.badge-note-sky {
-  background-color: #E0F2FE;
-  color: #0369A1;
-  border: 1px solid #BAE6FD;
-}
-
-.badge-note-rose {
-  background-color: #FEE2E2;
-  color: #991B1B;
-  border: 1px solid #FECACA;
-}
-
-/* Citation Pill (Paper Note Style) */
-.citation-pill-paper {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  background-color: #F1F5F9;
-  color: #0369A1;
-  border: 1px solid #CBD5E1;
-  padding: 0.15rem 0.5rem;
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.citation-pill-paper:hover {
-  background-color: #E0F2FE;
-  border-color: #38BDF8;
-  color: #0284C7;
-  box-shadow: 0 1px 4px rgba(2, 132, 199, 0.15);
-}
-
-/* Custom Clean Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #F8FAFC;
-}
-::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
