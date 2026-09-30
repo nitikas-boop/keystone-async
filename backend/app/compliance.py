@@ -1,5 +1,6 @@
 """Deterministic compliance check (§6.5). The model never decides an outcome; it only words it."""
 import json
+import operator
 from datetime import date
 
 from . import db, graph, llm
@@ -11,6 +12,20 @@ RULES = {
         d['retention_days'], c['retention_days_max'])),
     'approver_threshold_inr': (('amount_inr', 'approver_role'), lambda d, c: _threshold(d, c)),
 }
+
+
+OPS = {'<=': operator.le, '<': operator.lt, '>=': operator.ge, '>': operator.gt, '==': operator.eq}
+
+
+def register_rules(rules: list[dict]) -> None:
+    """Rule packs (G): the checker accepts a list of {clause_field, decision_field, op}; Person 1 loads the YAML.
+    A clause carrying clause_field is then checked as decision[decision_field] <op> clause[clause_field]."""
+    for r in rules:
+        cf, df, op = r['clause_field'], r['decision_field'], r['op']
+        if op not in OPS:
+            raise ValueError(f'rule {cf}: op must be one of {sorted(OPS)}')
+        RULES[cf] = ((df,), lambda d, c, cf=cf, df=df, op=op: (
+            OPS[op](d[df], c[cf]), f'{df} {op} {cf}', d[df], c[cf]))
 
 
 def _threshold(d, c):
@@ -136,6 +151,10 @@ if __name__ == '__main__':
     assert check_clause({'amount_inr': 600000, 'approver_role': 'CTO'}, proc)['result'] == 'non_compliant'
     assert check_clause({'amount_inr': 9000000, 'approver_role': 'CEO'}, proc)['result'] == 'compliant'
     assert check_clause({'amount_inr': 1, 'approver_role': 'Intern'}, proc)['result'] == 'not_checkable'
+    register_rules([{'clause_field': 'headcount_min', 'decision_field': 'headcount', 'op': '>='}])
+    hc = {**proc, 'fields': {'headcount_min': 3}}
+    assert check_clause({'headcount': 2}, hc)['result'] == 'non_compliant'
+    assert check_clause({'headcount': 3}, hc)['rule'] == 'headcount >= headcount_min'
     assert overall([]) == 'no_clause'
     assert overall([{'result': 'compliant'}, {'result': 'not_checkable'}]) == 'not_checkable'
     print('compliance self-check ok')

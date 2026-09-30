@@ -33,3 +33,24 @@ async def explain(prompt: str, fallback: str) -> str:
         # The deterministic statement is shown verbatim instead; say so where operators will see it.
         log.warning("llm.explain failed (%s: %s): showing the deterministic statement unreworded.", type(e).__name__, e)
         return fallback
+
+
+LANGUAGES = {'hi': 'Hindi', 'kn': 'Kannada'}
+
+
+async def translate(sentences: list[str], lang: str) -> list[str]:
+    """Answer translation (I), local model only. Citation IDs never enter the prompt, so they cannot be altered;
+    the caller re-attaches them per sentence. A reply with the wrong sentence count or a bracketed [ID] is rejected.
+    ponytail: the answer model translates; swap in IndicTrans2 here if its quality/latency benchmark wins."""
+    from .prompts_p2 import TRANSLATE_PROMPT
+    if lang not in LANGUAGES:
+        raise ValueError(f'language must be one of {sorted(LANGUAGES)}')
+    if not sentences:
+        return []
+    out = await chat_json(TRANSLATE_PROMPT.format(language=LANGUAGES[lang]), json.dumps(sentences, ensure_ascii=False),
+                          {'type': 'object', 'required': ['sentences'],
+                           'properties': {'sentences': {'type': 'array', 'items': {'type': 'string'}}}}, timeout=180)
+    got = [s.strip() for s in out.get('sentences', [])]
+    if len(got) != len(sentences) or any('[' in s for s in got):
+        raise ValueError('translation did not return one clean sentence per input')
+    return got

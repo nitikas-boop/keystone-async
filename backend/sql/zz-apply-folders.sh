@@ -9,6 +9,6 @@ for db in keystone keystone_test; do
   for f in "$DIR"/p0/*.sql "$DIR"/p1/*.sql "$DIR"/p2/*.sql; do
     [ -f "$f" ] || continue
     echo "applying $f to $db"
-    psql -v ON_ERROR_STOP=1 -q -U "${POSTGRES_USER:-keystone_owner}" -d "$db" -f "$f"
+    PGOPTIONS="-c client_min_messages=warning" psql -v ON_ERROR_STOP=1 -q -U "${POSTGRES_USER:-keystone_owner}" -d "$db" -f "$f"
   done
 done
