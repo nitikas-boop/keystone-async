@@ -21,6 +21,13 @@ kind "person_leaves": a person leaves; person_id ONLY from the list of people gi
 If the question fits neither, use kind "unsupported".
 Return JSON only."""
 
+# /ask grounding: the model only proposes names; app/grounding.py checks each against the records.
+NAMES_PROMPT = """List the proper names in the user's question: people, organisations, companies, vendors, products,
+technologies, tools, projects and places. Include them even when written in lower case (e.g. "kubernetes").
+Do NOT include common words (decision, policy, contract, logs, retention, team), job titles (CEO, CTO), dates,
+months, amounts or numbers. Copy each name exactly as written in the question.
+Return JSON {"names": [...]}, or {"names": []} if there are none."""
+
 # I: answer translation. Citation IDs are never sent to the model; they stay attached to each sentence.
 TRANSLATE_PROMPT = """Translate each English sentence into {language}.
 Keep numbers, dates (YYYY-MM-DD), amounts and people's names exactly as written.
