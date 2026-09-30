@@ -266,13 +266,13 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
   return (
     <AppContext.Provider value={ctx}>
-    <div className="h-dvh bg-ks-bg text-ks-text flex flex-col overflow-hidden">
+    <div className="h-dvh bg-kb-bg-soft text-kb-navy flex flex-col overflow-hidden">
       {/* Top Header Bar */}
-      <header className="h-14 shrink-0 bg-ks-surface border-b border-ks-line/80 px-4 flex items-center justify-between gap-3 z-30 select-none shadow-xs">
+      <header className="h-14 shrink-0 bg-kb-bg border-b border-kb-line px-4 flex items-center justify-between gap-3 z-30 select-none shadow-xs">
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={onHome}
-            className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center text-ks-muted hover:bg-ks-raised-2 hover:text-ks-orange transition-colors cursor-pointer"
+            className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center text-kb-muted hover:bg-kb-ice/60 hover:text-kb-cobalt-ink transition-colors cursor-pointer"
             title="Home (public landing page)"
             aria-label="Home"
           >
@@ -285,14 +285,14 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             title={health ? `Answers: ${health.models?.answer} · embeddings: ${health.models?.embed} · telemetry: ${String(health.telemetry)}`
               : health === null ? 'The backend did not answer GET /health.' : 'Checking GET /health…'}
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${engineOk === false ? 'bg-ks-red' : engineOk ? 'bg-ks-ok' : 'bg-ks-subtle'}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${engineOk === false ? 'bg-kb-alert' : engineOk ? 'bg-kb-cobalt' : 'bg-kb-navy/35'}`} />
             {engineOk === false ? (health === null ? 'Backend unreachable' : 'Local model unreachable')
               : engineOk ? `Local model · ${health.models?.answer}` : 'Checking engine…'}
           </span>
         </div>
 
         {/* View Switcher Segmented Pills */}
-        <nav aria-label="Views" className="flex items-center gap-1 p-1 rounded-xl bg-ks-raised-2 border border-ks-line text-[13px] shrink-0">
+        <nav aria-label="Views" className="flex items-center gap-1 p-1 rounded-xl bg-kb-ice/60 border border-kb-line text-[13px] shrink-0">
           {VIEWS.map(({ id, label, short, Icon }) => (
             <button
               key={id}
@@ -300,14 +300,14 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
               aria-current={activeView === id ? 'page' : undefined}
               title={label}
               className={`h-8 px-2.5 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                activeView === id ? 'bg-ks-surface text-ks-text font-semibold shadow-xs' : 'text-ks-muted hover:text-ks-text'
+                activeView === id ? 'bg-kb-bg text-kb-navy font-semibold shadow-xs' : 'text-kb-muted hover:text-kb-navy'
               }`}
             >
-              <Icon size={14} className={activeView === id ? 'text-ks-orange' : ''} aria-hidden="true" />
+              <Icon size={14} className={activeView === id ? 'text-kb-cobalt-ink' : ''} aria-hidden="true" />
               <span className="hidden min-[1700px]:inline">{label}</span>
               <span className="hidden min-[1280px]:inline min-[1700px]:hidden">{short}</span>
               {(id === 'QUEUE' ? pendingProposals : id === 'EXTRACTIONS' ? pendingFacts : 0) > 0 && (
-                <span className="min-w-4 h-4 px-1 rounded-full bg-ks-orange text-[11px] leading-none font-bold text-ks-bg flex items-center justify-center"
+                <span className="min-w-4 h-4 px-1 rounded-full bg-kb-navy text-[11px] leading-none font-bold text-white flex items-center justify-center"
                       title={id === 'QUEUE' ? `${pendingProposals} proposal(s) waiting for a human decision` : `${pendingFacts} extracted fact(s) waiting for review`}>
                   {id === 'QUEUE' ? pendingProposals : pendingFacts}
                 </span>
@@ -319,11 +319,11 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
         {/* Right Action Icons & User Profile */}
         <div className="flex items-center gap-3 shrink-0">
           <button onClick={() => setPaletteOpen(true)} className="btn-secondary" title="Search records (Ctrl+K)" aria-label="Search records">
-            <Search size={14} /> <kbd className="hidden min-[1500px]:inline font-mono text-[11px] text-ks-muted">Ctrl K</kbd>
+            <Search size={14} /> <kbd className="hidden min-[1500px]:inline font-mono text-[11px] text-kb-muted">Ctrl K</kbd>
           </button>
           <button
             onClick={() => setIsIngestModalOpen(true)}
-            className="h-8 px-3 rounded-lg btn-sky-gradient text-ks-on-accent text-[13px] font-medium flex items-center gap-1.5 shadow-xs cursor-pointer"
+            className="h-8 px-3 rounded-lg btn-sky-gradient text-white text-[13px] font-medium flex items-center gap-1.5 shadow-xs cursor-pointer"
             title="Upload a policy version, decision or meeting note (Markdown or meeting audio)"
           >
             <Upload size={14} />
@@ -331,14 +331,14 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             <span className="min-[1280px]:hidden">Ingest</span>
           </button>
 
-          <div className="h-8 flex items-center gap-2 pl-3 border-l border-ks-line">
+          <div className="h-8 flex items-center gap-2 pl-3 border-l border-kb-line">
             <div className="flex flex-col justify-center text-right leading-tight" title={`Signed in (demo role picker) as ${currentUser.id}`}>
-              <span className="text-ks-text font-semibold text-[13px]">{displayUser}</span>
-              <span className="hidden min-[1280px]:inline text-ks-muted text-[11.5px]">{currentUser.role} · <span className="font-mono">{currentUser.id}</span></span>
+              <span className="text-kb-navy font-semibold text-[13px]">{displayUser}</span>
+              <span className="hidden min-[1280px]:inline text-kb-muted text-[11.5px]">{currentUser.role} · <span className="font-mono">{currentUser.id}</span></span>
             </div>
             <button
               onClick={onSignOut}
-              className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-ks-raised-2 text-ks-muted hover:text-ks-red-text transition-colors cursor-pointer"
+              className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-kb-ice/60 text-kb-muted hover:text-kb-navy transition-colors cursor-pointer"
               title="Sign out"
               aria-label="Sign out"
             >
@@ -350,7 +350,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
       {/* As-of ribbon: only on the views that are evaluated as of a date (chat and graph). */}
       {(activeView === 'UNIFIED' || activeView === 'GRAPH') && (
-        <div className="px-4 pt-3 bg-ks-bg shrink-0">
+        <div className="px-4 pt-3 bg-kb-bg-soft shrink-0">
           <TemporalSlider
             refreshKey={policyRefresh}
             asOfDate={asOfDate}
@@ -363,29 +363,29 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
       {/* Toast */}
       {notification && (
-        <div className="absolute bottom-5 right-5 z-50 rounded-xl bg-ks-surface" role="status">
+        <div className="absolute bottom-5 right-5 z-50 rounded-xl bg-kb-bg" role="status">
           <div className={`px-4 py-2.5 rounded-xl text-[13px] shadow-md border flex items-center gap-2 ${
             notification.type === 'success' ? 'badge-note-green' :
             notification.type === 'warning' ? 'badge-note-amber' :
-            'bg-ks-surface border-ks-line text-ks-text'
+            'bg-kb-bg border-kb-line text-kb-navy'
           }`}>
-            <Bell size={13} className="text-ks-orange" />
+            <Bell size={13} className="text-kb-cobalt-ink" />
             <span>{notification.msg}</span>
           </div>
         </div>
       )}
 
       {/* Main Workspace Body with Generous Padding */}
-      <div className="flex-1 p-4 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-ks-bg">
+      <div className="flex-1 p-4 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-kb-bg-soft">
         {(activeView === 'UNIFIED' || activeView === 'GRAPH') && (
-          <div className="flex-1 flex gap-4 min-h-0 ks-tab-in">
+          <div className="flex-1 flex gap-4 min-h-0 kb-tab-in">
             {/* Ask = conversation + evidence for the latest answer. Temporal Graph = the full graph to explore, console
                 on demand. The console is the same element in both (only hidden), so the conversation survives. */}
             {activeView === 'GRAPH' && chatCollapsed && (
-              <button onClick={() => setChatCollapsed(false)} className="shrink-0 w-9 paper-sheet flex flex-col items-center gap-2 py-3 cursor-pointer hover:bg-ks-raised"
+              <button onClick={() => setChatCollapsed(false)} className="shrink-0 w-9 paper-sheet flex flex-col items-center gap-2 py-3 cursor-pointer hover:bg-kb-bg-soft"
                       title="Show the console" aria-label="Show the console">
-                <PanelLeftOpen size={15} className="text-ks-orange" />
-                <span className="text-[12px] text-ks-text-2 [writing-mode:vertical-rl]">Console</span>
+                <PanelLeftOpen size={15} className="text-kb-cobalt-ink" />
+                <span className="text-[12px] text-kb-navy [writing-mode:vertical-rl]">Console</span>
               </button>
             )}
             <div className={`${activeView === 'GRAPH' ? (chatCollapsed ? 'hidden' : 'w-[31%]') : 'w-[56%]'} shrink-0 min-h-0 relative`}>
@@ -447,7 +447,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
         )}
 
         {activeView === 'QUEUE' && (
-          <div className="flex-1 h-full min-h-0 ks-tab-in">
+          <div className="flex-1 h-full min-h-0 kb-tab-in">
             <ReviewQueue
               queueItems={queueItems}
               auditLogs={auditLogs}
@@ -463,26 +463,26 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
         )}
 
         {activeView === 'EXTRACTIONS' && (
-          <div className="flex-1 h-full min-h-0 ks-tab-in">
+          <div className="flex-1 h-full min-h-0 kb-tab-in">
             <IngestionReview onNotify={showNotification} auditLogs={auditLogs} refreshKey={policyRefresh}
                              onChanged={() => { loadAudit(); loadPendingFacts(); }} />
           </div>
         )}
 
         {activeView === 'DECISIONS' && (
-          <div className="flex-1 h-full min-h-0 ks-tab-in">
+          <div className="flex-1 h-full min-h-0 kb-tab-in">
             <DecisionRegister refreshKey={policyRefresh} />
           </div>
         )}
 
         {activeView === 'POLICIES' && (
-          <div className="flex-1 h-full min-h-0 ks-tab-in">
+          <div className="flex-1 h-full min-h-0 kb-tab-in">
             <PoliciesView focus={policyFocus} refreshKey={policyRefresh} asOfDate={todayIST()} />
           </div>
         )}
 
         {activeView === 'AUDIT' && (
-          <div className="flex-1 h-full min-h-0 ks-tab-in">
+          <div className="flex-1 h-full min-h-0 kb-tab-in">
             <AuditLogTable
               auditLogs={auditLogs}
               onRefresh={loadAudit}

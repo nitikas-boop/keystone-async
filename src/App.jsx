@@ -27,7 +27,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-ks-bg text-ks-text font-sans antialiased selection:bg-ks-orange/30 selection:text-ks-text">
+    <div className="min-h-screen bg-kb-bg-soft text-kb-navy font-sans antialiased selection:bg-kb-ice selection:text-kb-navy">
       {isAuthenticated ? (
         <Dashboard 
           currentUser={currentUser} 

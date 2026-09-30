@@ -1,5 +1,5 @@
-// Entry point for the landing intro. Kept tiny on purpose: three.js and everything 3D live in lazy chunks, so the
-// dashboard bundle is unaffected. VITE_LANDING_3D=0 removes the intro entirely.
+// Entry point for the earlier dark 3D landing intro, kept for comparison. Off by default: it renders only with
+// VITE_LANDING_3D=1. Kept tiny on purpose: three.js and everything 3D live in lazy chunks.
 import { lazy, Suspense, useState } from 'react';
 
 const Intro3D = lazy(() => import('./KeystoneIntro'));
@@ -27,6 +27,6 @@ function Gate(props) {
 }
 
 export default function KeystoneIntro(props) {
-  if (import.meta.env.VITE_LANDING_3D === '0') return null;
+  if (import.meta.env.VITE_LANDING_3D !== '1') return null;
   return <Gate {...props} />;
 }

@@ -4,296 +4,250 @@
 @source "../src";
 @source "../index.html";
 
-/* Keystone palette (the landing poster): one set of tokens for every screen. Exposed as Tailwind colours
-   (bg-ks-surface, text-ks-muted, border-ks-line …) and mirrored for SVG/three.js in src/theme.js.
-   Rules: umber and brown are never small text; red means a problem and nothing else. */
+/* "Ice & Butter": one set of tokens for every screen, exposed as Tailwind colours (bg-kb-ice, text-kb-navy,
+   border-kb-line …) and mirrored for SVG in src/theme.js. Contrast rules: cobalt (#7DA7D9) is never text
+   (2.5:1); readable cobalt is cobalt-ink. Alert means a breach, an affected decision or an error, nothing else. */
 @theme {
-  --color-ks-bg: #11100D;          /* smoky black: page background */
-  --color-ks-surface: #1B1915;     /* panels and cards */
-  --color-ks-raised: #24211C;      /* rows, inputs, hover */
-  --color-ks-raised-2: #2D2923;    /* pressed / selected neutrals */
-  --color-ks-line: rgba(237, 227, 210, 0.08);
-  --color-ks-line-strong: rgba(237, 227, 210, 0.16);
-  --color-ks-text: #EDE3D2;        /* warm cream body text (13.8:1 on surface) */
-  --color-ks-text-2: #CFC5B4;      /* strong secondary text */
-  --color-ks-muted: #828D85;       /* dolphin gray: secondary text */
-  --color-ks-subtle: #7F858B;      /* old silver: borders, superseded / expired */
-  --color-ks-umber: #7B3221;       /* fills only: edges, accents, restricted chips */
-  --color-ks-brown: #AC5840;       /* large text, buttons, decision fills */
-  --color-ks-orange: #EE7A45;      /* primary accent: links, focus, highlights */
-  --color-ks-red: #E4483B;         /* breach / action needed: fills, borders, icons */
-  --color-ks-red-text: #EE6A5E;    /* the same red, lifted for small text (5.7:1) */
-  --color-ks-gold: #F2C46D;        /* informational, key numbers */
-  --color-ks-stone: #D6C7B0;       /* limestone: clauses */
-  --color-ks-ok: #A7B5AA;          /* compliant (light sage) */
-  --color-ks-on-accent: #FFF8EE;   /* text on brown / red / orange fills */
+  --color-kb-bg: #FFFFFF;          /* clean white: main background */
+  --color-kb-bg-soft: #FBFAF6;     /* warm off-white: alternate sections, app canvas */
+  --color-kb-ice: #DCEEFF;         /* tinted surfaces, selected rows, halos, compliant chips */
+  --color-kb-butter: #FFF7CC;      /* highlighter, new/active glow, policy-change notice, informational chips */
+  --color-kb-cobalt: #7DA7D9;      /* lines, fills, icons, borders, focus rings: never text */
+  --color-kb-cobalt-ink: #3D6FA8;  /* links and small accent text (5.2:1) */
+  --color-kb-navy: #2F4860;        /* primary text, headlines, nav, primary buttons (9.5:1) */
+  --color-kb-muted: #5A6F86;       /* secondary text (5.2:1) */
+  --color-kb-line: rgba(47, 72, 96, 0.12);        /* thin borders and dividers */
+  --color-kb-line-strong: rgba(47, 72, 96, 0.22); /* hover / input borders */
+  --color-kb-alert: #B83A3A;       /* breach, affected decision, errors only (5.7:1) */
+
+  --font-sans: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', Consolas, monospace;
 }
 
 @layer base {
   :root {
-    color-scheme: dark;
-    --font-heading: 'Playfair Display', Georgia, 'Times New Roman', serif;
+    color-scheme: light;
+    --font-heading: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
     --font-body: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
-    --font-mono: 'JetBrains Mono Variable', Consolas, monospace;
 
-    --ks-bg: var(--color-ks-bg);
-    --ks-surface: var(--color-ks-surface);
-    --ks-glass: rgba(27, 25, 21, 0.6);
-    --ks-glass-border: rgba(237, 227, 210, 0.08);
-    --ks-text: var(--color-ks-text);
-    --ks-muted: var(--color-ks-muted);
-    --ks-subtle: var(--color-ks-subtle);
-    --ks-umber: var(--color-ks-umber);
-    --ks-brown: var(--color-ks-brown);
-    --ks-orange: var(--color-ks-orange);
-    --ks-red: var(--color-ks-red);
-    --ks-gold: var(--color-ks-gold);
-    --ks-stone: var(--color-ks-stone);
-    --ks-ok: var(--color-ks-ok);
-    --ks-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --kb-bg: var(--color-kb-bg);
+    --kb-bg-soft: var(--color-kb-bg-soft);
+    --kb-ice: var(--color-kb-ice);
+    --kb-butter: var(--color-kb-butter);
+    --kb-cobalt: var(--color-kb-cobalt);
+    --kb-cobalt-ink: var(--color-kb-cobalt-ink);
+    --kb-navy: var(--color-kb-navy);
+    --kb-muted: var(--color-kb-muted);
+    --kb-line: var(--color-kb-line);
+    --kb-alert: var(--color-kb-alert);
+    --kb-shadow: 0 1px 2px rgba(47, 72, 96, 0.05), 0 8px 24px -12px rgba(47, 72, 96, 0.08);
+    --kb-shadow-lg: 0 2px 4px rgba(47, 72, 96, 0.05), 0 18px 40px -16px rgba(47, 72, 96, 0.14);
+    --kb-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
-    /* Older names, re-pointed so anything still reading them is already on the palette. */
-    --bg-page: var(--color-ks-bg);
-    --bg-paper: var(--color-ks-surface);
-    --bg-slate-tint: var(--color-ks-raised);
-    --text-primary: var(--color-ks-text);
-    --text-muted: var(--color-ks-muted);
-    --border-subtle: var(--color-ks-line);
-    --brand-sky: var(--color-ks-orange);
-    --brand-sky-light: rgba(238, 122, 69, 0.12);
-    --brand-indigo: var(--color-ks-brown);
-    --brand-indigo-light: rgba(172, 88, 64, 0.16);
-    --pastel-amber: rgba(242, 196, 109, 0.12);
-    --pastel-amber-text: var(--color-ks-gold);
-    --pastel-green: rgba(167, 181, 170, 0.12);
-    --pastel-green-text: var(--color-ks-ok);
-    --pastel-lavender: rgba(242, 196, 109, 0.12);
-    --pastel-lavender-text: var(--color-ks-gold);
-    --pastel-rose: rgba(228, 72, 59, 0.12);
-    --pastel-rose-text: var(--color-ks-red-text);
+    /* Older names, re-pointed so anything still reading them follows the palette. */
+    --bg-page: var(--kb-bg);
+    --bg-paper: var(--kb-bg);
+    --bg-slate-tint: var(--kb-bg-soft);
+    --text-primary: var(--kb-navy);
+    --text-muted: var(--kb-muted);
+    --border-subtle: var(--kb-line);
   }
 
   html, body {
     font-family: var(--font-body);
-    background-color: var(--ks-bg);
-    color: var(--ks-text);
+    background-color: var(--kb-bg);
+    color: var(--kb-navy);
   }
   html { scroll-behavior: smooth; }
 
-  /* Playfair Display for page titles and section headings; small uppercase labels stay in the UI sans. */
-  h1, h2, h3, .font-heading {
+  /* Hierarchy from size and weight: bold, tight, navy. */
+  h1, h2, h3, h4, h5, h6, .font-heading {
     font-family: var(--font-heading);
-    letter-spacing: -0.005em;
+    color: inherit;
+    letter-spacing: -0.02em;
   }
-  :is(h1, h2, h3).uppercase { font-family: var(--font-body); letter-spacing: 0.04em; }
-  h4, h5, h6 { font-family: var(--font-body); }
+  h1, h2 { letter-spacing: -0.03em; }
+  :is(h1, h2, h3, h4).uppercase { letter-spacing: 0.06em; }
 
-  code, pre, .font-mono {
-    font-family: var(--font-mono);
-  }
+  code, pre, .font-mono { font-family: var(--font-mono); }
 
-  ::selection { background: rgba(238, 122, 69, 0.35); color: var(--ks-text); }
+  ::selection { background: var(--kb-ice); color: var(--kb-navy); }
 }
 
-/* Glass cards: panels, modals and the inspector */
+/* Cards: white, thin navy-tinted border, soft blue shadow. */
 .paper-sheet {
-  background-color: var(--ks-glass);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  border-radius: 1rem;
-  border: 1px solid var(--ks-glass-border);
-  box-shadow: 0 1px 0 rgba(237, 227, 210, 0.03) inset, 0 12px 32px -18px rgba(0, 0, 0, 0.7);
-  transition: border-color 0.2s var(--ks-ease), box-shadow 0.2s var(--ks-ease), background-color 0.2s var(--ks-ease);
+  background-color: var(--kb-bg);
+  border-radius: 12px;
+  border: 1px solid var(--kb-line);
+  box-shadow: var(--kb-shadow);
+  transition: border-color 0.2s var(--kb-ease), box-shadow 0.2s var(--kb-ease), background-color 0.2s var(--kb-ease);
 }
 
 .paper-sheet-elevated {
-  background-color: rgba(27, 25, 21, 0.78);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  border-radius: 1rem;
-  border: 1px solid rgba(237, 227, 210, 0.1);
-  box-shadow: 0 1px 0 rgba(237, 227, 210, 0.04) inset, 0 24px 60px -24px rgba(0, 0, 0, 0.8);
+  background-color: var(--kb-bg);
+  border-radius: 14px;
+  border: 1px solid var(--kb-line);
+  box-shadow: var(--kb-shadow-lg);
 }
 
 .paper-sheet-interactive {
-  background-color: var(--ks-glass);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  border-radius: 1rem;
-  border: 1px solid var(--ks-glass-border);
-  box-shadow: 0 12px 32px -18px rgba(0, 0, 0, 0.7);
-  transition: transform 0.2s var(--ks-ease), border-color 0.2s var(--ks-ease), box-shadow 0.2s var(--ks-ease);
+  background-color: var(--kb-bg);
+  border-radius: 12px;
+  border: 1px solid var(--kb-line);
+  box-shadow: var(--kb-shadow);
+  transition: transform 0.25s var(--kb-ease), border-color 0.25s var(--kb-ease), box-shadow 0.25s var(--kb-ease);
 }
 
 .paper-sheet-interactive:hover {
   transform: translateY(-1px);
-  border-color: rgba(238, 122, 69, 0.35);
-  box-shadow: 0 0 0 1px rgba(238, 122, 69, 0.12), 0 10px 28px -12px rgba(238, 122, 69, 0.28);
+  border-color: var(--color-kb-line-strong);
+  box-shadow: var(--kb-shadow-lg);
 }
 
-/* Primary CTA (the class name is historical): brown button, orange glow on hover */
+/* Primary CTA (the class name is historical): navy button, white text (9.5:1). */
 .btn-sky-gradient {
-  background: linear-gradient(135deg, #B9613F 0%, var(--ks-brown) 100%);
-  color: #FFF8EE;
-  border: 1px solid rgba(238, 122, 69, 0.5);
-  box-shadow: 0 2px 10px -2px rgba(238, 122, 69, 0.3);
-  transition: background 0.2s var(--ks-ease), box-shadow 0.2s var(--ks-ease), transform 0.2s var(--ks-ease);
+  background: var(--kb-navy);
+  color: #FFFFFF;
+  border: 1px solid var(--kb-navy);
+  box-shadow: 0 1px 2px rgba(47, 72, 96, 0.12);
+  transition: transform 0.2s var(--kb-ease), box-shadow 0.2s var(--kb-ease), background-color 0.2s var(--kb-ease);
 }
-
 .btn-sky-gradient:hover {
-  background: linear-gradient(135deg, #C66A45 0%, #B9613F 100%);
-  box-shadow: 0 0 0 3px rgba(238, 122, 69, 0.14), 0 8px 22px -8px rgba(238, 122, 69, 0.55);
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px -6px rgba(47, 72, 96, 0.35);
 }
 
-/* Status chips. One meaning per colour in every tab:
-   green = compliant (sage), rose = breach / action needed (red), amber, sky and lavender = informational (gold),
-   slate = superseded / expired (old silver). */
-.badge-note-amber, .badge-note-sky, .badge-note-lavender {
-  background-color: rgba(242, 196, 109, 0.1);
-  color: var(--ks-gold);
-  border: 1px solid rgba(242, 196, 109, 0.28);
+/* Status chips: one meaning per colour in every screen. */
+.status-ok, .badge-note-green {
+  background-color: var(--kb-ice);
+  color: var(--kb-cobalt-ink);
+  border: 1px solid rgba(125, 167, 217, 0.45);
 }
-
-.badge-note-green {
-  background-color: rgba(167, 181, 170, 0.1);
-  color: var(--ks-ok);
-  border: 1px solid rgba(167, 181, 170, 0.3);
+.status-info, .badge-note-amber, .badge-note-sky, .badge-note-lavender {
+  background-color: var(--kb-butter);
+  color: var(--kb-navy);
+  border: 1px solid var(--color-kb-line-strong);
 }
-
-.badge-note-rose {
-  background-color: rgba(228, 72, 59, 0.12);
-  color: var(--color-ks-red-text);
-  border: 1px solid rgba(228, 72, 59, 0.4);
+.status-breach, .badge-note-rose {
+  background-color: rgba(184, 58, 58, 0.07);
+  color: var(--kb-alert);
+  border: 1px solid rgba(184, 58, 58, 0.35);
 }
-
-.badge-note-slate {
-  background-color: rgba(127, 133, 139, 0.1);
-  color: #9AA0A5;
-  border: 1px solid rgba(127, 133, 139, 0.28);
+.status-old, .badge-note-slate {
+  background-color: transparent;
+  color: rgba(47, 72, 96, 0.62);
+  border: 1px solid var(--kb-line);
 }
-
-/* Restricted: burnt-umber chip with cream text (pair with a lock icon). */
-.badge-restricted {
+.status-restricted, .badge-restricted {
   display: inline-flex; align-items: center; gap: 0.25rem;
-  background-color: var(--ks-umber);
-  color: var(--ks-text);
-  border: 1px solid rgba(238, 122, 69, 0.25);
+  background-color: transparent;
+  color: var(--kb-navy);
+  border: 1px solid var(--kb-navy);
 }
 
-/* Citation Pill */
+/* Citation pill */
 .citation-pill-paper {
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  background-color: rgba(238, 122, 69, 0.08);
-  color: var(--ks-orange);
-  border: 1px solid rgba(238, 122, 69, 0.28);
+  background-color: var(--kb-ice);
+  color: var(--kb-cobalt-ink);
+  border: 1px solid rgba(125, 167, 217, 0.5);
   padding: 0.15rem 0.5rem;
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   cursor: pointer;
-  transition: background-color 0.15s var(--ks-ease), border-color 0.15s var(--ks-ease), box-shadow 0.15s var(--ks-ease);
+  transition: border-color 0.18s var(--kb-ease), box-shadow 0.18s var(--kb-ease), transform 0.18s var(--kb-ease);
 }
-
 .citation-pill-paper:hover {
-  background-color: rgba(238, 122, 69, 0.16);
-  border-color: rgba(238, 122, 69, 0.6);
-  box-shadow: 0 0 12px -2px rgba(238, 122, 69, 0.35);
+  border-color: var(--kb-cobalt);
+  box-shadow: 0 2px 8px -2px rgba(61, 111, 168, 0.3);
+  transform: translateY(-1px);
 }
 
-/* Source-sentence highlight: gold at ~35% behind cream text */
-.ks-highlight {
-  background-color: rgba(242, 196, 109, 0.35);
-  color: var(--ks-text);
+/* Butter highlighter behind quoted source sentences */
+.kb-highlight {
+  background-color: var(--kb-butter);
+  color: var(--kb-navy);
   border-radius: 3px;
   padding: 0 0.15em;
+  box-shadow: 0 0 0 1px rgba(47, 72, 96, 0.06);
 }
 
 /* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: var(--ks-bg);
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(237, 227, 210, 0.14);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(237, 227, 210, 0.26);
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(47, 72, 96, 0.18); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(47, 72, 96, 0.3); background-clip: padding-box; border: 2px solid transparent; }
 
-/* Shared controls. Approve (sage, solid) is deliberately unlike the brown Ingest Document CTA. */
+/* Shared controls. Approve (cobalt ink) is deliberately unlike the navy Ingest Document CTA. */
 .btn-approve {
   display: inline-flex; align-items: center; gap: 0.375rem;
   padding: 0.375rem 0.75rem; border-radius: 0.5rem; font-size: 13px; font-weight: 600;
-  background: var(--ks-ok); color: #11100D; border: 1px solid #C3CEC5; cursor: pointer;
-  transition: background-color 0.18s var(--ks-ease), box-shadow 0.18s var(--ks-ease);
+  background: var(--kb-cobalt-ink); color: #FFFFFF; border: 1px solid var(--kb-cobalt-ink); cursor: pointer;
+  transition: transform 0.18s var(--kb-ease), box-shadow 0.18s var(--kb-ease);
 }
-.btn-approve:hover { background: #B9C6BC; box-shadow: 0 0 0 3px rgba(167, 181, 170, 0.18); }
+.btn-approve:hover { transform: translateY(-1px); box-shadow: 0 6px 14px -6px rgba(61, 111, 168, 0.5); }
 .btn-secondary {
   display: inline-flex; align-items: center; gap: 0.375rem;
   padding: 0.3rem 0.625rem; border-radius: 0.5rem; font-size: 13px; font-weight: 500;
-  background: var(--color-ks-raised); color: var(--ks-text); border: 1px solid var(--color-ks-line-strong); cursor: pointer;
-  transition: background-color 0.18s var(--ks-ease), border-color 0.18s var(--ks-ease), box-shadow 0.18s var(--ks-ease);
+  background: var(--kb-bg); color: var(--kb-navy); border: 1px solid var(--color-kb-line-strong); cursor: pointer;
+  transition: border-color 0.18s var(--kb-ease), background-color 0.18s var(--kb-ease), transform 0.18s var(--kb-ease);
 }
-.btn-secondary:hover { background: var(--color-ks-raised-2); border-color: rgba(238, 122, 69, 0.4); box-shadow: 0 0 10px -3px rgba(238, 122, 69, 0.35); }
+.btn-secondary:hover { border-color: var(--kb-cobalt); background: var(--kb-bg-soft); transform: translateY(-1px); }
 .btn-danger {
   display: inline-flex; align-items: center; gap: 0.375rem;
   padding: 0.3rem 0.625rem; border-radius: 0.5rem; font-size: 13px; font-weight: 500;
-  background: rgba(228, 72, 59, 0.08); color: var(--color-ks-red-text); border: 1px solid rgba(228, 72, 59, 0.45); cursor: pointer;
-  transition: background-color 0.18s var(--ks-ease);
+  background: var(--kb-bg); color: var(--kb-alert); border: 1px solid rgba(184, 58, 58, 0.4); cursor: pointer;
+  transition: background-color 0.18s var(--kb-ease), border-color 0.18s var(--kb-ease);
 }
-.btn-danger:hover { background: rgba(228, 72, 59, 0.16); }
-.btn-approve:disabled, .btn-secondary:disabled, .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.btn-danger:hover { background: rgba(184, 58, 58, 0.06); border-color: var(--kb-alert); }
+.btn-approve:disabled, .btn-secondary:disabled, .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 1.75rem; height: 1.75rem; border-radius: 0.5rem; color: var(--ks-muted); border: 1px solid var(--color-ks-line-strong); cursor: pointer;
-  transition: background-color 0.18s var(--ks-ease), color 0.18s var(--ks-ease), border-color 0.18s var(--ks-ease);
+  width: 1.75rem; height: 1.75rem; border-radius: 0.5rem; color: var(--kb-muted); border: 1px solid var(--kb-line); cursor: pointer;
+  transition: color 0.18s var(--kb-ease), border-color 0.18s var(--kb-ease), background-color 0.18s var(--kb-ease);
 }
-.icon-btn:hover { background: var(--color-ks-raised); color: var(--ks-orange); border-color: rgba(238, 122, 69, 0.4); }
+.icon-btn:hover { background: var(--kb-bg-soft); color: var(--kb-navy); border-color: var(--color-kb-line-strong); }
 .field {
   height: 1.875rem; padding: 0 0.5rem; border-radius: 0.5rem; font-size: 13px;
-  background: var(--color-ks-raised); color: var(--ks-text); border: 1px solid var(--color-ks-line-strong);
-  transition: border-color 0.18s var(--ks-ease), box-shadow 0.18s var(--ks-ease);
+  background: var(--kb-bg); color: var(--kb-navy); border: 1px solid var(--color-kb-line-strong);
+  transition: border-color 0.18s var(--kb-ease);
 }
-.field:focus { outline: 2px solid var(--ks-orange); outline-offset: 0; border-color: transparent; }
-.field::placeholder, input::placeholder, textarea::placeholder { color: var(--ks-muted); }
-input[type="date"], input[type="datetime-local"] { color-scheme: dark; }
+.field:focus { outline: 2px solid var(--kb-cobalt); outline-offset: 0; border-color: transparent; }
+.field::placeholder, input::placeholder, textarea::placeholder { color: var(--kb-muted); }
 
 /* Keyboard focus is always visible. */
-:focus-visible { outline: 2px solid var(--ks-orange); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--kb-cobalt); outline-offset: 2px; }
 
 /* As-of slider: a 16px thumb (TemporalSlider positions its milestone markers against this width). */
 .kst-range { -webkit-appearance: none; appearance: none; height: 16px; background: transparent; cursor: pointer; }
-.kst-range::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: var(--color-ks-raised-2); }
-.kst-range::-moz-range-track { height: 4px; border-radius: 4px; background: var(--color-ks-raised-2); }
+.kst-range::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: var(--kb-ice); }
+.kst-range::-moz-range-track { height: 4px; border-radius: 4px; background: var(--kb-ice); }
 .kst-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%;
-  background: var(--ks-gold); border: 2px solid var(--ks-bg); box-shadow: 0 0 0 1px var(--ks-gold), 0 0 10px rgba(242, 196, 109, 0.45); }
-.kst-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--ks-gold); border: 2px solid var(--ks-bg); }
+  background: var(--kb-navy); border: 3px solid var(--kb-bg); box-shadow: 0 0 0 1px var(--kb-navy), 0 2px 6px rgba(47, 72, 96, 0.25);
+  transition: transform 0.2s var(--kb-ease); }
+.kst-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--kb-navy); border: 2px solid var(--kb-bg); }
 
 /* Graph nodes: show keyboard focus as a ring on the node, not a square box around the SVG group. */
 svg g[role="button"]:focus { outline: none; }  /* the browser draws a square box on mouse focus too */
-svg g[role="button"]:focus-visible > circle { stroke: var(--ks-orange); stroke-width: 3; }
+svg g[role="button"]:focus-visible > circle { stroke: var(--kb-cobalt); stroke-width: 3; }
 
 /* Breach pulse on flagged graph nodes: opacity and scale only, so it stays cheap. */
-@keyframes ks-breach-pulse {
-  0%, 100% { opacity: 0.9; transform: scale(1); }
-  50% { opacity: 0.25; transform: scale(1.35); }
+@keyframes kb-breach-pulse {
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 0.15; transform: scale(1.35); }
 }
-.ks-breach-ring { transform-box: fill-box; transform-origin: center; animation: ks-breach-pulse 1.8s ease-in-out infinite; }
+.kb-breach-ring { transform-box: fill-box; transform-origin: center; animation: kb-breach-pulse 2.2s ease-in-out infinite; }
 
 /* Gentle entrance when switching tabs */
-@keyframes ks-tab-in {
-  from { opacity: 0; transform: translateY(6px); }
+@keyframes kb-tab-in {
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: none; }
 }
-.ks-tab-in { animation: ks-tab-in 0.22s var(--ks-ease) both; }
+.kb-tab-in { animation: kb-tab-in 0.2s var(--kb-ease) both; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ks-breach-ring, .ks-tab-in { animation: none; }
+  .kb-breach-ring, .kb-tab-in { animation: none; }
 }

@@ -172,17 +172,17 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
   const isMeeting = result?.doc_type === 'meeting_note';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ks-bg/70 backdrop-blur-xs p-4" role="dialog" aria-modal="true" aria-labelledby="ingest-title">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-kb-navy/25 backdrop-blur-xs p-4" role="dialog" aria-modal="true" aria-labelledby="ingest-title">
       <div className="w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto paper-sheet-elevated p-5 relative text-[13px]">
         <button onClick={handleResetAndClose} className="absolute top-4 right-4 icon-btn" aria-label="Close" title="Close">
           <X size={16} />
         </button>
 
         <div className="flex items-center gap-3 mb-4 pr-10">
-          <div className="p-2 rounded-lg bg-ks-orange/10 text-ks-orange"><Upload size={18} aria-hidden="true" /></div>
+          <div className="p-2 rounded-lg bg-kb-ice text-kb-cobalt-ink"><Upload size={18} aria-hidden="true" /></div>
           <div>
-            <h3 id="ingest-title" className="font-heading font-bold text-[15px] text-ks-text">Ingest a document</h3>
-            <p className="text-[12.5px] text-ks-muted">
+            <h3 id="ingest-title" className="font-heading font-bold text-[15px] text-kb-navy">Ingest a document</h3>
+            <p className="text-[12.5px] text-kb-muted">
               A policy version, decision or meeting note in Markdown with YAML front-matter, or meeting audio (transcribed on this machine).
             </p>
           </div>
@@ -197,22 +197,22 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
                 return (
                   <button key={key} type="button" disabled={running}
                     onClick={() => { setSelectedPreset(key); clearAll(); }}
-                    className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${sel ? 'bg-ks-orange/7 border-ks-orange/60 shadow-xs' : 'bg-ks-surface border-ks-line hover:border-ks-line-strong'}`}
+                    className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${sel ? 'bg-kb-ice/60 border-kb-cobalt shadow-xs' : 'bg-kb-bg border-kb-line hover:border-kb-line-strong'}`}
                     aria-pressed={sel}>
-                    <div className="flex items-center justify-between gap-2 font-semibold text-ks-text">
+                    <div className="flex items-center justify-between gap-2 font-semibold text-kb-navy">
                       <span>{preset.label}</span>
                       {info.have
                         ? <span className="text-[11.5px] px-1.5 py-0.5 rounded badge-note-slate font-normal">already ingested</span>
                         : <span className="text-[11.5px] px-1.5 py-0.5 rounded badge-note-sky font-normal">new version</span>}
                     </div>
                     {key === 'RET-v3' ? (
-                      <p className="text-[12.5px] text-ks-muted mt-1 leading-snug">
+                      <p className="text-[12.5px] text-kb-muted mt-1 leading-snug">
                         Lowers the RET-2.1 retention ceiling to 90 days{info.prev ? ` (from ${info.prev.clauses.find(c => c.clause_id === 'RET-2.1')?.fields?.retention_days_max} days in ${info.prev.version})` : ''}, effective {day(info.effective)}.
                         {info.have ? ' Uploading it again changes nothing: the scanner raises no new flags.'
                           : ' In the demo data the scanner flags DEC-007 (ongoing breach, a proposal is queued) and DEC-002 (superseded, historical only).'}
                       </p>
                     ) : (
-                      <p className="text-[12.5px] text-ks-muted mt-1 leading-snug">
+                      <p className="text-[12.5px] text-kb-muted mt-1 leading-snug">
                         Lowers the CTO approval ceiling on PROC-3.1 to ₹2,00,000, effective {day(info.effective)}.
                         {info.have ? ' It is already in the seed data (it is what flags DEC-004), so uploading it again raises no new flags.'
                           : ' In the demo data the scanner flags DEC-004 (rule changed since).'}
@@ -227,20 +227,20 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden"
                      accept=".md,.txt,.wav,.mp3,.m4a,.webm,.ogg,audio/*" />
               <button type="button" disabled={running} onClick={() => fileInputRef.current?.click()}
-                className={`w-full p-2.5 rounded-lg border border-dashed text-center transition-colors cursor-pointer ${customFile ? 'border-ks-orange/60 bg-ks-orange/5 text-ks-orange' : 'border-ks-line-strong hover:border-ks-line-strong text-ks-muted'}`}>
+                className={`w-full p-2.5 rounded-lg border border-dashed text-center transition-colors cursor-pointer ${customFile ? 'border-kb-cobalt bg-kb-ice/60 text-kb-cobalt-ink' : 'border-kb-line-strong hover:border-kb-line-strong text-kb-muted'}`}>
                 {customFile ? `Selected: ${customFile.name}` : '+ Or choose a Markdown document, or meeting audio (transcribed locally)…'}
               </button>
             </div>
 
-            <div className="p-3 rounded-lg bg-ks-raised border border-ks-line">
-              <div className="flex items-center justify-between gap-2 mb-1 text-[12px] text-ks-muted">
+            <div className="p-3 rounded-lg bg-kb-bg-soft border border-kb-line">
+              <div className="flex items-center justify-between gap-2 mb-1 text-[12px] text-kb-muted">
                 <span>{transcript ? 'Transcript, as it will be uploaded' : 'Front-matter and text'}</span>
                 {docId && <span className="font-mono">creates or updates {docId}</span>}
               </div>
-              <pre className="font-mono text-[12px] text-ks-text-2 whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">
+              <pre className="font-mono text-[12px] text-kb-navy whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">
                 {(content || '').trim() || '(waiting for the transcript)'}
               </pre>
-              {customFile && !fm && <p className="mt-1 text-ks-gold">No YAML front-matter found: the server will reject this file.</p>}
+              {customFile && !fm && <p className="mt-1 text-kb-navy">No YAML front-matter found: the server will reject this file.</p>}
             </div>
 
             {duplicate && (
@@ -265,7 +265,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
               </div>
             )}
             {failure && (
-              <div className="p-3 rounded-lg bg-ks-red/10 border border-ks-red/35 flex items-start gap-2 text-ks-red-text" role="alert">
+              <div className="p-3 rounded-lg bg-kb-alert/8 border border-kb-alert/40 flex items-start gap-2 text-kb-alert" role="alert">
                 <AlertTriangle size={15} className="shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
                   <div className="font-semibold">{failure.title}. Nothing was ingested and the scanner did not run.</div>
@@ -283,7 +283,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
                 <>
                   <button type="button" onClick={handleResetAndClose} className="btn-secondary">Close</button>
                   <button type="button" onClick={handleUpload} disabled={(duplicate && !confirmDup) || (!!customFile && !fm) || !content}
-                    className="px-4 py-2 rounded-lg btn-sky-gradient text-ks-on-accent font-medium flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed">
+                    className="px-4 py-2 rounded-lg btn-sky-gradient text-white font-medium flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed">
                     <Upload size={14} />
                     <span>Upload & Run Scanner</span>
                   </button>
@@ -295,43 +295,43 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
           /* Results: what the server reported, per stage */
           <div className="space-y-3">
             <Stages stages={stages} />
-            <ul className="rounded-lg border border-ks-line divide-y divide-ks-line">
-              <li className="p-2.5 flex items-center gap-2 flex-wrap"><CheckCircle2 size={15} className="text-ks-ok" aria-hidden="true" />
+            <ul className="rounded-lg border border-kb-line divide-y divide-kb-line">
+              <li className="p-2.5 flex items-center gap-2 flex-wrap"><CheckCircle2 size={15} className="text-kb-cobalt-ink" aria-hidden="true" />
                 Stored <IdChip id={result.document_id} /> ({result.doc_type.replace('_', ' ')}), dated {day(result.ref_time)} from its front-matter.</li>
               {isMeeting && (
                 <li className="p-2.5 flex items-start gap-2">
                   {result.extraction_error
-                    ? <><AlertTriangle size={15} className="text-ks-red-text shrink-0 mt-0.5" aria-hidden="true" /><span>Extraction failed: <span className="font-mono">{result.extraction_error}</span></span></>
-                    : <><CheckCircle2 size={15} className="text-ks-ok shrink-0 mt-0.5" aria-hidden="true" />
+                    ? <><AlertTriangle size={15} className="text-kb-alert shrink-0 mt-0.5" aria-hidden="true" /><span>Extraction failed: <span className="font-mono">{result.extraction_error}</span></span></>
+                    : <><CheckCircle2 size={15} className="text-kb-cobalt-ink shrink-0 mt-0.5" aria-hidden="true" />
                       <span>Extracted {plural(result.extracted?.nodes ?? 0, 'node')} and {plural(result.extracted?.edges ?? 0, 'edge')}
                         {result.extracted?.already_known ? ` (${result.extracted.already_known} already recorded elsewhere, not queued)` : ''};
                         {' '}{plural(result.pending_review ?? 0, 'fact')} now wait in Ingestion Review.</span></>}
                 </li>
               )}
-              {!isPolicy && <li className="p-2.5 text-ks-muted">The impact scanner runs only when a policy version is ingested.</li>}
+              {!isPolicy && <li className="p-2.5 text-kb-muted">The impact scanner runs only when a policy version is ingested.</li>}
             </ul>
 
             {isPolicy && (
               <div>
-                <div className="flex items-center gap-2 mb-2 font-semibold text-ks-text">
-                  <ShieldAlert size={15} className="text-ks-red-text" aria-hidden="true" />
+                <div className="flex items-center gap-2 mb-2 font-semibold text-kb-navy">
+                  <ShieldAlert size={15} className="text-kb-alert" aria-hidden="true" />
                   <span>Impact Scanner Findings ({plural(flags.length, 'flag')} raised)</span>
                 </div>
                 {flags.length === 0 ? (
-                  <p className="p-3 rounded-lg bg-ks-raised border border-ks-line text-ks-muted">
+                  <p className="p-3 rounded-lg bg-kb-bg-soft border border-kb-line text-kb-muted">
                     No new flags: no past decision relied on a clause this version changed in a way that makes it
                     non-compliant, or the flags already exist from an earlier upload.
                   </p>
                 ) : (
                   <ul className="space-y-2">
                     {flags.map(flag => (
-                      <li key={flag.id} className="p-3 rounded-lg border bg-ks-red/6 border-ks-red/35">
+                      <li key={flag.id} className="p-3 rounded-lg border bg-kb-alert/8 border-kb-alert/40">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <span className="px-2 py-0.5 rounded badge-note-rose text-[12px]" title={flag.impact_type}>{impactLabel(flag.impact_type)}</span>
                           <IdChip id={flag.decision_id} type="decision" withTitle />
                         </div>
-                        <p className="mt-1.5 flex items-center gap-1 flex-wrap text-ks-text-2">
-                          <ArrowRight size={12} className="text-ks-orange" aria-hidden="true" />
+                        <p className="mt-1.5 flex items-center gap-1 flex-wrap text-kb-navy">
+                          <ArrowRight size={12} className="text-kb-cobalt-ink" aria-hidden="true" />
                           {flag.proposal_id ? <>Proposal <IdChip id={`#${flag.proposal_id}`} type="proposal" /> queued for human review.</>
                             : 'Historical only: no action proposed.'}
                         </p>
@@ -345,7 +345,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
             <div className="flex justify-end gap-2 pt-1">
               <button type="button" onClick={clearAll} className="btn-secondary">Ingest another</button>
               <button type="button" onClick={() => { handleResetAndClose(); onProceedToQueue(isMeeting ? 'EXTRACTIONS' : 'QUEUE'); }}
-                className="px-4 py-2 rounded-lg btn-sky-gradient text-ks-on-accent font-medium cursor-pointer">
+                className="px-4 py-2 rounded-lg btn-sky-gradient text-white font-medium cursor-pointer">
                 {isMeeting ? 'Go to Ingestion Review →' : 'Proceed to Review Queue →'}
               </button>
             </div>
@@ -363,13 +363,13 @@ function Stages({ stages }) {
     <ol className="space-y-1.5" aria-label="Progress" aria-live="polite">
       {stages.map(s => (
         <li key={s.key} className="flex items-start gap-2">
-          {s.state === 'running' && <Loader2 size={15} className="animate-spin text-ks-orange shrink-0 mt-0.5" aria-hidden="true" />}
-          {s.state === 'done' && <CheckCircle2 size={15} className="text-ks-ok shrink-0 mt-0.5" aria-hidden="true" />}
-          {s.state === 'failed' && <AlertTriangle size={15} className="text-ks-red-text shrink-0 mt-0.5" aria-hidden="true" />}
+          {s.state === 'running' && <Loader2 size={15} className="animate-spin text-kb-cobalt-ink shrink-0 mt-0.5" aria-hidden="true" />}
+          {s.state === 'done' && <CheckCircle2 size={15} className="text-kb-cobalt-ink shrink-0 mt-0.5" aria-hidden="true" />}
+          {s.state === 'failed' && <AlertTriangle size={15} className="text-kb-alert shrink-0 mt-0.5" aria-hidden="true" />}
           <span>
-            {s.label} <span className="text-ks-muted font-mono text-[12px]">{secs(s)} s</span>
-            {s.state === 'running' && <span className="text-ks-muted"> (the local model can take a minute)</span>}
-            {s.note && <span className="block text-[12px] text-ks-muted">{s.note}</span>}
+            {s.label} <span className="text-kb-muted font-mono text-[12px]">{secs(s)} s</span>
+            {s.state === 'running' && <span className="text-kb-muted"> (the local model can take a minute)</span>}
+            {s.note && <span className="block text-[12px] text-kb-muted">{s.note}</span>}
           </span>
         </li>
       ))}

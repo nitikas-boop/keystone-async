@@ -7,9 +7,9 @@ import { day } from '../utils/format';
 export default function DateField({ value, onChange, min, max, label, placeholder = 'Any date', className = '' }) {
   const ref = useRef(null);
   return (
-    <span className={`relative inline-flex items-center gap-1.5 h-[1.875rem] px-2 rounded-lg border border-ks-line-strong bg-ks-surface text-[13px] text-ks-text ${className}`}>
-      <CalendarDays size={13} className="text-ks-orange shrink-0" aria-hidden="true" />
-      <span className={value ? 'font-medium' : 'text-ks-muted'}>{value ? day(value) : placeholder}</span>
+    <span className={`relative inline-flex items-center gap-1.5 h-[1.875rem] px-2 rounded-lg border border-kb-line-strong bg-kb-bg text-[13px] text-kb-navy ${className}`}>
+      <CalendarDays size={13} className="text-kb-cobalt-ink shrink-0" aria-hidden="true" />
+      <span className={value ? 'font-medium' : 'text-kb-muted'}>{value ? day(value) : placeholder}</span>
       <input
         ref={ref}
         type="date"

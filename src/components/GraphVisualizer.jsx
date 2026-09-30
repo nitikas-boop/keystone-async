@@ -8,10 +8,10 @@ import { RELATIONS, TYPES, impactLabel, nodeTitle, typeMeta } from '../utils/ent
 import { layout } from '../utils/graphLayout';
 import { day, inr, month, polish, todayIST, ts } from '../utils/format';
 import { displayName } from '../utils/people';
-import { KS } from '../theme';
+import { KB } from '../theme';
 
-// Burnt umber lifted a step so thin edges stay visible on the smoky-black canvas (same hue as KS.umber).
-const EDGE = '#9A4430';
+// Edges: soft cobalt, strengthening to navy in focus (same language as the landing graph).
+const EDGE = KB.cobalt;
 
 // The temporal graph, from GET /graph/view (server-side visibility filter). Positions come from a deterministic
 // layout over every node known today (x = date, one lane per type), so nodes stay put while the as-of date moves;
@@ -230,13 +230,13 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
 
   return (
     <div className="w-full h-full flex paper-sheet overflow-hidden select-none">
-      <div className="relative flex-1 min-w-0 flex flex-col bg-ks-bg">
+      <div className="relative flex-1 min-w-0 flex flex-col bg-kb-bg-soft">
         {/* Toolbar: legend by type and by line style, zoom controls */}
-        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-ks-line bg-ks-surface">
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-kb-line bg-kb-bg">
           <button className="btn-secondary" onClick={() => setLegendOpen(o => !o)} aria-expanded={legendOpen}>
             <ListTree size={13} /> Legend
           </button>
-          <span className="text-[12px] text-ks-muted truncate min-w-0">
+          <span className="text-[12px] text-kb-muted truncate min-w-0">
             Faded: not yet valid · grey: superseded · red !: flagged{answerFocus ? '' : ' · hover a node for its neighbours, click to inspect'}
           </span>
           <div className="flex items-center gap-1 shrink-0">
@@ -251,7 +251,7 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
         </div>
 
         {answerFocus && (
-          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-ks-orange/15 bg-ks-orange/10 text-[12.5px] text-ks-text">
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-kb-cobalt/50 bg-kb-ice text-[12.5px] text-kb-navy">
             <span className="min-w-0 truncate" title={answerFocus.question}>
               The {nodes.length} records used to answer “{answerFocus.question}”
             </span>
@@ -262,7 +262,7 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
         )}
         <div ref={canvasRef} className="relative flex-1 min-h-0">
           {legendOpen && (
-            <div className="absolute top-2 left-2 z-10 max-w-md rounded-lg border border-ks-line bg-ks-surface/95 shadow-sm p-2.5">
+            <div className="absolute top-2 left-2 z-10 max-w-md rounded-lg border border-kb-line bg-kb-bg/95 shadow-sm p-2.5">
               <Legend />
             </div>
           )}
@@ -272,9 +272,9 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
           {/* Ask tab: this panel is the evidence for the latest answer, so it stays empty until there is one. */}
           {L && evidence && !answerFocus && (
             <div className="absolute inset-0 flex items-center justify-center p-6">
-              <div className="max-w-sm text-center text-[13px] text-ks-text-2 space-y-2">
-                <Network size={28} className="mx-auto text-ks-subtle" aria-hidden="true" />
-                <p className="font-semibold text-ks-text">The records behind each answer appear here</p>
+              <div className="max-w-sm text-center text-[13px] text-kb-navy space-y-2">
+                <Network size={28} className="mx-auto text-kb-muted" aria-hidden="true" />
+                <p className="font-semibold text-kb-navy">The records behind each answer appear here</p>
                 <p>Ask a question: the decisions, clauses and people it cites are drawn here on a timeline, and you can inspect each one.</p>
                 <button className="btn-secondary" onClick={onExplore}>Explore the full graph instead</button>
               </div>
@@ -289,24 +289,24 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
                 {/* Lanes */}
                 {L.lanes.map((ln, i) => (
                   <g key={ln.type} pointerEvents="none">
-                    <rect x="0" y={ln.y0} width={L.width} height={ln.y1 - ln.y0} fill={i % 2 ? KS.bg : KS.surface} opacity="0.7" />
-                    <text x="6" y={ln.y0 + 13} fontSize="11" fill={KS.muted} fontFamily="var(--font-body)">{LANE_LABEL[ln.type] || ln.type}</text>
+                    <rect x="0" y={ln.y0} width={L.width} height={ln.y1 - ln.y0} fill={i % 2 ? KB.bg : KB.bgSoft} opacity="0.7" />
+                    <text x="6" y={ln.y0 + 13} fontSize="11" fill={KB.muted} fontFamily="var(--font-body)">{LANE_LABEL[ln.type] || ln.type}</text>
                   </g>
                 ))}
                 {/* Time axis */}
                 {L.ticks.map(t => (
                   <g key={t.date} pointerEvents="none">
-                    <line x1={t.x} x2={t.x} y1={L.lanes[0]?.y0 || 0} y2={L.height} stroke="rgba(237, 227, 210, 0.08)" strokeDasharray="2 4" />
-                    <text x={t.x} y={L.height + 18} fontSize="11" fill={KS.muted} textAnchor="middle" fontFamily="var(--font-mono)">{month(t.date)}</text>
+                    <line x1={t.x} x2={t.x} y1={L.lanes[0]?.y0 || 0} y2={L.height} stroke={KB.line} strokeDasharray="2 4" />
+                    <text x={t.x} y={L.height + 18} fontSize="11" fill={KB.muted} textAnchor="middle" fontFamily="var(--font-mono)">{month(t.date)}</text>
                   </g>
                 ))}
                 {asOfX != null && (
                   <g style={{ transform: `translateX(${asOfX}px)`, transition: 'transform 500ms ease' }} pointerEvents="none">
-                    <line x1="0" x2="0" y1={L.lanes[0]?.y0 || 0} y2={L.height} stroke={KS.gold} strokeWidth="1.5" />
+                    <line x1="0" x2="0" y1={L.lanes[0]?.y0 || 0} y2={L.height} stroke={KB.navy} strokeWidth="1.5" />
                     {/* keep the date tag inside the canvas at either end */}
                     <g transform={`translate(${Math.min(Math.max(0, 62 - asOfX), L.width - 62 - asOfX)} 0)`}>
-                      <rect x="-60" y={L.height + 4} width="120" height="18" rx="4" fill={KS.gold} />
-                      <text x="0" y={L.height + 17} fontSize="11" fill={KS.bg} fontWeight="600" textAnchor="middle" fontFamily="var(--font-body)">as of {day(asOfDate)}</text>
+                      <rect x="-60" y={L.height + 4} width="120" height="18" rx="4" fill={KB.navy} />
+                      <text x="0" y={L.height + 17} fontSize="11" fill={KB.bg} fontWeight="600" textAnchor="middle" fontFamily="var(--font-body)">as of {day(asOfDate)}</text>
                     </g>
                   </g>
                 )}
@@ -318,7 +318,7 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
                   const rel = RELATIONS[e.relation] || { dash: '', width: 1 };
                   const inFocus = neighbours ? neighbours.has(e.source) && neighbours.has(e.target) && (e.source === focus || e.target === focus) : false;
                   const dim = neighbours && !inFocus;
-                  const color = rel.danger ? KS.red : inFocus ? KS.orange : EDGE;
+                  const color = rel.danger ? KB.alert : inFocus ? KB.navy : EDGE;
                   const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - Math.abs(a.x - b.x) * 0.08;
                   const d = `M ${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}`;
                   return (
@@ -328,8 +328,8 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
                             opacity={!e.isActive && !rel.danger ? 0.3 : dim ? 0.14 : inFocus ? 0.95 : 0.75}
                             style={{ transition: 'opacity 400ms' }} />
                       {(hoverEdge === e.id) && (
-                        <text x={mx} y={my - 4} fontSize="11" textAnchor="middle" fill={KS.text} fontFamily="var(--font-body)"
-                              paintOrder="stroke" stroke={KS.bg} strokeWidth="3">
+                        <text x={mx} y={my - 4} fontSize="11" textAnchor="middle" fill={KB.navy} fontFamily="var(--font-body)"
+                              paintOrder="stroke" stroke={KB.bg} strokeWidth="3">
                           {RELATIONS[e.relation]?.label || e.relation}{e.isActive ? '' : ' (not in force)'}
                         </text>
                       )}
@@ -357,26 +357,26 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
                        onPointerEnter={() => setHoverNode(n.id)} onPointerLeave={() => setHoverNode(null)}
                        role="button" tabIndex={st === 'absent' ? -1 : 0} aria-label={`${m.label} ${n.id}, ${st}`}
                        onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && onSelectNode(n.id === selectedNodeId ? null : n.id)}>
-                      {(isSel || lit) && <circle r={R + 5} fill="none" stroke={st === 'flagged' ? KS.red : KS.orange} strokeWidth="2.5" />}
-                      {st === 'flagged' && <circle r={R + 3} fill="none" stroke={KS.red} strokeWidth="2" className="ks-breach-ring" pointerEvents="none" />}
-                      <circle r={R} fill={grey ? KS.raised : st === 'flagged' ? TYPES.flag.fill : m.fill}
-                              stroke={grey ? KS.subtle : st === 'flagged' ? KS.red : m.stroke}
+                      {(isSel || lit) && <circle r={R + 5} fill="none" stroke={st === 'flagged' ? KB.alert : KB.cobalt} strokeWidth="2.5" />}
+                      {st === 'flagged' && <circle r={R + 3} fill="none" stroke={KB.alert} strokeWidth="2" className="kb-breach-ring" pointerEvents="none" />}
+                      <circle r={R} fill={grey ? KB.bgSoft : st === 'flagged' ? TYPES.flag.nodeFill : m.nodeFill}
+                              stroke={grey ? KB.muted : st === 'flagged' ? KB.alert : m.nodeStroke}
                               strokeWidth={isSel ? 2.5 : 1.6} strokeDasharray={st === 'future' ? '3 2' : ''}
                               style={{ transition: 'fill 450ms, stroke 450ms' }} />
-                      <g transform="translate(-8 -8) scale(0.667)" fill="none" stroke={grey ? KS.subtle : m.stroke} strokeWidth="2.2"
+                      <g transform="translate(-8 -8) scale(0.667)" fill="none" stroke={grey ? KB.muted : st === 'flagged' ? KB.alert : m.ink} strokeWidth="2.2"
                          strokeLinecap="round" strokeLinejoin="round">
                         {m.icon.map((d, i) => <path key={i} d={d} />)}
                       </g>
                       {st === 'flagged' && (
                         <g transform={`translate(${R - 4} ${-R - 2})`}>
-                          <circle r="6.5" fill={KS.red} /><text y="3.5" fontSize="10" fontWeight="700" fill={KS.onAccent} textAnchor="middle">!</text>
+                          <circle r="6.5" fill={KB.alert} /><text y="3.5" fontSize="10" fontWeight="700" fill={KB.bg} textAnchor="middle">!</text>
                         </g>
                       )}
                       {lb && (
                         <text x={lb.dx} y={lb.dy} fontSize={focusIds || (neighbours && inFocus) ? 12 : 10.5} textAnchor={lb.anchor}
-                              fill={grey ? KS.muted : KS.text}
+                              fill={grey ? KB.muted : KB.navy}
                               fontFamily={label === n.id ? 'var(--font-mono)' : 'var(--font-body)'} fontWeight={isSel ? 600 : 400}
-                              paintOrder="stroke" stroke={KS.bg} strokeWidth="3" pointerEvents="none">
+                              paintOrder="stroke" stroke={KB.bg} strokeWidth="3" pointerEvents="none">
                           {label}
                         </text>
                       )}
@@ -391,13 +391,13 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
       </div>
 
       {inspectorOpen && (
-        <aside className="w-72 xl:w-80 shrink-0 border-l border-ks-line bg-ks-surface/60 backdrop-blur-[16px] overflow-y-auto" aria-label="Inspector">
+        <aside className="w-72 xl:w-80 shrink-0 border-l border-kb-line bg-kb-bg overflow-y-auto" aria-label="Inspector">
           {selected
             ? <Inspector node={selected} state={stateById[selected.id]} st={nodeState(selected.id)} asOfDate={asOfDate}
                          allEdges={allEdges} baseById={baseById} decisions={decisions} policies={policies} flags={flags}
                          team={team} openEntity={openEntity} onClear={() => onSelectNode(null)}
                          proposals={proposals} auditLogs={auditLogs} />
-            : <p className="p-4 text-[13px] text-ks-muted">Select a node to inspect it. Answer citations and ID chips elsewhere in the app open here. Click empty space, click the node again, or press Esc to clear a selection.</p>}
+            : <p className="p-4 text-[13px] text-kb-muted">Select a node to inspect it. Answer citations and ID chips elsewhere in the app open here. Click empty space, click the node again, or press Esc to clear a selection.</p>}
         </aside>
       )}
     </div>
@@ -405,14 +405,14 @@ export default function GraphVisualizer({ asOfDate, selectedNodeId, onSelectNode
 }
 
 function Overlay({ children }) {
-  return <div className="absolute inset-0 flex items-center justify-center text-[13px] text-ks-muted pointer-events-none">{children}</div>;
+  return <div className="absolute inset-0 flex items-center justify-center text-[13px] text-kb-muted pointer-events-none">{children}</div>;
 }
 
 function Legend() {
   const types = ['decision', 'clause', 'policy_version', 'person', 'project', 'meeting_note', 'flag'];
   const lines = ['RELIED_ON', 'MADE_BY', 'SUPERSEDES', 'JUSTIFIED_BY', 'AFFECTS'];
   return (
-    <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11.5px] text-ks-text-2 min-w-0">
+    <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11.5px] text-kb-navy min-w-0">
       {types.map(t => (
         <span key={t} className="inline-flex items-center gap-1">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={TYPES[t].stroke} strokeWidth="2.4" aria-hidden="true">
@@ -421,10 +421,10 @@ function Legend() {
           {TYPES[t].label}
         </span>
       ))}
-      <span className="text-ks-subtle" aria-hidden="true">|</span>
+      <span className="text-kb-muted" aria-hidden="true">|</span>
       {lines.map(r => (
         <span key={r} className="inline-flex items-center gap-1">
-          <svg width="20" height="6" aria-hidden="true"><line x1="0" y1="3" x2="20" y2="3" stroke={RELATIONS[r].danger ? KS.red : EDGE}
+          <svg width="20" height="6" aria-hidden="true"><line x1="0" y1="3" x2="20" y2="3" stroke={RELATIONS[r].danger ? KB.alert : EDGE}
             strokeWidth={Math.max(1.3, RELATIONS[r].width)} strokeDasharray={RELATIONS[r].dash} /></svg>
           {RELATIONS[r].label}
         </span>
@@ -436,8 +436,8 @@ function Legend() {
 function Row({ label, children }) {
   return (
     <div>
-      <dt className="text-[12px] text-ks-muted">{label}</dt>
-      <dd className="text-[13px] text-ks-text">{children}</dd>
+      <dt className="text-[12px] text-kb-muted">{label}</dt>
+      <dd className="text-[13px] text-kb-navy">{children}</dd>
     </div>
   );
 }
@@ -461,8 +461,8 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
 
   const prov = node.provenance || {};
   const provenance = (
-    <section className="rounded-lg bg-ks-raised border border-ks-line p-2.5 text-[12.5px] space-y-1">
-      <div className="text-[12px] font-semibold text-ks-text-2">Provenance</div>
+    <section className="rounded-lg bg-kb-bg-soft border border-kb-line p-2.5 text-[12.5px] space-y-1">
+      <div className="text-[12px] font-semibold text-kb-navy">Provenance</div>
       <div>Source: <span className="font-mono">{prov.sourceDoc || '—'}</span></div>
       <div>
         {prov.sourceDoc === 'system:scanner' || prov.sourceDoc === 'flags'
@@ -470,8 +470,8 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
           : <>{prov.extractedBy === 'human' ? 'Recorded in the document itself' : `Extracted by ${prov.extractedBy} · model-reported confidence ${prov.confidence}`}
             {' · '}{prov.humanVerified ? 'human verified' : 'not yet reviewed'}</>}
       </div>
-      {prov.sourceSpan?.quote && <blockquote className="italic text-ks-muted border-l-2 border-ks-line-strong pl-2">“{polish(prov.sourceSpan.quote)}”</blockquote>}
-      <div className="text-ks-muted">Valid {day(node.validFrom)} → {node.validTo ? day(node.validTo) : 'no end date'}</div>
+      {prov.sourceSpan?.quote && <blockquote className="italic text-kb-muted border-l-2 border-kb-line-strong pl-2">“{polish(prov.sourceSpan.quote)}”</blockquote>}
+      <div className="text-kb-muted">Valid {day(node.validFrom)} → {node.validTo ? day(node.validTo) : 'no end date'}</div>
     </section>
   );
 
@@ -485,7 +485,7 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
       && (clauseVersions(f.clause_id).find(v => v.version === f.new_version)?.validFrom || '9999') <= asOfDate);
     body = (
       <>
-        <h3 className="font-heading font-semibold text-[15px] leading-snug text-ks-text">{polish(d?.label || nodeTitle(node))}</h3>
+        <h3 className="font-heading font-semibold text-[15px] leading-snug text-kb-navy">{polish(d?.label || nodeTitle(node))}</h3>
         <dl className="grid grid-cols-2 gap-2">
           <Row label="Decided">{day(a.decided_on || node.date)}</Row>
           <Row label="Status">{a.status || '—'}{a.effect ? ` · ${a.effect}` : ''}</Row>
@@ -493,7 +493,7 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
           <div className="col-span-2"><Row label="Owner">{a.owner ? <IdChip id={a.owner} type="person" label={displayName(a.owner, team)} /> : '—'}</Row></div>
         </dl>
         <section>
-          <h4 className="text-[12px] text-ks-muted mb-1">Relied on</h4>
+          <h4 className="text-[12px] text-kb-muted mb-1">Relied on</h4>
           {relied.length === 0 && <p className="text-[13px]">No clause is recorded for this decision.</p>}
           {relied.map(cref => {
             const [cid, ver] = cref.split('@');
@@ -506,7 +506,7 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
                 {next
                   ? <>, superseded by <IdChip id={`${cid}@${next.version}`} type="clause" /> ({clauseSummary(next.fields, next.checkable)}) on {day(next.validFrom)}{next.validFrom > asOfDate ? ', after the as-of date' : ''}.</>
                   : <>, still in force.</>}
-                <button className="ml-1 text-ks-orange underline cursor-pointer inline-flex items-center gap-0.5"
+                <button className="ml-1 text-kb-cobalt-ink underline cursor-pointer inline-flex items-center gap-0.5"
                         onClick={() => openEntity(cid, 'clause', { view: 'POLICIES' })}>
                   <BookOpen size={12} aria-hidden="true" /> Compare versions
                 </button>
@@ -522,11 +522,11 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
         ))}
         <ProposalStatus items={proposals.filter(p => p.decision_id === node.id)} auditLogs={auditLogs} team={team} openEntity={openEntity} />
         <section>
-          <h4 className="text-[12px] text-ks-muted mb-1">Recorded reason</h4>
-          <p className="text-[13px] leading-relaxed text-ks-text-2">{polish(a.reasons) || '—'}</p>
+          <h4 className="text-[12px] text-kb-muted mb-1">Recorded reason</h4>
+          <p className="text-[13px] leading-relaxed text-kb-navy">{polish(a.reasons) || '—'}</p>
         </section>
         <section>
-          <h4 className="text-[12px] text-ks-muted mb-1">Compliance, then vs now</h4>
+          <h4 className="text-[12px] text-kb-muted mb-1">Compliance, then vs now</h4>
           {!compliance && relied.length > 0 && (
             <button className="btn-secondary" onClick={() => {
               setCompliance({ loading: true });
@@ -535,7 +535,7 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
           )}
           {!compliance && relied.length === 0 && <p className="text-[13px]">Nothing to check: no clause relied on.</p>}
           {compliance?.loading && <p className="text-[13px] flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" /> Checking; the local model words the result (a few seconds)…</p>}
-          {compliance?.error && <p className="text-[13px] text-ks-red-text">Check failed: {compliance.error}</p>}
+          {compliance?.error && <p className="text-[13px] text-kb-alert">Check failed: {compliance.error}</p>}
           {compliance?.c && <ThenNow c={compliance.c} />}
         </section>
       </>
@@ -546,7 +546,7 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
     const cur = vs.find(v => v.version === ver);
     body = (
       <>
-        <h3 className="font-heading font-semibold text-[15px] text-ks-text">{cur?.title || node.id}</h3>
+        <h3 className="font-heading font-semibold text-[15px] text-kb-navy">{cur?.title || node.id}</h3>
         <p className="text-[13px] leading-relaxed">{cur?.text || '—'}</p>
         <dl className="grid grid-cols-2 gap-2">
           <Row label="Rule">{cur ? clauseSummary(cur.fields, cur.checkable) || '—' : '—'}</Row>
@@ -560,7 +560,7 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
     const p = team.find(x => x.id === node.id);
     body = (
       <>
-        <h3 className="font-heading font-semibold text-[15px] text-ks-text">{p?.name || nodeTitle(node)}</h3>
+        <h3 className="font-heading font-semibold text-[15px] text-kb-navy">{p?.name || nodeTitle(node)}</h3>
         <dl className="grid grid-cols-2 gap-2">
           <Row label="Role">{p?.role || '—'}</Row>
           <Row label="Tenure">{day(p?.joined)} → {p?.left ? day(p.left) : 'present'}</Row>
@@ -572,7 +572,7 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
     const f = flags.find(x => x.id === node.id);
     body = (
       <>
-        <h3 className="font-heading font-semibold text-[15px] text-ks-text" title={f?.impact_type}>{f ? impactLabel(f.impact_type) : nodeTitle(node)}</h3>
+        <h3 className="font-heading font-semibold text-[15px] text-kb-navy" title={f?.impact_type}>{f ? impactLabel(f.impact_type) : nodeTitle(node)}</h3>
         <p className="text-[13px] leading-relaxed">{polish(f?.explanation) || '—'}</p>
         <ProposalStatus items={proposals.filter(p => p.flag_id === node.id)} auditLogs={auditLogs} team={team} openEntity={openEntity}
                         emptyText={f && f.impact_type === 'SUPERSEDED' ? 'Historical only: the scanner proposed no action.' : null} />
@@ -583,7 +583,7 @@ function Inspector({ node, state, st, asOfDate, allEdges, baseById, decisions, p
   } else {
     body = (
       <>
-        <h3 className="font-heading font-semibold text-[15px] text-ks-text">{polish(nodeTitle(node))}</h3>
+        <h3 className="font-heading font-semibold text-[15px] text-kb-navy">{polish(nodeTitle(node))}</h3>
         <Related title={node.type === 'project' ? 'Decisions about it' : node.type === 'meeting_note' ? 'Decisions it justifies' : 'Linked decisions'}
                  ids={[...inc('ABOUT'), ...inc('JUSTIFIED_BY'), ...inc('BELONGS_TO')]} baseById={baseById} />
       </>
@@ -617,11 +617,11 @@ const PROPOSAL_STATE = {
 
 function ProposalStatus({ items, auditLogs, team, openEntity, emptyText = null }) {
   if (!items.length) {
-    return emptyText ? <p className="text-[12.5px] text-ks-muted">{emptyText}</p> : null;
+    return emptyText ? <p className="text-[12.5px] text-kb-muted">{emptyText}</p> : null;
   }
   return (
     <section>
-      <h4 className="text-[12px] text-ks-muted mb-1">Review queue</h4>
+      <h4 className="text-[12px] text-kb-muted mb-1">Review queue</h4>
       <ul className="space-y-1.5">
         {items.map(p => {
           const [cls, label] = PROPOSAL_STATE[p.status] || ['badge-note-slate', p.status];
@@ -630,19 +630,19 @@ function ProposalStatus({ items, auditLogs, team, openEntity, emptyText = null }
           const when = p.status === 'executed' ? p.executed_at : p.status === 'proposed' ? p.created_at : p.decided_at;
           const recipient = team.find(m => m.id === (p.to || '').split('@')[0]);
           return (
-            <li key={p.id} className="rounded-lg border border-ks-line p-2 text-[12.5px] leading-relaxed">
+            <li key={p.id} className="rounded-lg border border-kb-line p-2 text-[12.5px] leading-relaxed">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <IdChip id={`#${p.id}`} type="proposal" label="Proposal" />
                 <span className={`px-1.5 py-0.5 rounded ${cls}`}>{label}</span>
-                {when && <span className="text-ks-muted">{ts(when).ist}</span>}
+                {when && <span className="text-kb-muted">{ts(when).ist}</span>}
               </div>
-              <div className="mt-1 text-ks-text-2">
+              <div className="mt-1 text-kb-navy">
                 {p.status === 'executed' && <>Notified {recipient?.name || p.to}: <span className="font-mono">outbox/{p.outbox_file}</span>. </>}
                 {p.status === 'rejected' && <>Rejected by {displayName(p.decided_by, team)}. Nothing was sent. </>}
                 {p.status === 'approved' && <>Approved by {displayName(p.decided_by, team)}. </>}
                 {p.status === 'proposed' && <>Would notify {recipient?.name || p.to}. </>}
                 {row && (
-                  <button className="underline text-ks-orange cursor-pointer" onClick={() => openEntity(`block:${row.id}`, 'audit')}>
+                  <button className="underline text-kb-cobalt-ink cursor-pointer" onClick={() => openEntity(`block:${row.id}`, 'audit')}>
                     Audit block {row.id}
                   </button>
                 )}
@@ -651,7 +651,7 @@ function ProposalStatus({ items, auditLogs, team, openEntity, emptyText = null }
           );
         })}
       </ul>
-      <p className="mt-1 text-[11.5px] text-ks-muted">Approving a proposal records a sign-off and a notification; it does not change the graph.</p>
+      <p className="mt-1 text-[11.5px] text-kb-muted">Approving a proposal records a sign-off and a notification; it does not change the graph.</p>
     </section>
   );
 }
@@ -660,7 +660,7 @@ function Related({ title, ids, baseById }) {
   if (!ids.length) return null;
   return (
     <section>
-      <h4 className="text-[12px] text-ks-muted mb-1">{title}</h4>
+      <h4 className="text-[12px] text-kb-muted mb-1">{title}</h4>
       <div className="flex flex-wrap gap-1">
         {[...new Set(ids)].map(id => <IdChip key={id} id={id} type={baseById[id]?.type} />)}
       </div>

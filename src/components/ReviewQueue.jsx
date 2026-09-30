@@ -71,24 +71,24 @@ export default function ReviewQueue({
   const selected = items.find(p => p.id === selectedId) || (!compact && shown[0]) || null;
 
   const header = (
-    <div className="px-4 py-3 bg-ks-surface border-b border-ks-line flex items-center justify-between gap-3">
+    <div className="px-4 py-3 bg-kb-bg border-b border-kb-line flex items-center justify-between gap-3">
       <div className="flex items-center gap-2.5 min-w-0">
-        <div className="p-1 rounded-md bg-ks-ok/10 text-ks-ok"><Lock size={14} aria-hidden="true" /></div>
+        <div className="p-1 rounded-md bg-kb-ice text-kb-cobalt-ink"><Lock size={14} aria-hidden="true" /></div>
         <div className="min-w-0">
-          <h2 className="font-heading font-semibold text-[13px] tracking-tight text-ks-text">Review queue</h2>
-          <p className="text-[12px] text-ks-muted truncate">
+          <h2 className="font-heading font-semibold text-[13px] tracking-tight text-kb-navy">Review queue</h2>
+          <p className="text-[12px] text-kb-muted truncate">
             The scanner and MCP clients can only propose. A person approves; then the executor writes an email file to outbox/.
           </p>
         </div>
       </div>
-      <span className="text-[12px] px-2 py-0.5 rounded-lg bg-ks-raised border border-ks-line text-ks-text whitespace-nowrap">
+      <span className="text-[12px] px-2 py-0.5 rounded-lg bg-kb-bg-soft border border-kb-line text-kb-navy whitespace-nowrap">
         {plural(pending, 'proposal')} awaiting a decision
       </span>
     </div>
   );
 
   const list = (
-    <ul className="divide-y divide-ks-line" aria-label="Proposals">
+    <ul className="divide-y divide-kb-line" aria-label="Proposals">
       {shown.map(p => {
         const flag = flags.find(f => f.id === p.flag_id);
         const sev = SEVERITY[p.severity] || SEVERITY.informational;
@@ -98,20 +98,20 @@ export default function ReviewQueue({
             <button
               onClick={() => (compact ? openEntity(`#${p.id}`, 'proposal') : setSelectedId(p.id))}
               aria-current={active ? 'true' : undefined}
-              className={`w-full text-left px-4 py-2.5 cursor-pointer hover:bg-ks-raised ${active && !compact ? 'bg-ks-orange/7 border-l-2 border-ks-orange' : 'border-l-2 border-transparent'}`}
+              className={`w-full text-left px-4 py-2.5 cursor-pointer hover:bg-kb-bg-soft ${active && !compact ? 'bg-kb-ice/60 border-l-2 border-kb-cobalt' : 'border-l-2 border-transparent'}`}
             >
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono text-[12.5px] font-semibold text-ks-text">#{p.id}</span>
+                <span className="font-mono text-[12.5px] font-semibold text-kb-navy">#{p.id}</span>
                 <span className={`text-[11.5px] px-1.5 py-0.5 rounded ${sev.cls}`}>{sev.label}</span>
                 <StatusChip p={p} watching={watchingId === p.id} />
               </div>
-              <div className="text-[13px] text-ks-text mt-1 leading-snug font-medium">
+              <div className="text-[13px] text-kb-navy mt-1 leading-snug font-medium">
                 {polish(titles.get(p.decision_id)) || p.decision_id}
               </div>
-              <div className="text-[12px] text-ks-muted mt-0.5">
+              <div className="text-[12px] text-kb-muted mt-0.5">
                 {impactLabel(p.impact_type)} · <span className="font-mono">{p.decision_id}</span> vs <span className="font-mono">{clauseRef(p.clause_id, flag?.new_version)}</span>
               </div>
-              <div className="text-[12px] text-ks-muted mt-0.5">Proposed {ts(p.created_at).ist}</div>
+              <div className="text-[12px] text-kb-muted mt-0.5">Proposed {ts(p.created_at).ist}</div>
             </button>
           </li>
         );
@@ -120,8 +120,8 @@ export default function ReviewQueue({
   );
 
   const empty = (
-    <div className="p-8 text-center text-[13px] text-ks-muted">
-      <Inbox size={22} className="mx-auto mb-2 text-ks-muted" aria-hidden="true" />
+    <div className="p-8 text-center text-[13px] text-kb-muted">
+      <Inbox size={22} className="mx-auto mb-2 text-kb-muted" aria-hidden="true" />
       {items.length === 0
         ? 'No proposals yet. The impact scanner creates one when a new policy version makes a past decision non-compliant.'
         : 'Nothing is waiting for a decision. Switch to "All" to see decided proposals.'}
@@ -141,11 +141,11 @@ export default function ReviewQueue({
     <div className="flex flex-col h-full paper-sheet overflow-hidden">
       {header}
       <div className="flex-1 flex min-h-0">
-        <div className="w-[18rem] xl:w-[22rem] shrink-0 border-r border-ks-line flex flex-col min-h-0">
-          <div className="px-4 py-2 border-b border-ks-line flex items-center gap-1 text-[12.5px]" role="tablist">
+        <div className="w-[18rem] xl:w-[22rem] shrink-0 border-r border-kb-line flex flex-col min-h-0">
+          <div className="px-4 py-2 border-b border-kb-line flex items-center gap-1 text-[12.5px]" role="tablist">
             {[['Open', false], ['All', true]].map(([label, all]) => (
               <button key={label} role="tab" aria-selected={showAll === all} onClick={() => setShowAll(all)}
-                className={`px-2 py-1 rounded-md cursor-pointer ${showAll === all ? 'bg-ks-raised-2 font-semibold text-ks-text' : 'text-ks-muted hover:bg-ks-raised'}`}>
+                className={`px-2 py-1 rounded-md cursor-pointer ${showAll === all ? 'bg-kb-ice/60 font-semibold text-kb-navy' : 'text-kb-muted hover:bg-kb-bg-soft'}`}>
                 {label} ({all ? items.length : items.filter(p => p.status === 'proposed' || p.status === 'approved').length})
               </button>
             ))}
@@ -157,7 +157,7 @@ export default function ReviewQueue({
             ? <Detail key={selected.id} p={selected} flag={flags.find(f => f.id === selected.flag_id)} policies={policies}
                       auditLogs={auditLogs} team={team} watching={watchingId === selected.id} timedOut={watchTimedOut === selected.id}
                       onApprove={onApproveAction} onReject={onRejectAction} onEdit={onEditAction} />
-            : <div className="p-8 text-center text-[13px] text-ks-muted">Select a proposal to see what approving it would do.</div>}
+            : <div className="p-8 text-center text-[13px] text-kb-muted">Select a proposal to see what approving it would do.</div>}
         </div>
       </div>
     </div>
@@ -200,23 +200,23 @@ function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onAppr
   useEffect(() => { topRef.current?.parentElement?.scrollTo({ top: 0, behavior: 'smooth' }); }, [stage]);
 
   return (
-    <article ref={topRef} className="p-5 space-y-5 text-[13px] text-ks-text" aria-label={`Proposal ${p.id}`} aria-live="polite">
+    <article ref={topRef} className="p-5 space-y-5 text-[13px] text-kb-navy" aria-label={`Proposal ${p.id}`} aria-live="polite">
       <header className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-heading font-semibold text-[16px] text-ks-text">
+            <h3 className="font-heading font-semibold text-[16px] text-kb-navy">
               {polish(titles.get(p.decision_id)) || p.decision_id}
-              <span className="ml-2 font-normal text-[13px] text-ks-muted">Proposal #{p.id}</span>
+              <span className="ml-2 font-normal text-[13px] text-kb-muted">Proposal #{p.id}</span>
             </h3>
             <span className={`text-[12px] px-1.5 py-0.5 rounded ${sev.cls}`}>{sev.label}</span>
-            <span className="text-[12px] text-ks-text-2" title={p.impact_type}>{impactLabel(p.impact_type)}</span>
+            <span className="text-[12px] text-kb-navy" title={p.impact_type}>{impactLabel(p.impact_type)}</span>
           </div>
           <Stepper p={p} stage={stage} team={team} />
         </div>
       </header>
 
       {/* What approving does, in plain words */}
-      <section className="rounded-lg border border-ks-ok/30 bg-ks-ok/6 p-3 leading-relaxed">
+      <section className="rounded-lg border border-kb-cobalt/50 bg-kb-ice p-3 leading-relaxed">
         {stage === 'proposed' && <>
           <strong>Approving</strong> makes the executor write one email file to <span className="font-mono">outbox/</span> (it names
           it <span className="font-mono">proposal-{p.id}.eml</span>) addressed to{' '}
@@ -225,7 +225,7 @@ function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onAppr
         </>}
         {stage === 'approved' && <>Approved. The executor polls every ~2 s and has not written the file yet. Is the executor container running?</>}
         {stage === 'executing' && <>Approved. Waiting for the executor to write <span className="font-mono">outbox/proposal-{p.id}.eml</span> and its audit row…
-          {timedOut && <span className="block text-ks-red-text mt-1">No executor result after 60 s. Check that the executor container is running (<span className="font-mono">docker compose ps</span>).</span>}</>}
+          {timedOut && <span className="block text-kb-alert mt-1">No executor result after 60 s. Check that the executor container is running (<span className="font-mono">docker compose ps</span>).</span>}</>}
         {stage === 'executed' && <>Executed {ts(p.executed_at).ist}: the executor wrote <span className="font-mono font-semibold">outbox/{p.outbox_file}</span>.
           {rows.find(r => r.action === 'executed') && <> Audit block <AuditRef row={rows.find(r => r.action === 'executed')} />.</>}</>}
         {stage === 'rejected' && <>Rejected {ts(p.decided_at).ist} by {displayName(p.decided_by, team)}. Nothing was executed.
@@ -235,22 +235,22 @@ function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onAppr
 
       {/* Involved records */}
       <section>
-        <h4 className="text-[12px] font-semibold uppercase tracking-wide text-ks-muted mb-2">Involved records</h4>
+        <h4 className="text-[12px] font-semibold uppercase tracking-wide text-kb-muted mb-2">Involved records</h4>
         <div className="flex items-center gap-2 flex-wrap">
           <IdChip id={p.decision_id} type="decision" withTitle />
-          <span className="text-[12px] text-ks-muted flex items-center gap-1">relied on <ArrowRight size={12} /></span>
+          <span className="text-[12px] text-kb-muted flex items-center gap-1">relied on <ArrowRight size={12} /></span>
           {flag?.old_version
             ? <IdChip id={clauseRef(p.clause_id, flag.old_version)} type="clause" label={then?.text} />
-            : <span className="text-[12px] text-ks-muted">no earlier clause version</span>}
+            : <span className="text-[12px] text-kb-muted">no earlier clause version</span>}
           {flag && <>
-            <span className="text-[12px] text-ks-muted flex items-center gap-1">superseded by <ArrowRight size={12} /></span>
+            <span className="text-[12px] text-kb-muted flex items-center gap-1">superseded by <ArrowRight size={12} /></span>
             <IdChip id={clauseRef(p.clause_id, flag.new_version)} type="clause" label={now && `${now.text}, from ${day(now.from)}`} />
           </>}
         </div>
         {flag && (
           <div className="mt-2 flex items-center gap-2 flex-wrap">
             <IdChip id={flag.id} type="flag" label={impactLabel(flag.impact_type)} />
-            <span className="text-[12px] text-ks-muted">
+            <span className="text-[12px] text-kb-muted">
               then: {flag.old_result?.replace('_', '-') || 'n/a'} · now: {flag.new_result.replace('_', '-')}
             </span>
           </div>
@@ -260,16 +260,16 @@ function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onAppr
       {/* Full reasoning, no truncation */}
       {flag && (
         <section>
-          <h4 className="text-[12px] font-semibold uppercase tracking-wide text-ks-muted mb-1.5">Why the scanner raised it</h4>
+          <h4 className="text-[12px] font-semibold uppercase tracking-wide text-kb-muted mb-1.5">Why the scanner raised it</h4>
           <p className="leading-relaxed">{polish(flag.explanation)}</p>
-          <p className="text-[12px] text-ks-muted mt-1">Worded by the local model from the deterministic check result.</p>
+          <p className="text-[12px] text-kb-muted mt-1">Worded by the local model from the deterministic check result.</p>
         </section>
       )}
 
       {/* The proposal as stored */}
       <section>
         <div className="flex items-center justify-between mb-1.5">
-          <h4 className="text-[12px] font-semibold uppercase tracking-wide text-ks-muted flex items-center gap-1.5">
+          <h4 className="text-[12px] font-semibold uppercase tracking-wide text-kb-muted flex items-center gap-1.5">
             <Mail size={13} aria-hidden="true" /> The proposal (as stored)
           </h4>
           {mode === 'view' && stage === 'proposed' && (
@@ -278,45 +278,45 @@ function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onAppr
         </div>
         {mode === 'edit' ? (
           <form className="space-y-2" onSubmit={e => { e.preventDefault(); act(async () => { await onEdit(p.id, draft); setMode('view'); }); }}>
-            <label className="block"><span className="text-[12px] text-ks-muted">To</span>
+            <label className="block"><span className="text-[12px] text-kb-muted">To</span>
               <input className="field w-full font-mono" type="email" required value={draft.to} onChange={e => setDraft(d => ({ ...d, to: e.target.value }))} /></label>
-            <label className="block"><span className="text-[12px] text-ks-muted">Subject</span>
+            <label className="block"><span className="text-[12px] text-kb-muted">Subject</span>
               <input className="field w-full" required value={draft.subject} onChange={e => setDraft(d => ({ ...d, subject: e.target.value }))} /></label>
-            <label className="block"><span className="text-[12px] text-ks-muted">Body</span>
-              <textarea className="w-full rounded-lg border border-ks-line-strong p-2 text-[13px] leading-relaxed" rows={9} required value={draft.body}
+            <label className="block"><span className="text-[12px] text-kb-muted">Body</span>
+              <textarea className="w-full rounded-lg border border-kb-line-strong p-2 text-[13px] leading-relaxed" rows={9} required value={draft.body}
                         onChange={e => setDraft(d => ({ ...d, body: e.target.value }))} /></label>
-            <p className="text-[12px] text-ks-muted">Saving calls PATCH /proposals/{p.id} and adds an "edited" audit row.</p>
+            <p className="text-[12px] text-kb-muted">Saving calls PATCH /proposals/{p.id} and adds an "edited" audit row.</p>
             <div className="flex gap-2">
               <button type="submit" className="btn-approve" disabled={busy}>Save draft</button>
               <button type="button" className="btn-secondary" onClick={() => { setDraft({ to: p.to, subject: p.subject, body: p.body }); setMode('view'); }}>Cancel</button>
             </div>
           </form>
         ) : (
-          <dl className="rounded-lg border border-ks-line divide-y divide-ks-line">
-            <div className="grid grid-cols-[5rem_1fr] p-2"><dt className="text-ks-muted">To</dt><dd className="font-mono break-all">{p.to}</dd></div>
-            <div className="grid grid-cols-[5rem_1fr] p-2"><dt className="text-ks-muted">Subject</dt><dd>{polish(p.subject)}</dd></div>
-            <div className="grid grid-cols-[5rem_1fr] p-2"><dt className="text-ks-muted">Body</dt><dd className="whitespace-pre-wrap leading-relaxed">{polish(p.body)}</dd></div>
+          <dl className="rounded-lg border border-kb-line divide-y divide-kb-line">
+            <div className="grid grid-cols-[5rem_1fr] p-2"><dt className="text-kb-muted">To</dt><dd className="font-mono break-all">{p.to}</dd></div>
+            <div className="grid grid-cols-[5rem_1fr] p-2"><dt className="text-kb-muted">Subject</dt><dd>{polish(p.subject)}</dd></div>
+            <div className="grid grid-cols-[5rem_1fr] p-2"><dt className="text-kb-muted">Body</dt><dd className="whitespace-pre-wrap leading-relaxed">{polish(p.body)}</dd></div>
           </dl>
         )}
-        <p className="text-[12px] text-ks-muted mt-1">
+        <p className="text-[12px] text-kb-muted mt-1">
           The executor writes these fields into the email file; it adds its own From, Date and approval headers when it runs.
         </p>
       </section>
 
       {/* Audit rows */}
       <section>
-        <h4 className="text-[12px] font-semibold uppercase tracking-wide text-ks-muted mb-1.5">Audit trail for this proposal</h4>
+        <h4 className="text-[12px] font-semibold uppercase tracking-wide text-kb-muted mb-1.5">Audit trail for this proposal</h4>
         <ol className="space-y-1">
           {rows.map(r => (
             <li key={r.id} className="flex items-center gap-2 flex-wrap">
               <AuditRef row={r} />
               <span className="font-mono text-[12px]">{r.action}</span>
               <span>by {displayName(r.actor, team)}</span>
-              <span className="text-ks-muted text-[12px]">{ts(r.ts).ist}</span>
+              <span className="text-kb-muted text-[12px]">{ts(r.ts).ist}</span>
             </li>
           ))}
           {stage === 'proposed' && (
-            <li className="text-ks-muted text-[12.5px] pt-1">
+            <li className="text-kb-muted text-[12.5px] pt-1">
               Approving adds <span className="font-mono">approved</span> (by you), then <span className="font-mono">executed</span> (by the executor, with the file's SHA-256).
               Rejecting adds <span className="font-mono">rejected</span> with the hash of your reason.
             </li>
@@ -326,12 +326,12 @@ function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onAppr
 
       {/* Decision */}
       {stage === 'proposed' && mode !== 'edit' && (
-        <section className="border-t border-ks-line pt-4">
+        <section className="border-t border-kb-line pt-4">
           {mode === 'reject' ? (
             <form className="space-y-2" onSubmit={e => { e.preventDefault(); act(() => onReject(p.id, reason.trim())); }}>
               <label className="block">
                 <span className="text-[13px] font-medium">Reason for rejecting (required, recorded in the audit log as a hash)</span>
-                <textarea className="w-full mt-1 rounded-lg border border-ks-line-strong p-2 text-[13px]" rows={3} required minLength={3}
+                <textarea className="w-full mt-1 rounded-lg border border-kb-line-strong p-2 text-[13px]" rows={3} required minLength={3}
                           value={reason} onChange={e => setReason(e.target.value)} autoFocus />
               </label>
               <div className="flex gap-2">
@@ -356,7 +356,7 @@ function Detail({ p, flag, policies, auditLogs, team, watching, timedOut, onAppr
 function AuditRef({ row }) {
   const { openEntity } = useApp();
   return (
-    <button onClick={() => openEntity(`block:${row.id}`, 'audit')} className="font-mono text-[12px] px-1.5 py-0.5 rounded border border-ks-line-strong bg-ks-raised hover:bg-ks-raised-2 cursor-pointer"
+    <button onClick={() => openEntity(`block:${row.id}`, 'audit')} className="font-mono text-[12px] px-1.5 py-0.5 rounded border border-kb-line-strong bg-kb-bg-soft hover:bg-kb-ice/60 cursor-pointer"
             title={`Open audit block ${row.id}`}>
       block {row.id}
     </button>
@@ -375,8 +375,8 @@ function Stepper({ p, stage, team }) {
         const current = stage === 'executing' && label === 'Executing';
         return (
           <li key={label} className="flex items-center gap-1.5">
-            {i > 0 && <span className={`w-5 h-px ${done ? 'bg-ks-ok' : 'bg-ks-subtle/40'}`} aria-hidden="true" />}
-            <span className={`text-[12px] px-1.5 py-0.5 rounded-md border ${done ? (label === 'Rejected' ? 'badge-note-rose' : 'border-ks-ok/45 bg-ks-ok/10 text-ks-ok') : current ? 'badge-note-sky' : 'border-ks-line text-ks-muted'}`}
+            {i > 0 && <span className={`w-5 h-px ${done ? 'bg-kb-cobalt' : 'bg-kb-navy/15'}`} aria-hidden="true" />}
+            <span className={`text-[12px] px-1.5 py-0.5 rounded-md border ${done ? (label === 'Rejected' ? 'badge-note-rose' : 'border-kb-cobalt/50 bg-kb-ice text-kb-cobalt-ink') : current ? 'badge-note-sky' : 'border-kb-line text-kb-muted'}`}
                   title={when ? ts(when).full : undefined}>
               {done ? (label === 'Rejected' ? '✕ ' : '✓ ') : current ? '… ' : ''}{label}{when && done ? ` · ${ts(when).time}` : ''}
               {label === 'Approved' && done && p.decided_by ? ` · ${displayName(p.decided_by, team)}` : ''}
