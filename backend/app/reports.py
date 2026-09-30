@@ -3,6 +3,7 @@ Every line cites its source in [brackets]. A report contains only what the reque
 every count is computed after that filter, so a count never hints at hidden records.
 ponytail: deterministic tables only; an LLM-written narrative, graph snapshot, Word export and scheduling are
 roadmap (spec J MVP)."""
+import json
 from datetime import date, datetime, timezone
 
 from fpdf import FPDF
@@ -86,7 +87,7 @@ async def compliance_report(user: dict, as_of: date) -> str:
     out += ['## Policies in force', '']
     out += table(['Clause', 'Title', 'In force from', 'Structured rule'],
                  [[f"[{c['clause_id']}@{c['version']}]", c['title'], c['effective_from'],
-                   ', '.join(f'{k}={v}' for k, v in (c['fields'] or {}).items()) or 'not checkable'] for c in await _clauses(as_of)])
+                   ', '.join(f'{k}={json.dumps(v)}' for k, v in (c['fields'] or {}).items()) or 'not checkable'] for c in await _clauses(as_of)])
     out += ['## Decisions', '']
     out += table(['Decision', 'Title', 'Owner', 'Decided', 'Status', 'When decided', f'As of {as_of}'], rows)
     out += ['## Staleness flags', '']

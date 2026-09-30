@@ -47,23 +47,31 @@ async def _load(keep_alive: str):
     await _ollama('/api/embed', {'model': config.EMBED_MODEL, 'input': 'warm-up', 'keep_alive': keep_alive})
 
 
+# Loads and unloads are serialised: a logout's unload finishing after the next sign-in's load must not leave the
+# model cold while someone is signed in (a quick logout + login, or React StrictMode's double effect, hit exactly that).
+_lock = asyncio.Lock()
+
+
 async def warm_model(user: dict):
     sessions[user['user_id']] = time.monotonic()
     if _state['reaper'] is None or _state['reaper'].done():
         _state['reaper'] = asyncio.get_running_loop().create_task(_reap_loop())
-    if model['status'] == 'loading':
-        return
     if model['status'] != 'ready':
         _set('loading', error=None)
-    started = time.monotonic()
-    try:
-        await _load(config.MODEL_KEEP_ALIVE)
-        _state['extended_at'] = time.monotonic()
-        _set('ready', load_seconds=round(time.monotonic() - started, 2))
-    except Exception as e:
-        # Login already succeeded; the chat just waits for the model on first use.
-        log.error('model warm-up failed: %s: %s', type(e).__name__, e)
-        _set('failed', error=f'{type(e).__name__}: {e}')
+    async with _lock:
+        if not sessions:
+            return  # signed out again before the load started
+        started = time.monotonic()
+        try:
+            await _load(config.MODEL_KEEP_ALIVE)
+            _state['extended_at'] = time.monotonic()
+            # A re-login while loaded only extends keep_alive; keep the real cold-load time on the status line.
+            loaded = model['load_seconds'] if model['status'] == 'ready' else round(time.monotonic() - started, 2)
+            _set('ready', load_seconds=loaded)
+        except Exception as e:
+            # Login already succeeded; the chat just waits for the model on first use.
+            log.error('model warm-up failed: %s: %s', type(e).__name__, e)
+            _set('failed', error=f'{type(e).__name__}: {e}')
 
 
 async def heartbeat(user: dict):
@@ -79,12 +87,16 @@ async def heartbeat(user: dict):
             _set('failed', error=f'{type(e).__name__}: {e}')
 
 
-async def unload():
-    try:
-        await _load('0')  # keep_alive 0: Ollama unloads immediately and frees the GPU
-    except Exception as e:
-        log.warning('model unload failed: %s', e)
-    _set('cold', load_seconds=None)
+async def unload() -> bool:
+    async with _lock:
+        if sessions:
+            return False  # someone signed in while this unload waited
+        try:
+            await _load('0')  # keep_alive 0: Ollama unloads immediately and frees the GPU
+        except Exception as e:
+            log.warning('model unload failed: %s', e)
+        _set('cold', load_seconds=None)
+        return True
 
 
 def idle_users(now: float, idle_seconds: float) -> list[str]:
@@ -96,8 +108,7 @@ async def reap_once(now: float | None = None) -> bool:
     for u in idle_users(time.monotonic() if now is None else now, config.MODEL_IDLE_MINUTES * 60):
         sessions.pop(u, None)
     if not sessions and model['status'] in ('ready', 'loading', 'failed'):
-        await unload()
-        return True
+        return await unload()
     return False
 
 
@@ -217,15 +228,16 @@ async def _diff(org: str, root: Path, run: int) -> dict:
         seen.add(rel)
         st, row = p.stat(), index.get(rel)
         if row and row['status'] == 'active' and row['size'] == st.st_size and row['mtime'] == st.st_mtime:
-            await db.pool.execute("UPDATE file_index SET last_seen_at=now(), change='unchanged' WHERE id=$1", row['id'])
+            # change keeps the verdict of the scan that queued it ("new" / "updated"); the report selects by last_scan_id
+            await db.pool.execute('UPDATE file_index SET last_seen_at=now() WHERE id=$1', row['id'])
             counts['unchanged'] += 1
             continue
         sha = await asyncio.to_thread(_sha, p)  # the hash is the truth; mtime is only a shortcut
         scope, team = sc
         vis = label_for({'path': rel, 'scope': scope, 'team': team})['visibility']
         if row and sha == row['sha256']:
-            await db.pool.execute("UPDATE file_index SET size=$2, mtime=$3, status='active', change='unchanged', "
-                                  'last_seen_at=now() WHERE id=$1', row['id'], st.st_size, st.st_mtime)
+            await db.pool.execute("UPDATE file_index SET size=$2, mtime=$3, status='active', last_seen_at=now() "
+                                  'WHERE id=$1', row['id'], st.st_size, st.st_mtime)
             counts['unchanged'] += 1
             continue
         change = 'updated' if row else 'new'
@@ -258,7 +270,11 @@ async def report(user: dict, run_id: int | None = None) -> dict | None:
                                'ORDER BY path', run['id'])
     files = [file_out(r) for r in rows if can_access(user, file_resource(r))]
     count = lambda c: sum(1 for f in files if f['change'] == c)
+    # A baseline stays unconfirmed across later sign-in scans until an Owner releases it.
+    baseline = [r for r in await db.pool.fetch("SELECT * FROM file_index WHERE org_id=$1 AND review_status='baseline'",
+                                                user['org_id']) if can_access(user, file_resource(r))]
     return {'id': run['id'], 'status': run['status'], 'triggered_by': run['triggered_by'],
+            'baseline_files': len(baseline),
             'started_at': run['started_at'].isoformat(),
             'finished_at': run['finished_at'] and run['finished_at'].isoformat(), 'capped': run['capped'],
             'new': count('new'), 'updated': count('updated'), 'missing': count('missing'), 'files': files}

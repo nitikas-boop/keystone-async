@@ -57,9 +57,11 @@ async def confirm_baseline(run_id: int, user: dict = Depends(current_user)):
 # ---- scanned files waiting in Ingestion Review ----
 
 @router.get('/scan/files')
-async def scan_files(review_status: str | None = 'pending', user: dict = Depends(current_user)):
-    rows = await db.pool.fetch('SELECT * FROM file_index WHERE org_id=$1 AND ($2::text IS NULL OR review_status=$2) '
-                               "AND status='active' ORDER BY path", user['org_id'], review_status)
+async def scan_files(review_status: str | None = 'waiting', user: dict = Depends(current_user)):
+    """waiting (default) = pending or failed: a failed attempt stays in the queue with its error, for a retry."""
+    rows = await db.pool.fetch(
+        "SELECT * FROM file_index WHERE org_id=$1 AND status='active' AND ($2::text IS NULL OR review_status=$2 OR "
+        "($2 = 'waiting' AND review_status IN ('pending', 'failed'))) ORDER BY path", user['org_id'], review_status)
     return [ss.file_out(r) for r in rows if can_access(user, ss.file_resource(r))]
 
 

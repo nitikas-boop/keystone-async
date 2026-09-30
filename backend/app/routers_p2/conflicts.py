@@ -30,7 +30,7 @@ class ProposalIn(BaseModel):
     title: str
     clause_text: str
     field: str | None = None
-    new_value: float | dict | None = None
+    new_value: int | float | dict | None = None  # int first: 120 stays 120 in the policy version
     effective_from: date
     rationale: str = ''
 

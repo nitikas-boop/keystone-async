@@ -95,6 +95,23 @@ async def test_warm_up_failure_and_idle_unload(monkeypatch):
         _state.cancel()
 
 
+async def test_logout_unload_racing_the_next_login_keeps_the_model(monkeypatch):
+    calls = []
+
+    async def slow_load(keep_alive):
+        await asyncio.sleep(0.05)
+        calls.append(keep_alive)
+    monkeypatch.setattr(ss, '_load', slow_load)
+    monkeypatch.setattr(ss, 'sessions', {})
+    monkeypatch.setattr(ss, 'model', {**ss.model, 'status': 'cold'})
+    u = {'user_id': 'p-a'}
+    # React StrictMode's sign-in effect: login, logout, login, all at once
+    await asyncio.gather(ss.warm_model(u), ss.end_session(u), ss.warm_model(u))
+    assert ss.model['status'] == 'ready' and ss.sessions and calls[-1] != '0'
+    if ss._state['reaper']:
+        ss._state['reaper'].cancel()
+
+
 # ---------------- through the API ----------------
 
 SCAN_ROOT = Path(TEST_ENV['KEYSTONE_DIR'])  # the test backend's own scratch folder, never the real one
@@ -140,6 +157,8 @@ def test_scan_report_scope_filter_baseline_and_ingest(scandir):
     full = httpx.get(f'{api}/session/scan/{rep["id"]}', headers=H('farhan')).json()
     assert {f['path'] for f in full['files']} == {'Organisation/notes.txt', 'Team/Platform/T-DEC-S1.md'}
     assert httpx.get(f'{api}/scan/files', headers=H('priya')).json() == []  # baseline not released yet
+    later = httpx.post(f'{api}/session/scan', headers=H('priya')).json()  # e.g. the next sign-in
+    assert later['status'] == 'completed' and later['baseline_files'] == 1  # still waiting, and still shown
     assert httpx.post(f'{api}/session/scan/{rep["id"]}/confirm-baseline', headers=H('priya')).status_code == 403
     assert httpx.post(f'{api}/session/scan/{rep["id"]}/confirm-baseline', headers=H('ananya')).json() == {'queued': 2}
 
@@ -155,6 +174,9 @@ def test_scan_report_scope_filter_baseline_and_ingest(scandir):
     txt = files['Organisation/notes.txt']
     no_date = httpx.post(f'{api}/scan/files/{txt["id"]}/ingest', headers=H('priya'), json={})
     assert no_date.status_code == 422 and 'meeting_date' in no_date.json()['detail']
+    waiting = {f['path']: f for f in httpx.get(f'{api}/scan/files', headers=H('priya')).json()}
+    assert waiting['Organisation/notes.txt']['review_status'] == 'failed'  # still queued, with its error, for a retry
+    assert 'meeting_date' in waiting['Organisation/notes.txt']['error']
     ok = httpx.post(f'{api}/scan/files/{txt["id"]}/ingest', headers=H('priya'), timeout=600,
                     json={'meeting_date': '2026-09-01', 'doc_id': 'T-MTG-SCAN'})
     assert ok.status_code == 200, ok.text
