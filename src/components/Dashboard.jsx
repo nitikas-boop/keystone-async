@@ -15,6 +15,7 @@ import {
   Inbox as InboxIcon
 } from 'lucide-react';
 import Logo from './Logo';
+import Sidebar from './Sidebar';
 import TemporalSlider from './TemporalSlider';
 import ChatPanel from './ChatPanel';
 import GraphVisualizer from './GraphVisualizer';
@@ -46,14 +47,17 @@ import {
   setCurrentUser,
 } from '../api';
 
+// cap: the capability (GET /me/permissions) a view needs; views without one are open to every role.
 const VIEWS = [
-  { id: 'UNIFIED', label: 'Ask', short: 'Ask', Icon: MessageSquare },
-  { id: 'GRAPH', label: 'Temporal Graph', short: 'Graph', Icon: GitBranch },
+  { id: 'GRAPH', label: 'Graph', short: 'Graph', Icon: GitBranch, cap: 'graph' },
+  { id: 'UNIFIED', label: 'Ask Keystone', short: 'Ask', Icon: MessageSquare, cap: 'ask' },
   { id: 'INBOX', label: 'Inbox', short: 'Inbox', Icon: InboxIcon },
   { id: 'DECISIONS', label: 'Decisions', short: 'Decisions', Icon: Table2 },
-  { id: 'POLICIES', label: 'Policies', short: 'Policies', Icon: BookOpen },
-  { id: 'AUDIT', label: 'Audit Trail', short: 'Audit', Icon: ShieldCheck },
+  { id: 'POLICIES', label: 'Policies', short: 'Policies', Icon: BookOpen, cap: 'policies.read' },
+  { id: 'AUDIT', label: 'Audit Log', short: 'Audit', Icon: ShieldCheck, cap: 'audit.own' },
 ];
+// Sidebar order; any other view follows.
+const NAV_ORDER = ['DASHBOARD', 'GRAPH', 'UNIFIED', 'INBOX', 'P1_CHAT', 'DECISIONS', 'P1_AGENT', 'POLICIES', 'AUDIT', 'P2', 'P1_ORG'];
 
 // extraViews / headerExtras: Person 1 and Person 2 screens (src/features/p1, p2), mounted by App.jsx.
 export default function Dashboard({ currentUser, onSignOut, onHome, extraViews = [], headerExtras = null,
@@ -302,15 +306,27 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
     setActiveView(v => (opts.view || (v === 'UNIFIED' || v === 'GRAPH' ? v : 'GRAPH')));
   }, []);
 
-  const ctx = useMemo(() => ({ userKey, isReader, canApprove, team, openEntity, notify: showNotification, restrictedIds, titles }),
-    [userKey, isReader, canApprove, team, openEntity, showNotification, restrictedIds, titles]);
+  const perms = currentUser.p1?.perms;
+  const can = useCallback((cap) => !cap || !!perms?.capabilities?.includes(cap), [perms]);
+  const ctx = useMemo(() => ({ userKey, isReader, canApprove, team, openEntity, notify: showNotification, restrictedIds, titles, perms, can }),
+    [userKey, isReader, canApprove, team, openEntity, showNotification, restrictedIds, titles, perms, can]);
+  const rank = (id) => (NAV_ORDER.includes(id) ? NAV_ORDER.indexOf(id) : NAV_ORDER.length);
+  const navItems = [...VIEWS, ...extraViews].filter(v => !v.hidden && can(v.cap)).sort((a, b) => rank(a.id) - rank(b.id));
   // No approval authority (an employee): ingesting and authoring go through a lead; the backend refuses amounts above it.
   const noAuthority = currentUser.p1?.approval_authority_inr === 0;
   const pendingProposals = queueItems.filter(i => i.status === 'proposed').length;
+  const inboxBadge = pendingProposals + pendingFacts;
 
   return (
     <AppContext.Provider value={ctx}>
-    <div className="h-dvh bg-[#F8FAFC] text-[#0F172A] flex flex-col overflow-hidden">
+    <div className="h-dvh bg-[#F8FAFC] text-[#0F172A] flex overflow-hidden">
+      <Sidebar
+        items={navItems.map(v => ({ ...v, badge: v.id === 'INBOX' ? inboxBadge : 0 }))}
+        active={activeView}
+        onSelect={setActiveView}
+        user={{ name: displayUser, role: `${currentUser.role}${perms ? ` · ${perms.tier}` : ''}` }}
+      />
+    <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
       {/* Top Header Bar */}
       <header className="h-14 shrink-0 bg-white border-b border-slate-200/80 px-4 flex items-center justify-between gap-3 z-30 select-none shadow-xs">
         <div className="flex items-center gap-2.5 shrink-0">
@@ -335,32 +351,6 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
           </span>
         </div>
 
-        {/* View Switcher Segmented Pills */}
-        <nav aria-label="Views" className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 text-[13px] min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {[...VIEWS, ...extraViews].map(({ id, label, short, Icon }, i) => (
-            <button
-              key={id}
-              style={i === VIEWS.length ? { marginLeft: 8 } : undefined}
-              onClick={() => setActiveView(id)}
-              aria-current={activeView === id ? 'page' : undefined}
-              title={label}
-              className={`h-8 px-2.5 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                activeView === id ? 'bg-white text-[#0F172A] font-semibold shadow-xs' : 'text-[#475569] hover:text-[#0F172A]'
-              }`}
-            >
-              <Icon size={14} className={activeView === id ? 'text-[#0284C7]' : ''} aria-hidden="true" />
-              <span className="hidden min-[1700px]:inline">{label}</span>
-              <span className="hidden min-[1280px]:inline min-[1700px]:hidden">{short}</span>
-              {id === 'INBOX' && pendingProposals + pendingFacts > 0 && (
-                <span className="min-w-4 h-4 px-1 rounded-full bg-[#0284C7] text-[11px] leading-none font-bold text-white flex items-center justify-center"
-                      title={`${pendingProposals} proposal(s) and ${pendingFacts} extracted fact(s) waiting for a person`}>
-                  {pendingProposals + pendingFacts}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
-
         {/* Right Action Icons & User Profile */}
         <div className="flex items-center gap-3 shrink-0">
           <button onClick={() => setPaletteOpen(true)} className="btn-secondary" title="Search records (Ctrl+K)" aria-label="Search records">
@@ -381,7 +371,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
           <div className="h-8 flex items-center gap-2 pl-3 border-l border-slate-200">
             <div className="flex flex-col justify-center text-right leading-tight" title={`Signed in (demo role picker) as ${currentUser.id}`}>
               <span className="text-[#0F172A] font-semibold text-[13px]">{userSwitcher ? userSwitcher(displayUser) : displayUser}</span>
-              <span className="hidden min-[1280px]:inline text-[#64748B] text-[11.5px]">{currentUser.role} · <span className="font-mono">{currentUser.id}</span></span>
+              <span className="text-[#64748B] text-[11.5px] capitalize">{currentUser.role}{perms && ` · ${perms.tier}`}</span>
             </div>
             <button
               onClick={signOut}
@@ -549,6 +539,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+    </div>
 
       {/* Ingestion & Document Parser Modal */}
       <IngestModal

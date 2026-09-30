@@ -38,6 +38,8 @@ const q = (params) => {
 
 // ---- A: identity ----
 export const me = () => call('GET', '/auth/me');
+// The one permission map (tier, domains, capabilities): the UI hides what a role cannot use; the API enforces it.
+export const permissions = () => call('GET', '/me/permissions');
 export const login = (employee_id, password) => call('POST', '/auth/login', { employee_id, password });
 export const demoAccounts = () => call('GET', '/auth/demo');
 export const demoLogin = (employee_id) => call('POST', '/auth/demo', { employee_id });

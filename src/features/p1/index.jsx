@@ -33,14 +33,16 @@ export function AuthGate({ children }) {
   const [desktop, setDesktop] = useState(false);
   const pair = params().get('pair');
 
-  useEffect(() => { p1.me().then(setMe, () => setMe(null)); }, []);
+  // The signed-in user carries their permission map (GET /me/permissions) as me.perms.
+  const signedIn = useCallback((u) => (u ? p1.permissions().then(perms => setMe({ ...u, perms }), () => setMe({ ...u, perms: null })) : setMe(u)), []);
+  useEffect(() => { p1.me().then(signedIn, () => setMe(null)); }, [signedIn]);
   const signOut = useCallback(() => p1.logout().finally(() => { setMe(null); setScreen('landing'); setDesktop(false); }), []);
 
   if (me === undefined) return <div className="min-h-dvh flex items-center justify-center text-[13px] text-[#64748B]">Checking your session…</div>;
-  if (pair && me?.via !== 'device') return <PairClaim token={pair} onDone={setMe} onCancel={() => { window.history.replaceState(null, '', window.location.pathname); setMe(m => m); setScreen('login'); }} />;
+  if (pair && me?.via !== 'device') return <PairClaim token={pair} onDone={signedIn} onCancel={() => { window.history.replaceState(null, '', window.location.pathname); setMe(m => m); setScreen('login'); }} />;
   if (!me) {
-    if (screen === 'pair') return <PairClaim onDone={setMe} onCancel={() => setScreen('login')} />;
-    if (screen === 'login') return <AuthScreen onSignedIn={setMe} onBack={() => setScreen('landing')} />;
+    if (screen === 'pair') return <PairClaim onDone={signedIn} onCancel={() => setScreen('login')} />;
+    if (screen === 'login') return <AuthScreen onSignedIn={signedIn} onBack={() => setScreen('landing')} />;
     return <LandingPage onLaunchConsole={() => setScreen(window.innerWidth < 768 ? 'pair' : 'login')} />;
   }
   const phone = me.via === 'device' || params().has('mobile') || window.innerWidth < 768;
@@ -54,7 +56,7 @@ export const views = [
     render: ({ currentUser, notify }) => <Chat me={currentUser.p1} notify={notify} /> },
   { id: 'P1_AGENT', label: 'Agent actions', short: 'Agent', Icon: Bot,
     render: ({ currentUser }) => <AgentActions me={currentUser.p1} /> },
-  { id: 'P1_ORG', label: 'Organisation', short: 'Org', Icon: Building2,
+  { id: 'P1_ORG', label: 'Admin', short: 'Admin', Icon: Building2, cap: 'admin.panel',
     render: ({ currentUser, notify }) => <OrgAdmin me={currentUser.p1} notify={notify} /> },
 ];
 
