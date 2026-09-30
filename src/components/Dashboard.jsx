@@ -3,17 +3,16 @@ import {
   ShieldCheck,
   GitBranch,
   Upload,
-  ListChecks,
   LogOut,
   Bell,
-  FileSearch,
   Home,
   PanelLeftClose,
   PanelLeftOpen,
   MessageSquare,
   Table2,
   BookOpen,
-  Search
+  Search,
+  Inbox as InboxIcon
 } from 'lucide-react';
 import Logo from './Logo';
 import TemporalSlider from './TemporalSlider';
@@ -26,6 +25,8 @@ import IngestModal from './IngestModal';
 import DecisionRegister from './DecisionRegister';
 import PoliciesView from './PoliciesView';
 import CommandPalette from './CommandPalette';
+import Inbox from './Inbox';
+import AuthorModal from './AuthorModal';
 import { AppContext } from '../context';
 import { RESTRICTED_READERS, userKey as toUserKey } from '../utils/people';
 import { todayIST } from '../utils/format';
@@ -35,6 +36,7 @@ import {
   approveProposal,
   rejectProposal,
   editProposal,
+  fetchAnswer,
   fetchAuditAll,
   fetchDecisions,
   fetchExtractions,
@@ -47,8 +49,7 @@ import {
 const VIEWS = [
   { id: 'UNIFIED', label: 'Ask', short: 'Ask', Icon: MessageSquare },
   { id: 'GRAPH', label: 'Temporal Graph', short: 'Graph', Icon: GitBranch },
-  { id: 'QUEUE', label: 'Review Queue', short: 'Review', Icon: ListChecks },
-  { id: 'EXTRACTIONS', label: 'Ingestion Review', short: 'Ingestion', Icon: FileSearch },
+  { id: 'INBOX', label: 'Inbox', short: 'Inbox', Icon: InboxIcon },
   { id: 'DECISIONS', label: 'Decisions', short: 'Decisions', Icon: Table2 },
   { id: 'POLICIES', label: 'Policies', short: 'Policies', Icon: BookOpen },
   { id: 'AUDIT', label: 'Audit Trail', short: 'Audit', Icon: ShieldCheck },
@@ -74,6 +75,9 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   const [auditFocus, setAuditFocus] = useState(null);
   const [policyFocus, setPolicyFocus] = useState(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [inboxTab, setInboxTab] = useState('proposals');
+  const [authorMode, setAuthorMode] = useState(null);  // 'decision' | 'policy' while the authoring form is open
+  const [openedAnswer, setOpenedAnswer] = useState(null);  // {res} from a #answer= link
   const [titles, setTitles] = useState(() => new Map());
   const [answerFocus, setAnswerFocus] = useState(null);  // {ids, question}: graph shows only what the answer used
   const [inspectKey, setInspectKey] = useState(0);        // bumped on an explicit "inspect this" (not on answer highlights)
@@ -121,17 +125,15 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
   // IDs of restricted decisions, so list views that the backend does not filter can hide them (KNOWN_ISSUES.md).
   // Restricted decisions, plus the documents and nodes named by restricted extractions (e.g. MTG-2025-08-12).
-  useEffect(() => {
-    Promise.all([fetchDecisions(), fetchExtractions()])
-      .then(([ds, ex]) => {
-        const secret = ex.filter(x => x.provenance?.visibility === 'restricted');
-        setRestrictedIds(new Set([
-          ...ds.filter(d => d.provenance?.visibility === 'restricted').map(d => d.id),
-          ...secret.map(x => x.document_id), ...secret.map(x => x.source).filter(k => /^(DEC|MTG)-/.test(k || '')),
-        ]));
-      })
-      .catch(() => {});
-  }, [policyRefresh]);
+  const loadRestricted = useCallback(() => Promise.all([fetchDecisions(), fetchExtractions()])
+    .then(([ds, ex]) => {
+      const secret = ex.filter(x => x.provenance?.visibility === 'restricted');
+      return new Set([
+        ...ds.filter(d => d.provenance?.visibility === 'restricted').map(d => d.id),
+        ...secret.map(x => x.document_id), ...secret.map(x => x.source).filter(k => /^(DEC|MTG)-/.test(k || '')),
+      ]);
+    }), []);
+  useEffect(() => { loadRestricted().then(setRestrictedIds).catch(() => {}); }, [policyRefresh, loadRestricted]);
 
   // GET /health every 15 s: model names, telemetry flag, and whether Ollama, Postgres and Neo4j answer.
   useEffect(() => {
@@ -141,6 +143,35 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
     return () => clearInterval(t);
   }, []);
   const engineOk = health ? !!health.ollama && Object.values(health.ollama).every(v => v === true) : health === null ? false : null;
+
+  // A link to an answer (#answer=<id>) reopens it in Ask. GET /answers/{id} is not visibility-filtered, so an answer
+  // that cites a restricted record is not shown to someone who could not have asked it.
+  useEffect(() => {
+    const open = async () => {
+      const id = decodeURIComponent(/#answer=([^&]+)/.exec(window.location.hash)?.[1] || '');
+      if (!id) return;
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      try {
+        const res = await fetchAnswer(id);
+        const cited = [...(res.highlight_nodes || []), ...(res.citations || []).map(c => c.id), ...(res.subgraph?.nodes || []).map(n => n.id)];
+        if (!isReader) {
+          const secret = await loadRestricted();
+          if (cited.some(c => secret.has(c))) { showNotification('That answer is not available to you.', 'warning'); return; }
+        }
+        setActiveView('UNIFIED');
+        setOpenedAnswer({ res });
+        if (res.as_of) setAsOfDate(res.as_of);
+        const ids = (res.subgraph?.nodes || []).map(n => n.id);
+        setAnswerFocus(!res.refused && ids.length ? { ids, question: res.question } : null);
+        setHighlightNodeIds(res.highlight_nodes || []);
+      } catch (err) {
+        showNotification(err.status === 404 ? 'That answer link does not match a stored answer.' : `Could not open the answer: ${err.message}`, 'warning');
+      }
+    };
+    open();
+    window.addEventListener('hashchange', open);
+    return () => window.removeEventListener('hashchange', open);
+  }, [isReader, loadRestricted, showNotification]);
 
   // Load proposals from GET /proposals
   const loadProposals = useCallback(async () => {
@@ -251,9 +282,9 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   // Any ID chip in the app lands here.
   const openEntity = useCallback((id, type, opts = {}) => {
     if (opts.view === 'POLICIES') { setPolicyFocus(String(id)); setActiveView('POLICIES'); return; }
-    if (type === 'proposal') { setQueueFocus(String(id).replace(/\D/g, '')); setActiveView('QUEUE'); return; }
+    if (type === 'proposal') { setQueueFocus(String(id).replace(/\D/g, '')); setInboxTab('proposals'); setActiveView('INBOX'); return; }
     if (type === 'audit') { setAuditFocus(String(id).replace(/\D/g, '')); setActiveView('AUDIT'); return; }
-    if (type === 'extraction') { setActiveView('EXTRACTIONS'); return; }
+    if (type === 'extraction') { setInboxTab('facts'); setActiveView('INBOX'); return; }
     setSelectedNodeId(id);
     setHighlightNodeIds([id]);
     setInspectKey(k => k + 1);
@@ -306,10 +337,10 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
               <Icon size={14} className={activeView === id ? 'text-[#0284C7]' : ''} aria-hidden="true" />
               <span className="hidden min-[1700px]:inline">{label}</span>
               <span className="hidden min-[1280px]:inline min-[1700px]:hidden">{short}</span>
-              {(id === 'QUEUE' ? pendingProposals : id === 'EXTRACTIONS' ? pendingFacts : 0) > 0 && (
+              {id === 'INBOX' && pendingProposals + pendingFacts > 0 && (
                 <span className="min-w-4 h-4 px-1 rounded-full bg-[#0284C7] text-[11px] leading-none font-bold text-white flex items-center justify-center"
-                      title={id === 'QUEUE' ? `${pendingProposals} proposal(s) waiting for a human decision` : `${pendingFacts} extracted fact(s) waiting for review`}>
-                  {id === 'QUEUE' ? pendingProposals : pendingFacts}
+                      title={`${pendingProposals} proposal(s) and ${pendingFacts} extracted fact(s) waiting for a person`}>
+                  {pendingProposals + pendingFacts}
                 </span>
               )}
             </button>
@@ -418,8 +449,12 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
                   const ids = (res.subgraph?.nodes || []).map(n => n.id);
                   // Answer-first graph: only the records this answer used; a refusal returns to the full graph.
                   setAnswerFocus(!res.refused && ids.length ? { ids, question } : null);
+                  loadAudit();  // the query's audit block, for the evidence export
                 }}
                 onReset={() => setAnswerFocus(null)}
+                storageKey={`kst.chat.${userKey}`}
+                auditLogs={auditLogs}
+                opened={openedAnswer}
               />
             </div>
 
@@ -446,9 +481,10 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
           </div>
         )}
 
-        {activeView === 'QUEUE' && (
+        {activeView === 'INBOX' && (
           <div className="flex-1 h-full min-h-0">
-            <ReviewQueue
+            <Inbox tab={inboxTab} onTab={setInboxTab} pendingProposals={pendingProposals} pendingFacts={pendingFacts}
+              proposals={<ReviewQueue
               queueItems={queueItems}
               auditLogs={auditLogs}
               focusId={queueFocus}
@@ -458,26 +494,22 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
               onApproveAction={handleApproveAction}
               onRejectAction={handleRejectAction}
               onEditAction={handleEditAction}
+            />}
+              facts={<IngestionReview onNotify={showNotification} auditLogs={auditLogs} refreshKey={policyRefresh}
+                             onChanged={() => { loadAudit(); loadPendingFacts(); }} />}
             />
-          </div>
-        )}
-
-        {activeView === 'EXTRACTIONS' && (
-          <div className="flex-1 h-full min-h-0">
-            <IngestionReview onNotify={showNotification} auditLogs={auditLogs} refreshKey={policyRefresh}
-                             onChanged={() => { loadAudit(); loadPendingFacts(); }} />
           </div>
         )}
 
         {activeView === 'DECISIONS' && (
           <div className="flex-1 h-full min-h-0">
-            <DecisionRegister refreshKey={policyRefresh} />
+            <DecisionRegister refreshKey={policyRefresh} proposals={queueItems} auditLogs={auditLogs} onRecord={() => setAuthorMode('decision')} />
           </div>
         )}
 
         {activeView === 'POLICIES' && (
           <div className="flex-1 h-full min-h-0">
-            <PoliciesView focus={policyFocus} refreshKey={policyRefresh} asOfDate={todayIST()} />
+            <PoliciesView focus={policyFocus} refreshKey={policyRefresh} asOfDate={todayIST()} onAdd={() => setAuthorMode('policy')} />
           </div>
         )}
 
@@ -499,7 +531,16 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
         isOpen={isIngestModalOpen}
         onClose={() => setIsIngestModalOpen(false)}
         onPolicyUploaded={handlePolicyUploaded}
-        onProceedToQueue={(view) => setActiveView(view || 'QUEUE')}
+        onProceedToQueue={(view) => { setInboxTab(view === 'EXTRACTIONS' ? 'facts' : 'proposals'); setActiveView('INBOX'); }}
+        onAuthor={(mode) => { setIsIngestModalOpen(false); setAuthorMode(mode); }}
+      />
+
+      <AuthorModal
+        mode={authorMode}
+        onMode={setAuthorMode}
+        onClose={() => setAuthorMode(null)}
+        onSaved={handlePolicyUploaded}
+        onProceed={(tab) => { setInboxTab(tab); setActiveView('INBOX'); }}
       />
     </div>
     </AppContext.Provider>

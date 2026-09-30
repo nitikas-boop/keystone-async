@@ -114,12 +114,12 @@ await hold(12); await click(page.getByRole('button', { name: /Upload & Run Scann
 await page.getByText('Impact Scanner Findings').waitFor({ timeout: 300000 });
 mark('Scanner flags DEC-007'); await caption('Impact scanner flags DEC-007 and queues a proposal');
 await hold(20);
-await click(page.getByRole('button', { name: /Proceed to Review Queue/ }), 2500);
+await click(page.getByRole('button', { name: /Open the Inbox/ }), 2500);
 
 // 6. Human-in-the-loop approval
 await hold(20); mark('Review Queue: approve'); await caption('Nothing executes without a human: approve the proposal');
 await pause(2500);
-// Review Queue is a list + detail: open the DEC-007 proposal, then approve it in the detail pane.
+// Inbox > Proposed actions is a list + detail: open the DEC-007 proposal, then approve it in the detail pane.
 await click(page.locator('ul[aria-label="Proposals"] button', { hasText: 'DEC-007' }), 2500);
 await click(page.getByRole('button', { name: /^Approve/ }), 6000);
 await hold(14); mark('Executor ran'); await caption('The executor picks up the approved action (writes outbox/proposal-N.eml)');
@@ -132,11 +132,12 @@ await page.locator('input[type=file]').setInputFiles('data/demo-upload/meeting-2
 await page.locator('pre', { hasText: 'Transcript:' }).waitFor({ timeout: 120000 });
 await pause(4000);
 await hold(12); await click(page.getByRole('button', { name: /Upload & Run Scanner/ }), 500);
-await page.getByText(/now wait in Ingestion Review|Extraction failed/).waitFor({ timeout: 300000 });
+await page.getByText(/now wait in the Inbox|Extraction failed/).waitFor({ timeout: 300000 });
 await pause(3000);
 await click(page.locator('.paper-sheet-elevated > button').first(), 1500);
 await hold(10); mark('Ingestion Review'); await caption('Ingestion Review: the Keycloak decision extracted from the audio waits for a human');
-await click(header('Ingestion Review'), 5000);
+await click(header('Inbox'), 1000);
+await click(page.getByRole('tab', { name: /Extracted facts/ }), 5000);
 await page.mouse.move(W / 2, H / 2, { steps: 15 }); await wheel(200, 15); await pause(3000);
 
 // 8. Audit trail

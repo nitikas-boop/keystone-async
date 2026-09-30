@@ -610,13 +610,13 @@ const PROPOSAL_STATE = {
   rejected: ['badge-note-rose', 'Rejected'],
 };
 
-function ProposalStatus({ items, auditLogs, team, openEntity, emptyText = null }) {
+export function ProposalStatus({ items, auditLogs, team, openEntity, emptyText = null }) {
   if (!items.length) {
     return emptyText ? <p className="text-[12.5px] text-[#475569]">{emptyText}</p> : null;
   }
   return (
     <section>
-      <h4 className="text-[12px] text-[#64748B] mb-1">Review queue</h4>
+      <h4 className="text-[12px] text-[#64748B] mb-1">Proposed actions</h4>
       <ul className="space-y-1.5">
         {items.map(p => {
           const [cls, label] = PROPOSAL_STATE[p.status] || ['badge-note-slate', p.status];

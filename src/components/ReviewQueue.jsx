@@ -75,7 +75,7 @@ export default function ReviewQueue({
       <div className="flex items-center gap-2.5 min-w-0">
         <div className="p-1 rounded-md bg-teal-50 text-[#0F766E]"><Lock size={14} aria-hidden="true" /></div>
         <div className="min-w-0">
-          <h2 className="font-heading font-semibold text-[13px] tracking-tight text-[#0F172A]">Review queue</h2>
+          <h2 className="font-heading font-semibold text-[13px] tracking-tight text-[#0F172A]">Proposed actions</h2>
           <p className="text-[12px] text-[#64748B] truncate">
             The scanner and MCP clients can only propose. A person approves; then the executor writes an email file to outbox/.
           </p>

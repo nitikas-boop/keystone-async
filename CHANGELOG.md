@@ -1,5 +1,31 @@
 # Changelog
 
+## Inbox, decision pages, portable answers, authoring forms (30 Sept 2026)
+
+Frontend only; every change uses existing endpoints.
+- **Inbox.** Review Queue and Ingestion Review are one tab, **Inbox**, with two lists: *Proposed actions*
+  and *Extracted facts*. One badge counts both. Links to a proposal or an extraction open the right list.
+  The header is now Ask · Graph · Inbox · Decisions · Policies · Audit.
+- **A page per decision.** Opening a decision in the register shows a full page: why, compliance then vs
+  now, the clause versions it relied on and every later version of them, policy impact flags, what happened
+  to its proposals, a dated "What happened" timeline, the audit entries that name it, and the source
+  document.
+- **Answers can leave the screen.** Every answer has *Copy with sources*, *Evidence (.md)*, *Print / PDF*
+  and *Copy link*. The evidence file holds the question, who asked and when, the as-of date, each cited
+  sentence, the sources with their quotes, the deterministic then/now result, and the audit block that
+  recorded the query. A link (`#answer=<id>`, from `GET /answers/{id}`) reopens the answer in Ask for
+  anyone signed in, except an answer citing restricted records, which is not shown to non-readers
+  (KNOWN_ISSUES #9). The conversation is kept per user in this browser, so a refresh or sign-out keeps it.
+- **Record a decision / Add a policy version.** Forms that write the Markdown and YAML front-matter for you,
+  with a live preview of the exact document and a list of what is still missing. The decision form knows
+  which clause versions were in force on the chosen date and asks for the values the deterministic check
+  needs (retention days, amount and approver role). The policy form starts from the latest version's
+  clauses and marks every changed limit with its old value. Both save through `POST /documents`; saving a
+  policy version runs the impact scanner as an upload does. Open them from the Decisions and Policies
+  screens or from Ingest Document.
+- **Several files at once.** The ingest dialog takes several Markdown files (chosen or dropped). They are
+  uploaded one by one, policy versions first so decisions can rely on their clauses, with a result per file.
+
 ## Ask vs Temporal Graph (30 Sept 2026)
 
 The two tabs had become the same screen at different widths. Each now has its own job:

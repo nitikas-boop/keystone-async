@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BookOpen, RefreshCw } from 'lucide-react';
+import { BookOpen, FilePlus2, RefreshCw } from 'lucide-react';
 import { fetchPolicies } from '../api';
 import IdChip from './IdChip';
 import { clauseRef, day, inr } from '../utils/format';
@@ -14,7 +14,7 @@ const FIELD_ROWS = [
 
 const get = (obj, path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 
-export default function PoliciesView({ focus, refreshKey = 0, asOfDate }) {
+export default function PoliciesView({ focus, refreshKey = 0, asOfDate, onAdd }) {
   const [policies, setPolicies] = useState(null);
   const [error, setError] = useState(null);
   const [clauseId, setClauseId] = useState(null);
@@ -54,9 +54,12 @@ export default function PoliciesView({ focus, refreshKey = 0, asOfDate }) {
             <BookOpen size={15} className="text-[#9A3412]" aria-hidden="true" />
             <h2 className="font-heading font-semibold text-sm text-[#0F172A]">Policies</h2>
           </div>
-          <button onClick={load} className="icon-btn" aria-label="Refresh policies" title="Refresh">
-            <RefreshCw size={13} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {onAdd && <button onClick={onAdd} className="btn-secondary" title="Add a new version of a policy"><FilePlus2 size={13} /> New version</button>}
+            <button onClick={load} className="icon-btn" aria-label="Refresh policies" title="Refresh">
+              <RefreshCw size={13} />
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
           {error && <p className="text-[13px] text-rose-700">Could not load policies: {error}</p>}
@@ -98,7 +101,7 @@ export default function PoliciesView({ focus, refreshKey = 0, asOfDate }) {
           <h2 className="font-heading font-semibold text-sm text-[#0F172A]">
             {sel ? <>Clause {clauseId} across {sel.versions.length} version{sel.versions.length === 1 ? '' : 's'}</> : 'Select a clause'}
           </h2>
-          <p className="text-[12.5px] text-[#64748B]">Read-only. Changed values are marked with the previous value. Dates are the effective dates from each version's front-matter.</p>
+          <p className="text-[12.5px] text-[#64748B]">Changed values are marked with the previous value. Dates are the effective dates from each version's front-matter.</p>
         </div>
         {sel && (
           <div className="flex-1 overflow-auto p-5">

@@ -78,3 +78,26 @@ into the INSERT.
 ### 8. `human_verified` is set to false when an extraction is rejected
 `extract.review` sets `human_verified = decision != 'reject'`, so a fact a human rejected reads as "not
 verified". The UI shows "reviewed · rejected · by <name> · <time>" from the audit log instead.
+
+### 9. `GET /answers/{id}` has no visibility filter
+Anyone who knows an answer ID gets the stored response, including answers that cite restricted records
+(an answer Ananya got about `DEC-008` opens for any `X-User`). Answer IDs are random UUIDs, but the new
+"Copy link" button (`#answer=<id>`) makes them easy to share. **What the frontend does now:** before showing a
+linked answer to a user outside `RESTRICTED_READERS`, it checks every cited and retrieved ID against the
+restricted set and shows "That answer is not available to you" instead. On screen only, as in #2.
+**Fix:** check the stored response's node IDs against `_visible()` for the `X-User`, and return 404 when any
+is hidden.
+
+### 10. Decisions and meeting notes are ingested without an audit row
+`ingest._ingest` audits `policy_ingested` for policy versions only. A decision recorded from the new form
+(or uploaded as Markdown), and a meeting note, are stored with no `audit_log` entry; only the later review
+of a meeting note's extracted facts is audited. The decision page therefore shows no "recorded" block for
+them. **Fix:** audit `decision_ingested` / `meeting_ingested` with the document's sha256, as for policies
+(needs the action added to `audit_log_action_check`).
+
+### 11. `POST /documents` replaces an existing document with the same ID
+The insert is `ON CONFLICT (id) DO UPDATE`, so uploading `DEC-004.md` with other content silently rewrites
+`DEC-004`. The upload dialog warns and needs a tick before re-uploading a known ID, and the authoring forms
+refuse an ID or policy version that already exists. A multi-file upload skips files whose ID exists unless
+that file is ticked. **Fix:** reject
+a changed document for an existing ID unless the request says it is a replacement.

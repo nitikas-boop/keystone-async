@@ -61,6 +61,12 @@ export async function ask(question, asOf, sessionId = null, signal = undefined) 
   return send(`${API}/ask`, { method: 'POST', headers: jsonHeaders(), body: JSON.stringify(payload), signal });
 }
 
+// A stored answer, for links that reopen it. The endpoint has no visibility filter (KNOWN_ISSUES.md): the dashboard
+// checks the cited IDs before showing it.
+export async function fetchAnswer(answerId) {
+  return send(`${API}/answers/${encodeURIComponent(answerId)}`, { headers: headers() });
+}
+
 // ---- Graph ----
 
 export async function fetchGraph(asOf) {

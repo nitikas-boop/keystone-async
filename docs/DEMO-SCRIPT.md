@@ -116,7 +116,7 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 
 ## 13. Human-in-the-loop approval (4:20)
 
-> Nothing leaves Keystone without a human. The proposal sits in the review queue with its reasoning and citations.
+> Nothing leaves Keystone without a human. The proposal waits in the Inbox with its reasoning and citations.
 > The reviewer can edit, reject, or approve. We approve.
 
 ## 14. Executor (4:34)
@@ -133,7 +133,7 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 > with dated front-matter, so nothing new is trusted: it goes through the same extraction, provenance and review
 > path as a written note.
 
-## 15. Ingestion Review (5:12)
+## 15. Inbox: extracted facts (5:12)
 
 > And here it is: the model found the decision in the recording, Karthik moving all internal tools to single
 > sign-on with Keycloak, with the exact sentence it came from. Facts extracted from meeting notes are never trusted
@@ -158,7 +158,7 @@ the snapshot afterwards). Everything runs on one laptop: Postgres, Neo4j/Graphit
 
 > One more thing you cannot see on screen: Keystone is also an MCP server. Any MCP client, Claude Desktop or an IDE
 > agent, can ask it questions, check compliance, verify the audit chain, and propose an action. Propose only: the
-> proposal lands in this same review queue and waits for a human.
+> proposal lands in this same Inbox and waits for a human.
 >
 > Keystone: every decision linked to the rule that was in force, compliance checked deterministically, policy
 > changes traced to their impact, a human approving every action, and a tamper-evident trail. All on local hardware.

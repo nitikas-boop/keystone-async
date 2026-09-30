@@ -1,10 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   AlertTriangle,
+  Check,
   ChevronDown,
+  Copy,
   CornerDownLeft,
+  Download,
+  Link2,
   Loader2,
   Mic,
+  Printer,
   RotateCcw,
   SearchX,
   ShieldCheck,
@@ -18,6 +23,9 @@ import { startRecording } from '../utils/recorder';
 import { day, plural, polish, ts } from '../utils/format';
 import IdChip from './IdChip';
 import { ThenNow } from './Compliance';
+import { answerLink, auditRowFor, evidenceHtml, evidenceMarkdown } from '../utils/evidence';
+import { displayName } from '../utils/people';
+import { useApp } from '../context';
 
 const now = () => ts(new Date().toISOString()).time;
 const REFUSAL = 'I have no recorded decision about that';
@@ -26,11 +34,19 @@ const REFUSAL = 'I have no recorded decision about that';
 // itself: cited sentences, the as-of date used, and "how I got this" (retrieved nodes, clause versions, the
 // deterministic compliance result then vs now). A refusal, whether there is no evidence or the evidence is
 // restricted for this viewer, is the same exact sentence and looks identical.
-export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, onQueryExecuted, onNodeHighlight, onAnswer, onReset, headerAction }) {
-  const [messages, setMessages] = useState([]);
-  const [sessionId, setSessionId] = useState(() => 'sess-' + Math.random().toString(36).substring(2, 10));
+// The conversation is kept per user in this browser (localStorage), so a refresh or sign-out does not lose it.
+const newSession = () => 'sess-' + Math.random().toString(36).substring(2, 10);
+function loadHistory(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || null; } catch { return null; }
+}
+
+export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, onQueryExecuted, onNodeHighlight, onAnswer, onReset, headerAction,
+  storageKey = null, auditLogs = [], opened = null }) {
+  const [messages, setMessages] = useState(() => (storageKey && loadHistory(storageKey)?.messages) || []);
+  const [sessionId, setSessionId] = useState(() => (storageKey && loadHistory(storageKey)?.sessionId) || newSession());
   const [inputValue, setInputValue] = useState('');
   const [pending, setPending] = useState(null);  // {asOf, startedAt} while /ask runs
+  const { team } = useApp();
   const [, tick] = useState(0);
   const feedRef = useRef(null);
 
@@ -40,6 +56,13 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages, pending]);
 
+  useEffect(() => {  // errors are not kept: they describe a moment, not the record
+    if (!storageKey) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ sessionId, messages: messages.filter(m => !m.error).slice(-40) }));
+    } catch { /* storage full or blocked: the conversation still works, it just is not kept */ }
+  }, [messages, sessionId, storageKey]);
+
   useEffect(() => {  // elapsed seconds while an answer is being generated (real time, no invented stages)
     if (!pending) return undefined;
     const t = setInterval(() => tick(n => n + 1), 500);
@@ -47,6 +70,13 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
   }, [pending]);
 
   const push = (m) => setMessages(prev => [...prev, { id: `${m.role}-${Date.now()}-${prev.length}`, timestamp: now(), ...m }]);
+
+  // An answer opened from a link (#answer=…): shown in the feed like any other, marked as opened.
+  useEffect(() => {
+    if (!opened) return;
+    push({ role: 'user', content: opened.res.question || '(question not stored)', linked: true, answerId: opened.res.answer_id });
+    push({ role: 'assistant', res: opened.res, linked: true });
+  }, [opened]);
 
   const executeQuestion = async (queryText, demo = null) => {
     if (!queryText.trim() || pending) return;
@@ -103,7 +133,7 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
   };
 
   const clearChat = () => {
-    setSessionId('sess-' + Math.random().toString(36).substring(2, 10));
+    setSessionId(newSession());
     setMessages([]);
     if (onReset) onReset();
   };
@@ -154,22 +184,32 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
           </div>
         )}
 
-        {messages.map(msg => (
+        {messages.map(msg => {
+          // A linked answer was asked by someone else, earlier: name and time come from its audit block.
+          const linkedRow = msg.linked ? auditRowFor(auditLogs, msg.answerId || msg.res?.answer_id) : null;
+          const who = msg.role !== 'user' ? 'Keystone' : msg.linked ? (linkedRow ? displayName(linkedRow.actor, team) : 'Asked earlier') : (viewer?.name || 'You');
+          const when = msg.linked ? (linkedRow ? ts(linkedRow.ts).ist : '') : msg.timestamp;
+          return (
           <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
             <div className="flex items-center gap-1.5 text-[11.5px] text-[#64748B] mb-1 px-1">
-              <span>{msg.role === 'user' ? (viewer?.name || 'You') : 'Keystone'}</span>
-              <span aria-hidden="true">·</span>
-              <span className="font-mono">{msg.timestamp}</span>
+              <span>{who}</span>
+              {when && <><span aria-hidden="true">·</span><span className="font-mono">{when}</span></>}
               {msg.res && <><span aria-hidden="true">·</span><span>as of {day(msg.res.as_of)}</span>
-                <span aria-hidden="true">·</span><span>{msg.seconds.toFixed(1)} s</span></>}
+                {msg.seconds != null && <><span aria-hidden="true">·</span><span>{msg.seconds.toFixed(1)} s</span></>}
+                {msg.linked && <><span aria-hidden="true">·</span><span>opened from a link</span></>}</>}
             </div>
             {msg.role === 'user' && (
               <div className="max-w-[92%] rounded-xl px-3.5 py-2.5 bg-sky-50 border border-sky-100 text-[13px] text-[#0F172A]">{msg.content}</div>
             )}
-            {msg.res && <Answer res={msg.res} onCitationClick={onCitationClick} />}
+            {msg.res && (() => {
+              const row = auditRowFor(auditLogs, msg.res.answer_id);
+              const askedBy = msg.linked ? (row ? displayName(row.actor, team) : null) : viewer && `${viewer.name} (${viewer.role})`;
+              return <Answer res={msg.res} onCitationClick={onCitationClick} actions={<AnswerActions res={msg.res} auditRow={row} askedBy={askedBy} />} />;
+            })()}
             {msg.error && <ErrorCard err={msg.error} />}
           </div>
-        ))}
+          );
+        })}
 
         {pending && (
           <div className="flex flex-col items-start" data-testid="answer-loading">
@@ -240,7 +280,7 @@ function Sentence({ s, onCitationClick }) {
   );
 }
 
-function Answer({ res, onCitationClick }) {
+function Answer({ res, onCitationClick, actions }) {
   if (res.refused) {
     // One look for every refusal: no evidence and restricted evidence are indistinguishable by design.
     return (
@@ -248,6 +288,7 @@ function Answer({ res, onCitationClick }) {
         <div className="flex items-center gap-2 font-semibold text-[#334155]"><SearchX size={16} aria-hidden="true" /> No recorded decision</div>
         <p className="mt-1 text-[#0F172A] text-[14px]">{polish(res.answer) || REFUSAL}</p>
         <p className="mt-1 text-[12px] text-[#64748B]">Keystone answers only from records it can cite, as of {day(res.as_of)}.</p>
+        {actions}
       </div>
     );
   }
@@ -285,6 +326,54 @@ function Answer({ res, onCitationClick }) {
           )) : <p className="text-[#475569]">No compliance check applied to this question.</p>}
         </div>
       </details>
+      {actions}
+    </div>
+  );
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
+}
+
+// Take an answer out of the app: copy it with its sources, save it as a Markdown evidence file, print it (the
+// browser saves PDF), or copy a link that reopens it (GET /answers/{id}).
+function AnswerActions({ res, auditRow, askedBy }) {
+  const [done, setDone] = useState(null);
+  const md = () => evidenceMarkdown(res, { askedBy, auditRow, link: res.answer_id ? answerLink(res.answer_id) : null });
+  const flash = (what, ok = true) => { setDone(ok ? what : 'failed'); setTimeout(() => setDone(null), 2000); };
+  const download = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([md()], { type: 'text/markdown' }));
+    a.download = `keystone-evidence-${(res.answer_id || 'answer').slice(0, 8)}.md`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    flash('download');
+  };
+  const print = () => {
+    const w = window.open('', '_blank');
+    if (!w) return flash('print', false);
+    w.document.write(evidenceHtml(md()));
+    w.document.close();
+    w.focus();
+    w.print();
+  };
+  const btn = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[12px] text-[#475569] hover:bg-slate-100 hover:text-[#0369A1] cursor-pointer';
+  return (
+    <div className="pt-1.5 flex flex-wrap items-center gap-1" aria-label="Answer actions">
+      <button className={btn} onClick={async () => flash('copy', await copyText(md()))} title="Copy the answer with its sources, as Markdown">
+        {done === 'copy' ? <Check size={12} /> : <Copy size={12} />} Copy with sources
+      </button>
+      <button className={btn} onClick={download} title="Save an evidence file: question, as-of date, cited passages, compliance and audit block">
+        <Download size={12} /> Evidence (.md)
+      </button>
+      <button className={btn} onClick={print} title="Open a printable page; choose Save as PDF in the print dialog"><Printer size={12} /> Print / PDF</button>
+      {res.answer_id && (
+        <button className={btn} onClick={async () => flash('link', await copyText(answerLink(res.answer_id)))} title="Copy a link that reopens this answer">
+          {done === 'link' ? <Check size={12} /> : <Link2 size={12} />} Copy link
+        </button>
+      )}
+      {done === 'failed' && <span className="text-[12px] text-rose-700">The browser blocked it.</span>}
+      {done && done !== 'failed' && <span className="text-[12px] text-emerald-700">{done === 'download' ? 'Saved' : 'Copied'}</span>}
     </div>
   );
 }

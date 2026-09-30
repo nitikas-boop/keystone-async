@@ -111,7 +111,7 @@ export default function IngestionReview({ onNotify, auditLogs = [], onChanged, r
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="p-1 rounded-md bg-violet-50 text-[#6D28D9]"><FileSearch size={14} aria-hidden="true" /></div>
           <div className="min-w-0">
-            <h2 className="font-heading font-semibold text-[13px] text-[#0F172A]">Ingestion review</h2>
+            <h2 className="font-heading font-semibold text-[13px] text-[#0F172A]">Extracted facts</h2>
             <p className="text-[12px] text-[#64748B] truncate">
               Facts the local model extracted from meeting notes. A fact counts only after a person accepts it.
             </p>
