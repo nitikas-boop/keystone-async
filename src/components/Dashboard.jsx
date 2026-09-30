@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import Logo from './Logo';
 import Sidebar from './Sidebar';
+import ViewBoundary from './ViewBoundary';
 import TemporalSlider from './TemporalSlider';
 import ChatPanel from './ChatPanel';
 import GraphVisualizer from './GraphVisualizer';
@@ -68,7 +69,10 @@ const NAV_ORDER = ['DASHBOARD', 'GRAPH', 'UNIFIED', 'INBOX', 'P1_CHAT', 'DECISIO
 export default function Dashboard({ currentUser, onSignOut, onHome, extraViews = [], headerExtras = null,
   initialView = 'DASHBOARD', canApprove = true, employee = false, userSwitcher = null }) {
   const [asOfDate, setAsOfDate] = useState(() => todayIST());
-  const [activeView, setActiveView] = useState(initialView);
+  // The open view (and Inbox segment) survive a reload of this browser tab; a view the role cannot open falls back
+  // to initialView once the permission map is known (below).
+  const stored = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
+  const [activeView, setActiveView] = useState(() => stored('kst.view') || initialView);
   // The demo opens on the retention story; an employee opens with nothing selected (DEC-007 may be outside their
   // jurisdiction, and opening a locked node is an audited access attempt).
   const [selectedNodeId, setSelectedNodeId] = useState(employee ? null : 'DEC-007');
@@ -89,7 +93,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
   const [policyFocus, setPolicyFocus] = useState(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [inboxTab, setInboxTab] = useState('proposals');   // the review screens (REVIEW): proposals | facts
-  const [inboxSegment, setInboxSegment] = useState('mine'); // Inbox: mine | registry
+  const [inboxSegment, setInboxSegment] = useState(() => stored('kst.inbox') || 'mine'); // Inbox: mine | registry
   const [registryFocus, setRegistryFocus] = useState(null);
   const [chatFocus, setChatFocus] = useState(null);
   const [inboxCounts, setInboxCounts] = useState(null);
@@ -321,6 +325,12 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
   const ctx = useMemo(() => ({ userKey, isReader, canApprove, team, openEntity, notify: showNotification, restrictedIds, titles, perms, can }),
     [userKey, isReader, canApprove, team, openEntity, showNotification, restrictedIds, titles, perms, can]);
   const rank = (id) => (NAV_ORDER.includes(id) ? NAV_ORDER.indexOf(id) : NAV_ORDER.length);
+  const allowed = [...VIEWS, ...extraViews].some(v => v.id === activeView && can(v.cap)) || activeView === 'REVIEW';
+  useEffect(() => { if (perms && !allowed) setActiveView(initialView); }, [perms, allowed, initialView]);
+  useEffect(() => {
+    try { sessionStorage.setItem('kst.view', activeView); sessionStorage.setItem('kst.inbox', inboxSegment); }
+    catch { /* storage unavailable: the view just is not remembered */ }
+  }, [activeView, inboxSegment]);
   const navItems = [...VIEWS, ...extraViews].filter(v => !v.hidden && can(v.cap)).sort((a, b) => rank(a.id) - rank(b.id));
   // No approval authority (an employee): ingesting and authoring go through a lead; the backend refuses amounts above it.
   const noAuthority = currentUser.p1?.approval_authority_inr === 0;
@@ -444,6 +454,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
       {/* Main Workspace Body with Generous Padding */}
       <div className="flex-1 p-4 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-[#F8FAFC]">
+        <ViewBoundary key={activeView}>
         {(activeView === 'UNIFIED' || activeView === 'GRAPH') && (
           <div className="flex-1 flex gap-4 min-h-0">
             {/* Ask = conversation + evidence for the latest answer. Temporal Graph = the full graph to explore, console
@@ -582,6 +593,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
                         onChanged: () => { loadAudit(); loadPendingFacts(); loadProposals(); setPolicyRefresh(k => k + 1); } })}
           </div>
         ))}
+        </ViewBoundary>
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />

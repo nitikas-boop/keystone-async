@@ -11,8 +11,8 @@ CREATE TABLE IF NOT EXISTS channels (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS channels_dm ON channels (org_id, dm_key) WHERE dm_key IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS channels_global ON channels (org_id) WHERE type = 'global';
-CREATE UNIQUE INDEX IF NOT EXISTS channels_team ON channels (team_id) WHERE type = 'team';
+-- One #general per org and one channel per team were unique here; 005_workspace.sql replaces both with
+-- channels_named (several org channels, several per team), so re-running this file must not re-create them.
 
 -- Group and DM participants. Global = every active member, team = team_members + the lead (derived, not stored).
 CREATE TABLE IF NOT EXISTS channel_members (
