@@ -37,3 +37,10 @@ KEYSTONE_RETRIEVAL_ADAPTER = E('KEYSTONE_RETRIEVAL_ADAPTER', 'graphiti')
 # ponytail: visibility filter by user list; full RBAC / source-level ACLs are roadmap
 RESTRICTED_READERS = set(E('RESTRICTED_READERS', 'nitika,farhan,ananya').split(','))
 WHISPER_MODEL = E('WHISPER_MODEL', 'base.en')
+
+# Browser origins allowed to call the API with the session cookie. Default: any localhost port.
+CORS_ORIGIN_REGEX = E('CORS_ORIGIN_REGEX', r'http://(localhost|127\.0\.0\.1)(:\d+)?')
+
+# --- P1 --- (access, identity, comms)
+
+# --- P2 --- (knowledge, conflicts, reasoning)

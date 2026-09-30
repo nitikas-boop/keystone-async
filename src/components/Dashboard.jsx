@@ -55,7 +55,8 @@ const VIEWS = [
   { id: 'AUDIT', label: 'Audit Trail', short: 'Audit', Icon: ShieldCheck },
 ];
 
-export default function Dashboard({ currentUser, onSignOut, onHome }) {
+// extraViews / headerExtras: Person 1 and Person 2 screens (src/features/p1, p2), mounted by App.jsx.
+export default function Dashboard({ currentUser, onSignOut, onHome, extraViews = [], headerExtras = null }) {
   const [asOfDate, setAsOfDate] = useState(() => todayIST());
   const [activeView, setActiveView] = useState('UNIFIED');
   const [selectedNodeId, setSelectedNodeId] = useState('DEC-007');
@@ -108,7 +109,8 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
   }, []);
 
   const userKey = toUserKey(currentUser?.id);
-  const isReader = RESTRICTED_READERS.includes(userKey);
+  // The server decides what is visible; this only picks list-view hints. A signed-in user carries it.
+  const isReader = currentUser?.isReader ?? RESTRICTED_READERS.includes(userKey);
   const displayUser = (currentUser?.name || '').replace(/\s*\(.*\)$/, '');
 
   // Sync current user with api.js X-User header
@@ -324,9 +326,10 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
 
         {/* View Switcher Segmented Pills */}
         <nav aria-label="Views" className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 text-[13px] shrink-0">
-          {VIEWS.map(({ id, label, short, Icon }) => (
+          {[...VIEWS, ...extraViews].map(({ id, label, short, Icon }, i) => (
             <button
               key={id}
+              style={i === VIEWS.length ? { marginLeft: 8 } : undefined}
               onClick={() => setActiveView(id)}
               aria-current={activeView === id ? 'page' : undefined}
               title={label}
@@ -362,6 +365,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             <span className="min-[1280px]:hidden">Ingest</span>
           </button>
 
+          {headerExtras}
           <div className="h-8 flex items-center gap-2 pl-3 border-l border-slate-200">
             <div className="flex flex-col justify-center text-right leading-tight" title={`Signed in (demo role picker) as ${currentUser.id}`}>
               <span className="text-[#0F172A] font-semibold text-[13px]">{displayUser}</span>
@@ -522,6 +526,12 @@ export default function Dashboard({ currentUser, onSignOut, onHome }) {
             />
           </div>
         )}
+
+        {extraViews.filter(v => v.id === activeView).map(v => (
+          <div key={v.id} className="flex-1 h-full min-h-0 overflow-y-auto">
+            {v.render({ currentUser, asOfDate, notify: showNotification })}
+          </div>
+        ))}
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />

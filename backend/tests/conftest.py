@@ -11,7 +11,8 @@ import httpx
 import pytest
 from neo4j import GraphDatabase
 
-from app import config, db, graph, ingest
+os.environ.setdefault('KEYSTONE_DEV_AUTH', '1')  # tests sign in with the X-User header (dev-only auth)
+from app import config, db, graph, ingest  # noqa: E402  (config reads the environment on import)
 
 TEST_GROUP = 'keystone-test'
 TEST_ENV = {**os.environ, 'DATABASE_URL': os.environ.get('TEST_DATABASE_URL', 'postgresql://keystone_test:keystone_test_dev@localhost:5433/keystone_test'), 'GROUP_ID': TEST_GROUP,

@@ -48,6 +48,11 @@ _NS = uuid.UUID('9b1f3a52-6c0e-4d8e-9a57-4b0c2f1e7d11')
 g = None
 
 
+def gid() -> str:
+    """The graph partition (Graphiti group_id) for the current org. Use this, not config.GROUP_ID."""
+    return config.GROUP_ID
+
+
 def uid(key: str) -> str:
     """Deterministic graph uuid from a business key, so re-ingesting a document is idempotent."""
     return str(uuid.uuid5(_NS, f'{config.GROUP_ID}:{key}'))
@@ -202,3 +207,13 @@ def edge_out(p: dict) -> dict:
     return {'id': p['uuid'], 'source': p['source_key'], 'target': p['target_key'], 'relation': p['name'],
             'fact': p['fact'], 'valid_from': _iso(p.get('valid_at')), 'valid_to': _iso(p.get('invalid_at')),
             'created_at': _iso(p.get('created_at')), 'provenance': _prov(p)}
+
+
+async def hidden_keys(keys: list[str]) -> set[str]:
+    """The subset of `keys` whose node the current user may not see (at any date). Unknown keys are not hidden."""
+    from . import contracts
+    if not keys:
+        return set()
+    ok = contracts.visible_filter(contracts.current_user())
+    rows = await q('MATCH (n:Entity {group_id: $g}) WHERE n.key IN $k RETURN properties(n) AS p', g=gid(), k=list(keys))
+    return {r['p']['key'] for r in rows if not ok(r['p'])}

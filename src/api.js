@@ -1,6 +1,8 @@
 // Keystone backend client.
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 let activeUser = import.meta.env.VITE_KEYSTONE_USER ?? 'priya';
+// The session is an HTTP-only cookie on the API origin, so every call sends credentials.
+const fetch = (url, opts = {}) => window.fetch(url, { credentials: 'include', ...opts });
 
 export function setCurrentUser(user) {
   if (user) {
