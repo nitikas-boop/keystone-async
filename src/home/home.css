@@ -272,6 +272,7 @@
   .kb-home .kb-stat:nth-child(n + 3) { border-top: 1px solid var(--kb-line); }
   .kb-home .kb-notice { top: auto; bottom: 10px; right: 10px; left: 10px; width: auto; }
   .kb-home .kb-status { display: none; }
+  .kb-home .kb-nav__actions .kb-btn--primary { display: none; } /* the hero's first CTA is Launch console */
   .kb-home .kb-lineage { width: min(290px, calc(100% - 16px)); }
 }
 @media (prefers-reduced-motion: reduce) {
