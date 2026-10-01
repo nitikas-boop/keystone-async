@@ -51,9 +51,11 @@ services:
       GRAPHITI_TELEMETRY_ENABLED: "false"
       VAULT_DIR: /vault
       OUTBOX_DIR: /outbox
+      KEYSTONE_DIR: /keystone
     volumes:
       - ./backend:/app
       - ./data/vault:/vault
+      - ./data/keystone:/keystone  # L2 sign-in scan: Organisation/, Team/<name>/, Groups/<name>/
       - ./data/demo-upload:/demo-upload:ro  # the live-demo policy; read by tests only
       - ./data/ground-truth.json:/data/ground-truth.json:ro  # answer key; read by tests only
       - ./outbox:/outbox

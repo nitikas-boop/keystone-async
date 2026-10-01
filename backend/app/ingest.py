@@ -1,6 +1,7 @@
 """Front-matter ingestion. Dates come from YAML front-matter and become valid time + episode reference time."""
 import asyncio
 import hashlib
+import io
 import json
 import logging
 import re
@@ -73,7 +74,10 @@ async def _ingest(raw: str, path: str, actor: str, visibility: str = 'org') -> d
     raw = raw.replace('\r\n', '\n')
     fm, fm_end, body_start = parse(raw)
     ref, did, doc_type = ref_date(fm), doc_id(fm), fm['doc_type']
-    visibility = fm.get('visibility', visibility)
+    # The stricter of front-matter and caller (e.g. a Team folder's scope) wins: a file cannot loosen its folder.
+    # The strictest label wins: a file's own front-matter can narrow its folder scope, never widen it.
+    rank = {'org': 0, 'team': 1, 'restricted': 2}
+    visibility = max((fm.get('visibility') or 'org', visibility or 'org'), key=lambda v: rank.get(v, 2))
     relied = {}
 
     async with db.pool.acquire() as c, c.transaction():
@@ -117,6 +121,14 @@ async def _ingest(raw: str, path: str, actor: str, visibility: str = 'org') -> d
         await db.audit(actor, 'policy_ingested', 'policy_version', did, [f"{c['clause_id']}@{fm['version']}"
                        for c in fm['clauses']], {'document_id': did, 'sha256': hashlib.sha256(raw.encode()).hexdigest()})
         out['flags'] = await scanner.scan(fm['policy_id'], fm['version'])  # event-driven: runs on commit
+        await _announce_policy(did)
+    if doc_type == 'decision' and fm.get('effect') == 'ongoing' and fm.get('fields'):
+        # C3 type C: a new standing practice that contradicts another one opens a collision for the authority.
+        from . import conflicts, contracts
+        try:
+            out['collisions'] = [c['id'] for c in await conflicts.detect_decision_conflicts(contracts.ORG_ID)]
+        except Exception:
+            log.exception('decision-conflict check failed for %s; ingestion is unaffected', did)
     return out
 
 
@@ -184,11 +196,11 @@ async def _policy_graph(fm, did, ref, prov, episode) -> list[str]:
         if v['version'] != ver and v['effective_to']:
             vto = v['effective_to'].isoformat()
             await graph.q('MATCH (n:Entity {group_id: $g}) WHERE n.policy_id=$p AND n.version=$v SET n.valid_to=$to',
-                          g=config.GROUP_ID, p=pid, v=v['version'], to=vto)
+                          g=graph.gid(), p=pid, v=v['version'], to=vto)
             await graph.q('MATCH ()-[e:RELATES_TO {group_id: $g, name: "BELONGS_TO"}]->() '
                           'WHERE e.policy_id=$p AND e.version=$v AND e.invalid_at IS NULL '
                           'SET e.invalid_at=$to, e.expired_at=$now',
-                          g=config.GROUP_ID, p=pid, v=v['version'], to=graph.at(v['effective_to']), now=now)
+                          g=graph.gid(), p=pid, v=v['version'], to=graph.at(v['effective_to']), now=now)
     return edges
 
 
@@ -274,6 +286,71 @@ async def completed_docs() -> dict[str, dict]:
     stored = {r['id']: r['sha256'] for r in await db.pool.fetch('SELECT id, sha256 FROM documents')}
     return {p: v for p, v in last.items()
             if v.get('status') in ('ok', 'skipped') and stored.get(v.get('document_id')) == v.get('sha256')}
+
+
+SUPPORTED = ('.md', '.txt', '.pdf', '.docx')
+
+
+def text_of(name: str, data: bytes) -> str:
+    """Text of an uploaded or scanned file: .md/.txt as is, .pdf and .docx extracted locally. Anything the engine
+    cannot read is refused here with the reason (ValueError -> 422), never stored as an empty or garbled document."""
+    suffix = Path(name).suffix.lower()
+    if suffix not in SUPPORTED:
+        raise ValueError(f"{suffix or 'a file without an extension'} is not supported: upload "
+                         f"{', '.join(SUPPORTED)} (Excel, PowerPoint, HTML and images are not read)")
+    try:
+        if suffix == '.pdf':
+            from pypdf import PdfReader
+            text = '\n\n'.join((page.extract_text() or '').strip() for page in PdfReader(io.BytesIO(data)).pages)
+        elif suffix == '.docx':
+            import docx
+            text = '\n\n'.join(par.text for par in docx.Document(io.BytesIO(data)).paragraphs if par.text.strip())
+        else:
+            text = data.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        raise ValueError(f'{name} is not UTF-8 text')
+    except Exception as e:  # pypdf / python-docx raise their own types for corrupt or encrypted files
+        raise ValueError(f'{name} could not be read as {suffix[1:].upper()}: {e}')
+    if not text.strip():
+        raise ValueError(f'{name} has no text' + (' (a scanned PDF? there is no OCR)' if suffix == '.pdf' else ''))
+    return text
+
+
+def read_text(p: Path) -> str:
+    return text_of(p.name, p.read_bytes())
+
+
+def has_front_matter(text: str) -> bool:
+    return text.replace('\r\n', '\n').startswith('---\n')
+
+
+def doc_id_for(name: str) -> str:
+    """ID for a document that has no front-matter of its own: 'Q3 report.pdf' -> DOC-Q3-REPORT."""
+    return 'DOC-' + re.sub(r'[^A-Za-z0-9]+', '-', Path(name).stem).strip('-').upper()
+
+
+def meeting_note(text: str, doc_id: str, title: str, meeting_date: date, source: str, extra: dict | None = None) -> str:
+    fm = {'doc_type': 'meeting_note', 'doc_id': doc_id, 'title': title, 'meeting_date': meeting_date,
+          'source': source, **(extra or {})}
+    return f"---\n{yaml.safe_dump(fm, sort_keys=False, allow_unicode=True)}---\n# {title}\n\n{text.strip()}\n"
+
+
+async def ingest_source(text: str, source_name: str, actor: str, *, doc_id: str, title: str, meeting_date: date,
+                        label: dict, extra_front_matter: dict | None = None) -> dict:
+    """The one ingestion entry point for plain text (Person 1 calls it for saved chat threads and connector imports;
+    the sign-in scan and audio use it too). The text becomes a meeting_note with the given date (never guessed),
+    is stored with label['visibility'] (contracts.label_for), and its extracted facts wait in Ingestion Review as
+    candidates."""
+    raw = meeting_note(text, doc_id, title, meeting_date, source_name, extra_front_matter)
+    return await ingest(raw, source_name, actor, visibility=label['visibility'])
+
+
+async def _announce_policy(did: str):
+    """'A policy version was uploaded' for every active member of the uploader's org."""
+    from . import comms
+    async with db.pool.acquire() as c, c.transaction():
+        for r in await c.fetch("SELECT user_id FROM memberships WHERE org_id = $1 AND status = 'active'", graph.gid()):
+            await comms.notify(r['user_id'], 'policy_uploaded', did, conn=c)
 
 
 async def ingest(raw: str, path: str, actor: str, visibility: str = 'org') -> dict:

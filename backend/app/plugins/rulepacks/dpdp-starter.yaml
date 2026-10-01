@@ -1,0 +1,13 @@
+id: dpdp-starter
+name: DPDP starter pack (illustrative)
+description: >-
+  Synthetic rules in the spirit of India's Digital Personal Data Protection Act, for the demo. Not legal advice.
+version: 1
+rules:
+  - id: DPDP-LOG-1
+    title: Customer activity logs are kept at most 120 days
+    field: retention_days
+    op: '<='
+    value: 120
+    severity: action_needed
+    source: Illustrative internal reading of DPDP storage limitation (demo only)

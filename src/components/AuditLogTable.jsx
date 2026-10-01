@@ -1,301 +1,321 @@
-import React, { useState } from 'react';
-import { 
-  ShieldCheck, 
-  Hash, 
-  Clock, 
-  CheckCircle2, 
-  Copy, 
-  RefreshCw,
-  X
-} from 'lucide-react';
-import { formatHash, verifyAuditChain } from '../utils/crypto';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Copy, Download, FlaskConical, Loader2, Lock, RefreshCw, ShieldAlert, ShieldCheck, X } from 'lucide-react';
+import { canonicalRow, sha256, verifyAuditChain } from '../utils/crypto';
 import { verifyAuditServer } from '../api';
+import { useApp } from '../context';
+import IdChip from './IdChip';
+import DateField from './DateField';
+import { plural, shortHash, ts } from '../utils/format';
+import { displayName } from '../utils/people';
 
-export default function AuditLogTable({ auditLogs, onVerifyChain, onRefresh }) {
-  const [selectedBlock, setSelectedBlock] = useState(null);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [copiedHash, setCopiedHash] = useState(null);
+// Hash-chained audit log (§6.10), read from GET /audit (all rows, paged by after_id). Two independent checks run
+// side by side: the server's GET /audit/verify (names the first broken row) and a recomputation in this browser.
+// "Block" is the row's position in the chain; the database id is in the row drawer.
+const ACTIONS = ['policy_ingested', 'query', 'flag_created', 'action_proposed', 'approved', 'rejected', 'executed',
+  'edited', 'extraction_reviewed'];
+const ACTION_STYLE = { approved: 'badge-note-green', executed: 'badge-note-green', rejected: 'badge-note-rose',
+  flag_created: 'badge-note-amber', action_proposed: 'badge-note-amber', ACCESS_DENIED_ATTEMPT: 'badge-note-rose' };
+const GENESIS = '0'.repeat(64);
+const TAMPER_ENABLED = import.meta.env.VITE_DEV_TAMPER === '1';
 
-  const handleCopy = (text) => {
-    if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiedHash(text);
-    setTimeout(() => setCopiedHash(null), 2000);
-  };
+function istDate(iso) {
+  return new Date(new Date(iso).getTime() + 330 * 60000).toISOString().slice(0, 10);
+}
 
-  // Real check: recompute every row's SHA-256 and every prev_hash link from the rows the backend returned.
-  const runVerificationSweep = async () => {
-    setIsVerifying(true);
-    let result;
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export default function AuditLogTable({ auditLogs, onRefresh, focusBlock }) {
+  const { team, isReader, restrictedIds, openEntity, perms } = useApp();
+  // CEO and Compliance Lead read the whole chain and can verify it; everyone else sees only their own rows, which
+  // are not a contiguous chain, so there is nothing to verify client-side.
+  const full = !perms || perms.audit_scope === 'full';
+  const [server, setServer] = useState(null);     // {ok, rows, first_broken_id, message, at} | {error}
+  const [browser, setBrowser] = useState(null);   // {ok, checked, total, brokenPos, brokenId, message, at} | {running}
+  const [filters, setFilters] = useState({ actor: '', action: '', from: '', to: '', q: '' });
+  const [hover, setHover] = useState(null);       // chain position under the pointer
+  const [drawer, setDrawer] = useState(null);     // row
+  const [sim, setSim] = useState(null);           // {pos, rows, result}: tamper simulation on a copy
+  const [copied, setCopied] = useState(null);
+
+  const rows = useMemo(() => [...(auditLogs || [])].sort((a, b) => a.id - b.id).map((r, i) => ({ ...r, pos: i + 1 })), [auditLogs]);
+
+  const verify = useCallback(async () => {
+    setBrowser({ running: true, checked: 0, total: rows.length });
+    setServer(null);
+    verifyAuditServer()
+      .then(s => setServer({ ...s, at: new Date().toISOString() }))
+      .catch(e => setServer({ error: e.message, at: new Date().toISOString() }));
     try {
-      // Two independent checks: in this browser, and GET /audit/verify on the server (whole table).
-      const [client, server] = await Promise.all([verifyAuditChain(auditLogs || []), verifyAuditServer()]);
-      result = { ok: client.ok && server.ok, message: `Browser: ${client.message} Server: ${server.message}` };
-    } catch (err) {
-      result = { ok: false, message: `Verification could not run: ${err.message}` };
+      const r = await verifyAuditChain(rows, (done, total) => setBrowser(b => ({ ...b, checked: done, total })));
+      setBrowser({ ...r, total: rows.length, at: new Date().toISOString() });
+    } catch (e) {
+      setBrowser({ error: e.message, at: new Date().toISOString() });
     }
-    setIsVerifying(false);
-    if (onVerifyChain) onVerifyChain(result);
+  }, [rows]);
+
+  // Verify on open and whenever the rows change, so the status shown is always the result of a check that ran.
+  useEffect(() => { if (rows.length && full) verify(); }, [rows, verify, full]);
+  useEffect(() => {
+    if (focusBlock == null) return;
+    const r = rows.find(x => x.id === Number(focusBlock));
+    if (r) setDrawer(r);
+  }, [focusBlock, rows]);
+
+  const actors = [...new Set(rows.map(r => r.actor))].sort();
+  const shown = rows.filter(r => (!filters.actor || r.actor === filters.actor) && (!filters.action || r.action === filters.action)
+    && (!filters.from || istDate(r.ts) >= filters.from) && (!filters.to || istDate(r.ts) <= filters.to)
+    && (!filters.q || `${r.object_type} ${r.object_id} ${r.source_ids.join(' ')}`.toLowerCase().includes(filters.q.toLowerCase())));
+  const filtered = shown.length !== rows.length;
+
+  // Restricted IDs are masked on screen for non-readers (the hash check still uses the real values).
+  const masked = (id) => !isReader && restrictedIds.has(id);
+
+  const exportRows = (fmt) => {
+    const cols = ['id', 'ts', 'actor', 'action', 'object_type', 'object_id', 'source_ids', 'payload_hash', 'prev_hash', 'hash'];
+    const data = shown.map(r => Object.fromEntries(cols.map(c => [c, r[c]])));
+    if (fmt === 'json') return download('keystone-audit.json', JSON.stringify(data, null, 2), 'application/json');
+    const esc = v => `"${String(Array.isArray(v) ? v.join(' ') : v).replace(/"/g, '""')}"`;
+    download('keystone-audit.csv', [cols.join(','), ...data.map(r => cols.map(c => esc(r[c])).join(','))].join('\n'), 'text/csv');
   };
+
+  const simulate = async () => {
+    const pos = drawer?.pos || Math.ceil(rows.length / 2);
+    const copy = rows.map(r => (r.pos === pos ? { ...r, actor: 'user:mallory' } : r));
+    const result = await verifyAuditChain(copy);
+    setSim({ pos, result });
+  };
+
+  const brokenPos = sim ? sim.result.brokenPos : browser?.brokenPos;
+  const copy = (text) => { navigator.clipboard.writeText(text); setCopied(text); setTimeout(() => setCopied(null), 1500); };
 
   return (
-    <div className="flex flex-col h-full paper-sheet overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-3 bg-white border-b border-slate-100 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1 rounded-md bg-emerald-50 text-emerald-600">
-            <ShieldCheck size={16} />
-          </div>
-          <div>
-            <div className="font-heading font-semibold text-xs tracking-tight text-[#0F172A] flex items-center gap-2">
-              <span>HASH-CHAINED TAMPER-EVIDENT AUDIT LOG</span>
-              <span className="font-mono text-[10.5px] px-2 py-0.5 rounded-md badge-note-green font-semibold flex items-center gap-1">
-                <CheckCircle2 size={11} />
-                CHAIN VALID (SHA-256 VERIFIED)
-              </span>
+    <div className="flex h-full gap-4 min-h-0">
+      <div className="flex-1 min-w-0 flex flex-col paper-sheet overflow-hidden">
+        {/* Header + verification */}
+        <div className="px-4 py-3 bg-kb-bg border-b border-kb-line space-y-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="font-heading font-semibold text-[13px] text-kb-navy flex items-center gap-2">
+                <ShieldCheck size={15} className="text-kb-cobalt-ink" aria-hidden="true" /> Tamper-evident audit log
+              </h2>
+              <p className="text-[12px] text-kb-muted">
+                Append-only. Each block stores the SHA-256 hash of the block before it, so changing any block breaks every later link.
+              </p>
             </div>
-            <div className="text-[10.5px] font-mono text-[#64748B]">
-              Tamper-Evident Architecture: Append-only log with linked SHA-256 parent hashes.
+            <div className="flex items-center gap-1.5 shrink-0">
+              {onRefresh && <button onClick={onRefresh} className="icon-btn" aria-label="Reload the audit log" title="Reload"><RefreshCw size={13} /></button>}
+              {full && <button onClick={() => { setSim(null); verify(); }} className="btn-secondary" disabled={browser?.running}>
+                <ShieldCheck size={13} /> Verify Full Chain
+              </button>}
             </div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {onRefresh && (
-            <button
-              onClick={onRefresh}
-              className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-mono text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
-              title="Refresh Audit Log"
-            >
-              <RefreshCw size={12} />
-            </button>
+          {!full && (
+            <p className="p-2 rounded-lg badge-note-slate text-[12.5px]">Showing only the entries you made ({rows.length}). The full chain and its
+              verification are open to the CEO and the Compliance Lead. No one can edit or delete a row, admins included.</p>
           )}
-          <button
-            onClick={runVerificationSweep}
-            disabled={isVerifying}
-            className="px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-mono text-[#0F172A] flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-          >
-            <ShieldCheck size={12} className={isVerifying ? 'animate-spin text-[#0284C7]' : 'text-emerald-600'} />
-            <span>{isVerifying ? 'Verifying Hashes...' : 'Verify Full Chain'}</span>
-          </button>
+          {full && <div className="grid grid-cols-2 gap-2">
+            <VerifyCard title="Server check (GET /audit/verify)" v={server} kind="server" />
+            <VerifyCard title={sim ? 'Browser check · SIMULATED TAMPER' : 'Browser check (recomputed here)'} v={sim ? { ...sim.result, total: rows.length, at: new Date().toISOString() } : browser} kind="browser" sim={!!sim} />
+          </div>}
+          {sim && (
+            <div className="p-2 rounded-lg badge-note-amber text-[12.5px] flex items-center justify-between gap-2">
+              <span>Simulation: block {sim.pos}'s actor was changed to <span className="font-mono">user:mallory</span> in an in-memory copy in this browser.
+                The database was not touched. The browser check now fails at block {sim.result.brokenPos}.</span>
+              <button className="btn-secondary" onClick={() => setSim(null)}>Reset</button>
+            </div>
+          )}
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-1.5 text-[13px]">
+            <select className="field" value={filters.actor} onChange={e => setFilters(f => ({ ...f, actor: e.target.value }))} aria-label="Filter by actor">
+              <option value="">All actors</option>
+              {actors.map(a => <option key={a} value={a}>{displayName(a, team)}</option>)}
+            </select>
+            <select className="field" value={filters.action} onChange={e => setFilters(f => ({ ...f, action: e.target.value }))} aria-label="Filter by action">
+              <option value="">All actions</option>
+              {[...new Set([...ACTIONS, ...auditLogs.map(r => r.action)])].map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <span className="flex items-center gap-1 text-kb-muted">From <DateField label="From date" placeholder="Start" value={filters.from} onChange={v => setFilters(f => ({ ...f, from: v }))} /></span>
+            <span className="flex items-center gap-1 text-kb-muted">to <DateField label="To date" placeholder="End" value={filters.to} onChange={v => setFilters(f => ({ ...f, to: v }))} /></span>
+            <input className="field w-44" placeholder="Object or source ID" value={filters.q} onChange={e => setFilters(f => ({ ...f, q: e.target.value }))} aria-label="Filter by object or source ID" />
+            {filtered && <button className="text-kb-cobalt-ink underline cursor-pointer" onClick={() => setFilters({ actor: '', action: '', from: '', to: '', q: '' })}>Clear</button>}
+            <span className="ml-auto text-kb-muted">{filtered ? `${shown.length} of ${plural(rows.length, 'block')}` : plural(rows.length, 'block')}</span>
+            <button className="btn-secondary" onClick={() => exportRows('json')}><Download size={13} /> JSON</button>
+            <button className="btn-secondary" onClick={() => exportRows('csv')}><Download size={13} /> CSV</button>
+            {TAMPER_ENABLED && (
+              <button className="btn-danger" onClick={simulate} title="Dev only (VITE_DEV_TAMPER=1): alter a copy of one block in this browser and re-run the check">
+                <FlaskConical size={13} /> Simulate tamper{drawer ? ` on block ${drawer.pos}` : ''}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* High-Density Audit Table matching GET /audit */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-slate-50/70 border-b border-slate-100 font-mono text-[10.5px] text-[#64748B] uppercase tracking-wider">
-              <th className="py-2.5 px-3">Block #</th>
-              <th className="py-2.5 px-3">Timestamp (UTC)</th>
-              <th className="py-2.5 px-3">Actor</th>
-              <th className="py-2.5 px-3">Action</th>
-              <th className="py-2.5 px-3">Object (Type / ID)</th>
-              <th className="py-2.5 px-3">Source IDs</th>
-              <th className="py-2.5 px-3">Parent Hash</th>
-              <th className="py-2.5 px-3">SHA-256 Hash</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-            {(!auditLogs || auditLogs.length === 0) ? (
-              <tr>
-                <td colSpan={8} className="py-8 text-center text-xs font-mono text-[#64748B]">
-                  No audit entries recorded yet. Querying the graph or approving proposals will append blocks.
-                </td>
+        {/* Table */}
+        <div className="flex-1 overflow-auto">
+          <table className="w-full text-left border-collapse text-[13px]">
+            <thead className="sticky top-0 z-10 bg-kb-bg-soft">
+              <tr className="border-b border-kb-line text-[12px] text-kb-muted">
+                <th className="py-2 px-3 font-medium">Block</th>
+                <th className="py-2 px-3 font-medium">Time (IST)</th>
+                <th className="py-2 px-3 font-medium">Actor</th>
+                <th className="py-2 px-3 font-medium">Action</th>
+                <th className="py-2 px-3 font-medium">Object</th>
+                <th className="py-2 px-3 font-medium">Source IDs</th>
+                <th className="py-2 px-3 font-medium">Parent hash</th>
+                <th className="py-2 px-3 font-medium">Hash</th>
               </tr>
-            ) : (
-              auditLogs.map(log => {
-                const blockId = log.id ?? log.blockHeight ?? 1;
-                const timestamp = log.ts ?? log.timestamp ?? 'Just now';
-                const actorName = log.actor ?? 'system';
-                const actionName = log.action ?? 'QUERY';
-                const objectType = log.object_type || log.targetTool || 'entity';
-                const objectId = log.object_id || '';
-                const sourceIds = log.source_ids || log.sourceGraphIds || [];
-                const prevHash = log.prev_hash || log.prevHash || '0000000000000000';
-                const currentHash = log.hash || log.blockHash || '';
-
+            </thead>
+            <tbody className="divide-y divide-kb-line">
+              {rows.length === 0 && (
+                <tr><td colSpan={8} className="py-8 text-center text-kb-muted">No audit entries yet. Asking a question or approving a proposal appends a block.</td></tr>
+              )}
+              {shown.map(r => {
+                const parentHover = hover != null && r.pos === hover - 1;
+                const broken = brokenPos === r.pos;
                 return (
-                  <tr 
-                    key={blockId}
-                    onClick={() => setSelectedBlock(log)}
-                    className="hover:bg-slate-50/70 cursor-pointer transition-colors"
-                  >
-                    {/* Block ID */}
-                    <td className="py-2.5 px-3 font-bold text-[#0F172A] whitespace-nowrap">
-                      #{blockId}
+                  <tr key={r.id} onClick={() => setDrawer(r)} onMouseEnter={() => setHover(r.pos)} onMouseLeave={() => setHover(null)}
+                      tabIndex={0} onKeyDown={e => e.key === 'Enter' && setDrawer(r)}
+                      className={`cursor-pointer hover:bg-kb-bg-soft ${broken ? 'bg-kb-alert/8' : ''} ${drawer?.id === r.id ? 'bg-kb-ice/60' : ''}`}>
+                    <td className="py-2 px-3 font-mono font-semibold whitespace-nowrap">
+                      {r.pos}{broken && <span className="ml-1 text-[11.5px] font-sans font-normal px-1 rounded badge-note-rose">broken</span>}
                     </td>
-
-                    {/* Timestamp */}
-                    <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap font-mono text-[10.5px]">
-                      <div className="flex items-center gap-1">
-                        <Clock size={11} className="text-[#0284C7] shrink-0" />
-                        <span>{typeof timestamp === 'string' ? timestamp.replace('T', ' ').slice(0, 19) : timestamp}</span>
+                    <td className="py-2 px-3 whitespace-nowrap font-mono text-[12px] text-kb-navy" title={ts(r.ts).full}>{ts(r.ts).ist}</td>
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      {displayName(r.actor, team)}
+                      <span className="block font-mono text-[11px] text-kb-muted">{r.actor}</span>
+                    </td>
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <span className={`px-1.5 py-0.5 rounded-md font-mono text-[12px] ${ACTION_STYLE[r.action] || 'badge-note-slate'}`}>{r.action}</span>
+                    </td>
+                    <td className="py-2 px-3 whitespace-nowrap"><ObjectRef r={r} masked={masked} openEntity={openEntity} /></td>
+                    <td className="py-2 px-3">
+                      <div className="flex flex-wrap gap-1 max-w-[16rem]">
+                        {r.source_ids.filter(id => !masked(id)).map(id => <IdChip key={id} id={id} />)}
+                        {r.source_ids.some(masked) && <span className="px-1.5 rounded badge-restricted text-[12px]" title="Hidden: restricted"><Lock size={10} aria-hidden="true" />restricted</span>}
                       </div>
                     </td>
-
-                    {/* Actor */}
-                    <td className="py-2.5 px-3 text-[#0F172A] font-sans font-medium whitespace-nowrap">
-                      {actorName}
+                    <td className={`py-2 px-3 font-mono text-[12px] whitespace-nowrap ${hover === r.pos ? 'bg-kb-butter' : ''}`}
+                        title={r.prev_hash}>
+                      {r.prev_hash === GENESIS ? <span className="font-sans">genesis (64 zeros)</span> : shortHash(r.prev_hash)}
                     </td>
-
-                    {/* Action */}
-                    <td className="py-2.5 px-3 whitespace-nowrap">
-                      <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-semibold ${
-                        actionName === 'approved' ? 'badge-note-green' :
-                        actionName === 'rejected' ? 'badge-note-rose' :
-                        actionName === 'ingest' ? 'badge-note-amber' :
-                        'badge-note-sky'
-                      }`}>
-                        {actionName.toUpperCase()}
-                      </span>
-                    </td>
-
-                    {/* Object Type & ID */}
-                    <td className="py-2.5 px-3 whitespace-nowrap">
-                      <div className="text-[#0F172A] font-medium text-[11px]">{objectType}</div>
-                      {objectId && <div className="text-[#64748B] text-[10px]">{objectId}</div>}
-                    </td>
-
-                    {/* Source IDs */}
-                    <td className="py-2.5 px-3">
-                      <div className="flex flex-wrap gap-1 max-w-[200px]">
-                        {sourceIds.map((id, i) => (
-                          <span key={i} className="px-1.5 py-0.2 rounded-md bg-slate-100 text-[9.5px] font-mono text-[#475569]">
-                            {id}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-
-                    {/* Parent Hash */}
-                    <td className="py-2.5 px-3 font-mono text-[10.5px] text-[#94A3B8]">
-                      <span title={prevHash}>
-                        {formatHash(prevHash, 6)}
-                      </span>
-                    </td>
-
-                    {/* SHA-256 Hash */}
-                    <td className="py-2.5 px-3 font-mono text-[10.5px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[#0F172A] font-semibold hover:text-[#0284C7] transition-colors" title={currentHash}>
-                          {formatHash(currentHash, 8)}
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopy(currentHash);
-                          }}
-                          className="p-1 hover:text-[#0284C7] text-[#94A3B8] cursor-pointer"
-                          title="Copy full SHA-256 hash"
-                        >
-                          <Copy size={10} />
-                        </button>
-                        {copiedHash === currentHash && (
-                          <span className="text-[9.5px] text-emerald-600 font-semibold font-sans">Copied</span>
-                        )}
-                      </div>
+                    <td className={`py-2 px-3 font-mono text-[12px] whitespace-nowrap ${parentHover ? 'bg-kb-butter' : ''}`} title={r.hash}>
+                      {shortHash(r.hash)}
+                      <button onClick={e => { e.stopPropagation(); copy(r.hash); }} className="ml-1 align-middle text-kb-muted hover:text-kb-cobalt-ink cursor-pointer"
+                              aria-label={`Copy hash of block ${r.pos}`}><Copy size={11} /></button>
+                      {copied === r.hash && <span className="ml-1 font-sans text-[11.5px] text-kb-cobalt-ink">copied</span>}
                     </td>
                   </tr>
                 );
-              })
-            )}
-          </tbody>
-        </table>
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="px-4 py-1.5 border-t border-kb-line text-[12px] text-kb-muted">
+          Hover a block: its parent hash and the previous block's hash light up together. They must be identical for the chain to hold.
+        </p>
       </div>
 
-      {/* Block Details Modal */}
-      {selectedBlock && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="w-full max-w-xl paper-sheet-elevated p-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
-              <div className="flex items-center gap-2">
-                <Hash size={16} className="text-[#0284C7]" />
-                <h3 className="font-heading font-bold text-base text-[#0F172A]">
-                  Audit Block #{selectedBlock.id ?? selectedBlock.blockHeight} Inspection
-                </h3>
-              </div>
-              <button
-                onClick={() => setSelectedBlock(null)}
-                className="text-[#64748B] hover:text-[#0F172A] cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="space-y-3 font-mono text-xs">
-              <div className="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                <div>
-                  <span className="text-[#64748B] block text-[10px]">TIMESTAMP (UTC)</span>
-                  <span className="text-[#0F172A]">{selectedBlock.ts ?? selectedBlock.timestamp}</span>
-                </div>
-                <div>
-                  <span className="text-[#64748B] block text-[10px]">ACTOR</span>
-                  <span className="text-[#0F172A] font-semibold">{selectedBlock.actor}</span>
-                </div>
-                <div>
-                  <span className="text-[#64748B] block text-[10px]">ACTION</span>
-                  <span className="text-[#0284C7] font-bold">{(selectedBlock.action || '').toUpperCase()}</span>
-                </div>
-                <div>
-                  <span className="text-[#64748B] block text-[10px]">OBJECT</span>
-                  <span className="text-[#0F172A]">{selectedBlock.object_type || 'entity'} / {selectedBlock.object_id || '—'}</span>
-                </div>
-              </div>
-
-              {/* Source Graph IDs */}
-              <div>
-                <span className="text-[10px] text-[#64748B] block mb-1">PROVENANCE SOURCE IDS:</span>
-                <div className="flex flex-wrap gap-1 p-2 rounded-lg bg-slate-50 border border-slate-100">
-                  {(selectedBlock.source_ids || selectedBlock.sourceGraphIds || []).map((id, idx) => (
-                    <span key={idx} className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[#0284C7] font-semibold text-[10.5px]">
-                      {id}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Payload if present */}
-              {selectedBlock.payload && (
-                <div>
-                  <span className="text-[10px] text-[#64748B] block mb-1">AUDIT PAYLOAD:</span>
-                  <pre className="p-2.5 rounded-lg bg-slate-900 text-slate-100 text-[10.5px] overflow-x-auto max-h-36">
-                    {JSON.stringify(selectedBlock.payload, null, 2)}
-                  </pre>
-                </div>
-              )}
-
-              {/* Cryptographic Linkage */}
-              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2 text-[10.5px]">
-                <div>
-                  <span className="text-[#64748B] block text-[10px]">PREVIOUS BLOCK HASH (PARENT LINK):</span>
-                  <span className="text-[#475569] break-all">{selectedBlock.prev_hash || selectedBlock.prevHash}</span>
-                </div>
-                <div>
-                  <span className="text-[#64748B] block text-[10px]">CURRENT BLOCK HASH (SHA-256 SEAL):</span>
-                  <span className="text-[#0284C7] font-bold break-all">{selectedBlock.hash || selectedBlock.blockHash}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-4 pt-2 border-t border-slate-100">
-              <button
-                onClick={() => handleCopy(selectedBlock.hash || selectedBlock.blockHash)}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-mono text-[#475569] flex items-center gap-1 cursor-pointer"
-              >
-                <Copy size={11} />
-                <span>Copy Seal</span>
-              </button>
-              <button
-                onClick={() => setSelectedBlock(null)}
-                className="px-4 py-1.5 rounded-lg btn-sky-gradient text-white text-xs font-mono font-medium cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {drawer && <Drawer r={drawer} rows={rows} team={team} masked={masked} openEntity={openEntity} onClose={() => setDrawer(null)} />}
     </div>
+  );
+}
+
+function VerifyCard({ title, v, kind, sim }) {
+  let body, cls = 'border-kb-line bg-kb-bg-soft';
+  if (!v) body = <span className="text-kb-muted">Not run yet</span>;
+  else if (v.running) {
+    const pct = v.total ? Math.round((v.checked / v.total) * 100) : 0;
+    body = (
+      <span className="flex items-center gap-2 w-full">
+        <Loader2 size={13} className="animate-spin" aria-hidden="true" /> Hashing {v.checked}/{v.total}
+        <span className="flex-1 h-1.5 rounded bg-kb-ice/60 overflow-hidden"><span className="block h-full bg-kb-navy" style={{ width: `${pct}%` }} /></span>
+      </span>
+    );
+  } else if (v.error) {
+    cls = 'border-kb-alert/40 bg-kb-alert/8';
+    body = <span className="text-kb-alert">Could not run: {v.error}</span>;
+  } else if (v.ok) {
+    cls = 'border-kb-cobalt/50 bg-kb-ice';
+    const n = kind === 'server' ? v.rows : v.checked;
+    body = <span className="text-kb-cobalt-ink flex items-center gap-1"><ShieldCheck size={13} aria-hidden="true" /> Valid · {plural(n, 'block')} · verified {ts(v.at).time}</span>;
+  } else {
+    cls = 'border-kb-alert/40 bg-kb-alert/8';
+    const pos = kind === 'server' ? `row id ${v.first_broken_id}` : `block ${v.brokenPos}`;
+    body = <span className="text-kb-alert flex items-center gap-1"><ShieldAlert size={13} aria-hidden="true" /> Broken at {pos} · {ts(v.at).time}</span>;
+  }
+  return (
+    <div className={`rounded-lg border px-2.5 py-1.5 text-[12.5px] ${cls} ${sim ? 'ring-2 ring-kb-cobalt' : ''}`} title={v?.message || ''}>
+      <div className="text-[12px] font-semibold text-kb-navy">{title}</div>
+      <div className="flex items-center min-h-5">{body}</div>
+    </div>
+  );
+}
+
+function ObjectRef({ r, masked, openEntity }) {
+  const id = r.object_id;
+  if (r.object_type === 'proposal') return <IdChip id={`#${id}`} type="proposal" label="proposal" />;
+  if (r.object_type === 'flag' || r.object_type === 'policy_version' || r.object_type === 'decision') {
+    return masked(id) ? <span className="px-1.5 rounded badge-restricted text-[12px]"><Lock size={10} aria-hidden="true" />restricted</span> : <IdChip id={id} type={r.object_type === 'decision' ? 'decision' : undefined} />;
+  }
+  if (r.object_type === 'extraction') {
+    return (
+      <button className="text-[12.5px] underline decoration-dotted cursor-pointer text-kb-navy" onClick={e => { e.stopPropagation(); openEntity(id, 'extraction'); }}>
+        extraction #{id}
+      </button>
+    );
+  }
+  return <span className="text-[12.5px] text-kb-navy" title={id}>{r.object_type} <span className="font-mono text-[11.5px]">{shortHash(id, 4)}</span></span>;
+}
+
+function Drawer({ r, rows, team, masked, openEntity, onClose }) {
+  const [recomputed, setRecomputed] = useState(null);
+  const canonical = canonicalRow(r);
+  useEffect(() => { sha256(canonical).then(setRecomputed).catch(() => setRecomputed('')); }, [canonical]);
+  // The hash is recomputed on the real values; restricted IDs are only masked in what is displayed.
+  const secretIds = [...r.source_ids, r.object_id].filter(masked);
+  const shownCanonical = secretIds.reduce((txt, id) => txt.split(JSON.stringify(id)).join('"[restricted]"'), canonical);
+  const prev = rows.find(x => x.pos === r.pos - 1);
+  return (
+    <aside className="w-[21rem] xl:w-[26rem] shrink-0 paper-sheet flex flex-col overflow-hidden" aria-label={`Audit block ${r.pos}`}>
+      <div className="px-4 py-3 border-b border-kb-line flex items-center justify-between">
+        <h3 className="font-heading font-semibold text-[14px]">Block {r.pos} <span className="font-normal text-kb-muted text-[12.5px]">(database id {r.id})</span></h3>
+        <button className="icon-btn" onClick={onClose} aria-label="Close block details"><X size={14} /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 text-[13px]">
+        <dl className="grid grid-cols-[7rem_1fr] gap-y-1.5">
+          <dt className="text-kb-muted">Time</dt><dd>{ts(r.ts).ist}<span className="block text-[12px] text-kb-muted font-mono">{r.ts}</span></dd>
+          <dt className="text-kb-muted">Actor</dt><dd>{displayName(r.actor, team)} <span className="font-mono text-[12px] text-kb-muted">{r.actor}</span></dd>
+          <dt className="text-kb-muted">Action</dt><dd className="font-mono">{r.action}</dd>
+          <dt className="text-kb-muted">Object</dt><dd><ObjectRef r={r} masked={masked} openEntity={openEntity} /></dd>
+        </dl>
+        {r.action === 'rejected' && (
+          <p className="p-2 rounded-md badge-note-slate">Reason recorded (hash <span className="font-mono">{shortHash(r.payload_hash)}</span>). The log stores only the hash of the payload, not the reason text.</p>
+        )}
+        <section>
+          <h4 className="text-[12px] font-semibold text-kb-muted mb-1">Canonical payload that was hashed</h4>
+          {secretIds.length > 0 && <p className="text-[12px] text-kb-muted mb-1">Restricted IDs are masked here; the hash below is recomputed on the real values.</p>}
+          <pre className="p-2.5 rounded-lg bg-kb-bg-soft text-kb-navy text-[11.5px] whitespace-pre-wrap break-all">{shownCanonical}</pre>
+          <p className="text-[12px] text-kb-muted mt-1">
+            <span className="font-mono">payload_hash</span> is the SHA-256 of the action's own payload; the payload itself is not stored.
+          </p>
+        </section>
+        <section className="space-y-1 font-mono text-[12px]">
+          <div><span className="font-sans text-kb-muted">Stored hash</span><div className="break-all">{r.hash}</div></div>
+          <div><span className="font-sans text-kb-muted">Recomputed in this browser</span><div className="break-all">{recomputed ?? '…'}</div></div>
+          <div className={`font-sans ${recomputed === r.hash ? 'text-kb-cobalt-ink' : 'text-kb-alert'}`}>
+            {recomputed == null ? '' : recomputed === r.hash ? '✓ Match: this block has not changed since it was written.' : '✗ Mismatch: this block was altered.'}
+          </div>
+          <div className="pt-1"><span className="font-sans text-kb-muted">Parent hash</span><div className="break-all">{r.prev_hash}</div></div>
+          <div className="font-sans">
+            {r.prev_hash === GENESIS ? 'Genesis block: its parent is 64 zeros.'
+              : prev && prev.hash === r.prev_hash ? `✓ Equals block ${prev.pos}'s hash.` : `✗ Does not equal block ${prev?.pos}'s hash.`}
+          </div>
+        </section>
+      </div>
+    </aside>
   );
 }

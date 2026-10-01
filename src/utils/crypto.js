@@ -31,23 +31,32 @@ function canonicalTs(ts) {
   return `${m[1]}.${(m[2] || '').padEnd(6, '0')}Z`;
 }
 
-export async function verifyAuditChain(rows) {
+// Browser-side check. Returns {ok, message, brokenId?, brokenPos?, checked}. onProgress(done, total) is called
+// as rows are hashed; the chain position of the first broken row is 1-based.
+// The exact string the audit_chain trigger hashed for a row (everything except the hash itself).
+export function canonicalRow(r) {
+  return canonicalJson({
+    id: r.id, ts: canonicalTs(r.ts), actor: r.actor, action: r.action, object_type: r.object_type,
+    object_id: r.object_id, source_ids: r.source_ids, payload_hash: r.payload_hash, prev_hash: r.prev_hash,
+  });
+}
+
+export async function verifyAuditChain(rows, onProgress) {
   const sorted = [...rows].sort((a, b) => a.id - b.id);
-  if (sorted.length === 0) return { ok: true, message: 'Audit log is empty: nothing to verify.' };
+  if (sorted.length === 0) return { ok: true, checked: 0, message: 'Audit log is empty: nothing to verify.' };
   let prev = null;
-  for (const r of sorted) {
-    const expected = await sha256(canonicalJson({
-      id: r.id, ts: canonicalTs(r.ts), actor: r.actor, action: r.action, object_type: r.object_type,
-      object_id: r.object_id, source_ids: r.source_ids, payload_hash: r.payload_hash, prev_hash: r.prev_hash,
-    }));
-    if (expected !== r.hash) return { ok: false, message: `Row #${r.id}: stored hash does not match its contents.` };
+  for (const [i, r] of sorted.entries()) {
+    const fail = (message) => ({ ok: false, message, brokenId: r.id, brokenPos: i + 1, checked: i });
+    const expected = await sha256(canonicalRow(r));
+    if (expected !== r.hash) return fail(`Row #${r.id}: stored hash does not match its contents.`);
     const expectedPrev = prev ? prev.hash : (r.id === 1 ? '0'.repeat(64) : null);
     if (expectedPrev !== null && r.prev_hash !== expectedPrev) {
-      return { ok: false, message: `Row #${r.id}: chain broken, prev_hash does not match row #${prev ? prev.id : 'genesis'}.` };
+      return fail(`Row #${r.id}: chain broken, prev_hash does not match row #${prev ? prev.id : 'genesis'}.`);
     }
     prev = r;
+    if (onProgress && (i % 25 === 24 || i === sorted.length - 1)) onProgress(i + 1, sorted.length);
   }
-  return { ok: true, message: `Verified ${sorted.length} rows: every hash recomputes and every link holds.` };
+  return { ok: true, checked: sorted.length, message: `Verified ${sorted.length} rows: every hash recomputes and every link holds.` };
 }
 
 export function formatHash(hash, length = 12) {

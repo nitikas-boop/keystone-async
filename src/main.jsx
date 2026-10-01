@@ -5,9 +5,12 @@ import '@fontsource-variable/plus-jakarta-sans'
 import '@fontsource-variable/jetbrains-mono'
 import './index.css'
 import App from './App.jsx'
+import ViewBoundary from './components/ViewBoundary'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <ViewBoundary full title="Keystone hit an error">
+      <App />
+    </ViewBoundary>
   </StrictMode>,
 )

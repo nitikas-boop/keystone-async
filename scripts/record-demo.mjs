@@ -49,7 +49,8 @@ async function click(locator, wait = 900) {
   await el.click();
   await pause(wait);
 }
-const header = (name) => page.locator('header button', { hasText: name });
+// View tabs carry their full name in `title` (the visible label is shortened on narrow screens).
+const header = (name) => page.locator(`header nav button[title="${name}"]`).or(page.locator('header button', { hasText: name }));
 async function waitAnswer() {
   await page.getByText('Keystone Pipeline Running...').waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
   await page.getByText('Keystone Pipeline Running...').waitFor({ state: 'detached', timeout: 240000 });
@@ -78,11 +79,11 @@ await click(page.getByRole('button', { name: /Sign In \/ Launch Console/ }), 150
 await click(page.locator('button', { hasText: 'Priya Menon' }), 2500);
 
 // 3. Unified workspace + questions
-await hold(6); mark('Unified Workspace overview'); await caption('Unified Workspace: chat, temporal graph and review queue in one view');
+await hold(6); mark('Ask overview'); await caption('Ask: the conversation, and the records behind each answer');
 await pause(4000);
 await hold(20); await ask('Project Atlas History', 'Q1  Show the history of Project Atlas');
 await hold(24); mark('Click a citation, graph inspector'); await caption('Every sentence cites a graph node; click to inspect');
-await click(page.locator('.citation-pill-paper').last(), 3500);
+await click(page.locator('.kst-citation').last(), 3500);
 await hold(14); await ask('Why We Left AWS', 'Q2  Why did we move off AWS in May 2025?');
 await hold(18); mark('Q3 by voice: VendorCo contract'); await caption('Q3 by voice: transcribed on this machine by local Whisper, then the same /ask pipeline');
 await click(page.getByTestId('mic-button'), 5500);
@@ -95,8 +96,9 @@ await page.keyboard.press('Enter');
 await waitAnswer();
 
 // 4. Temporal graph + time travel
-await hold(32); mark('Temporal Graph view'); await caption('Temporal Graph: chat beside the graph, timeline on top');
+await hold(32); mark('Temporal Graph view'); await caption('Temporal Graph: every record on a timeline; the console opens beside it');
 await click(header('Temporal Graph'), 2500);
+await click(page.getByRole('button', { name: 'Show the console' }), 1500);
 await hold(12); await ask('180-Day Retention', 'Q4  Was 180-day log retention compliant in Q2 2025?');
 await hold(14); mark('Time travel: Jan 2024'); await caption('Drag the timeline: the graph shows what was in force on that date');
 await click(page.getByRole('button', { name: /Jan 2024/ }), 3500);
@@ -112,13 +114,14 @@ await hold(12); await click(page.getByRole('button', { name: /Upload & Run Scann
 await page.getByText('Impact Scanner Findings').waitFor({ timeout: 300000 });
 mark('Scanner flags DEC-007'); await caption('Impact scanner flags DEC-007 and queues a proposal');
 await hold(20);
-await click(page.getByRole('button', { name: /Proceed to Review Queue/ }), 2500);
+await click(page.getByRole('button', { name: /Open the Inbox/ }), 2500);
 
 // 6. Human-in-the-loop approval
 await hold(20); mark('Review Queue: approve'); await caption('Nothing executes without a human: approve the proposal');
 await pause(2500);
-const row = page.locator('tr', { hasText: 'DEC-007' }).filter({ has: page.getByRole('button', { name: /Approve/ }) });
-await click(row.getByRole('button', { name: /Approve/ }), 6000);
+// Inbox > Proposed actions is a list + detail: open the DEC-007 proposal, then approve it in the detail pane.
+await click(page.locator('ul[aria-label="Proposals"] button', { hasText: 'DEC-007' }), 2500);
+await click(page.getByRole('button', { name: /^Approve/ }), 6000);
 await hold(14); mark('Executor ran'); await caption('The executor picks up the approved action (writes outbox/proposal-N.eml)');
 await pause(3000);
 
@@ -129,11 +132,12 @@ await page.locator('input[type=file]').setInputFiles('data/demo-upload/meeting-2
 await page.locator('pre', { hasText: 'Transcript:' }).waitFor({ timeout: 120000 });
 await pause(4000);
 await hold(12); await click(page.getByRole('button', { name: /Upload & Run Scanner/ }), 500);
-await page.getByText('Impact Scanner Findings').waitFor({ timeout: 300000 });
+await page.getByText(/now wait in the Inbox|Extraction failed/).waitFor({ timeout: 300000 });
 await pause(3000);
 await click(page.locator('.paper-sheet-elevated > button').first(), 1500);
 await hold(10); mark('Ingestion Review'); await caption('Ingestion Review: the Keycloak decision extracted from the audio waits for a human');
-await click(header('Ingestion Review'), 5000);
+await click(header('Inbox'), 1000);
+await click(page.getByRole('tab', { name: /Extracted facts/ }), 5000);
 await page.mouse.move(W / 2, H / 2, { steps: 15 }); await wheel(200, 15); await pause(3000);
 
 // 8. Audit trail
@@ -142,7 +146,7 @@ await click(header('Audit Trail'), 2500);
 await click(page.getByRole('button', { name: /Verify Full Chain/ }), 5000);
 
 // 9. Refusal
-await hold(20); await click(header('Unified Workspace'), 1500);
+await hold(20); await click(header('Ask'), 1500);
 await ask('Trick Query', 'Q5  Why did we choose MongoDB? (not in the record)');
 await caption('No evidence, no answer: Keystone refuses instead of guessing');
 

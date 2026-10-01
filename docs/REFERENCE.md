@@ -161,7 +161,7 @@ Shown as **Policy Impact** in the UI (timeline badge, red node on the graph, ins
 ### 6.8 Provenance
 
 Every extracted fact carries `source_doc`, source span + quote, `confidence`, `extracted_by`, `human_verified`,
-`visibility`. The Ingestion Review screen shows the quote beside each fact.
+`visibility`. The Inbox (Extracted facts) shows the quote beside each fact.
 
 ### 6.9 Approval gate and MCP
 
@@ -223,7 +223,7 @@ ananya). Priya asking about DEC-008 gets the ordinary refusal. List views hide r
 | Telemetry off | Yes (`/health` reports `"telemetry": false`) |
 | Fonts bundled, no CDN calls | Yes |
 | Graph, DB, executor, outbox local | Yes |
-| Full demo with network off | Not yet rehearsed; do it once before presenting |
+| Full demo with network off | Not yet rehearsed with the network disabled; do it once before presenting. 30 Sept evidence: a browser run through every screen plus one question made 117 requests, none off localhost; no container (backend, executor, Neo4j, Postgres) had an established connection to a public address |
 
 ---
 
@@ -256,9 +256,9 @@ Demo DB snapshot: `backups/nimbus-seed` (committed). Restore: `powershell -File 
 | 6 | Temporal Graph + "Was 180-day retention compliant in Q2 2025?" | Yes, RET-2.1 v2, exactly at the limit |
 | 7 | Timeline: Jan 2024 → Jan 2025 → Jul 2025 → Today | Graph shows what was in force on each date |
 | 8 | Upload RET-2.1 v3 | Scanner flags DEC-007 `ONGOING_PRACTICE_BREACH`, DEC-002 `SUPERSEDED`, queues a proposal |
-| 9 | Approve in Review Queue | Executor writes `outbox/proposal-N.eml` |
+| 9 | Approve in the Inbox (Proposed actions) | Executor writes `outbox/proposal-N.eml` |
 | 10 | Upload meeting audio | Transcribed locally, facts extracted with source sentences |
-| 11 | Ingestion Review | Accept / reject each extracted fact |
+| 11 | Inbox → Extracted facts | Accept / reject each extracted fact |
 | 12 | Audit Trail → Verify Full Chain | Server + browser verification: chain valid |
 | 13 | "Why did we choose MongoDB?" | Refused |
 
@@ -292,7 +292,7 @@ approval with audit record.
 | Executor + outbox | ✅ (writes `.eml` directly; MCP is exposed separately, §6.9) |
 | Hash-chained audit log + read-only view | ✅ |
 | Graph view of the answer subgraph | ✅ |
-| Ingestion review screen | ✅ accept / reject in the UI; edit exists in the API (`PATCH /extractions/{id}`) but has no button |
+| Ingestion review screen | ✅ accept / edit / reject per fact and in bulk (edit uses `PATCH /extractions/{id}`) |
 | Polling folder watcher | ✅ vault `inbox/` |
 
 ### Should-have
@@ -313,10 +313,16 @@ approval with audit record.
 - One-command Windows setup (`scripts/setup-demo.ps1`) and committed demo snapshot
 - Scripted demo recorder
 - Viewport-fitted workspace UI, header Home button, final logo (§10)
+- Frontend rework (branch `frontend-rework`, see `CHANGELOG.md`): computed status badges, Review Queue detail
+  with executor polling, temporal graph from `/graph/view` with a date-proportional layout, Decisions register,
+  read-only Policies comparison, audit filters/export/row drawer, Ctrl+K search; then an Inbox, a page per
+  decision, answer export and links, and forms that write decision and policy-version front-matter
 
 ### Roadmap (not built, by design)
 
-Real Jira/Gmail/Slack integrations · executor routed through MCP tools · policy diff view · RBAC and source-level ACLs ·
+Real Jira/Gmail/Slack integrations · executor routed through MCP tools · editing a stored policy version in
+place and a full text diff (new versions can be written from a form; clause comparison is built) · RBAC and
+source-level ACLs ·
 confidence per graph edge in the UI · multi-tenant hosting · Drive/SharePoint/Notion import · fine-tuned extraction ·
 event-driven ingestion · pseudonymisation and erasure workflow.
 
@@ -332,17 +338,23 @@ Autonomous action without human approval.
 |---|---|
 | Landing page | Pitch, features, 5-stage pipeline, architecture matrix, live engine status |
 | Enter Workspace | Pre-authenticated role picker: Priya (Ops Lead), Karthik (CTO), Ananya (CEO), or Keystone Admin. Demo roles, not real auth |
-| Header | Home button, logo, engine status (≥1720 px wide), view tabs with pending-review badge, Ingest Document, current user, sign out |
-| Timeline ribbon | As-of date, active clause versions, policy-impact badge, milestone slider, Animate Timeline |
-| Unified Workspace | Chat (left) + graph and review-queue preview (right), one viewport, panels scroll independently |
-| Temporal Graph | Chat (left, same conversation) + large graph (right). Wheel zooms toward the cursor, drag pans, graph always fits its nodes and leaves room for the inspector |
-| Review Queue | Proposals with reasoning, target, status; Approve / Edit / Reject |
-| Ingestion Review | Extracted facts with source sentence, confidence, model; Accept / Reject |
-| Audit Trail | Hash-chained rows, Verify Full Chain (server + browser) |
-| Ingest Document | Demo presets (RET v3, PROC v2), custom Markdown or meeting audio, scanner results, jump to Review Queue |
+| Header | Home button, logo, engine status (≥1760 px wide; the console always shows it), six view tabs (Ask, Graph, Inbox, Decisions, Policies, Audit; icons only below 1280 px) with one Inbox badge counting proposals and extracted facts, Ingest Document, current user (name, role, ID), sign out |
+| Timeline ribbon | Workspace and Graph only; collapses to one line (default on the Workspace). As-of date picker, clause versions in force, policy-impact badge, a slider proportional to real dates with the policy milestones, Animate Timeline |
+| Ask | The console (about 55% of the width) + the evidence for the latest answer: only the records that answer used, on their own timeline; empty with a hint until the first question; "Explore in the full graph" opens the Temporal Graph |
+| Temporal Graph | The full graph from `/graph/view` laid out by date (x) and entity type (lanes), expanded policy timeline, docked inspector (relied-on clause and its supersession, provenance, compliance then vs now on request); nodes fade or grey out as the as-of date moves; the console opens from a rail beside it (same conversation) and the last answer's records stay highlighted |
+| Console | Cited answers with the as-of date, source chips, "How I got this" (retrieved nodes, compliance then vs now); one refusal style; elapsed time while answering; model/telemetry/service status from `/health`. Each answer: Copy with sources, Evidence (.md), Print / PDF, Copy link (`#answer=<id>` reopens it via `GET /answers/{id}`; answers citing restricted records are not shown to non-readers). The conversation is kept per user in this browser |
+| Inbox | Two lists with counts, one header badge. **Proposed actions** (was Review Queue): list + detail: what approving does in plain words, involved records, full scanner reasoning, the proposal as stored, its audit rows; Approve (then polls until the executor wrote the `.eml`), inline Edit, Reject with a required reason |
+| Inbox, Extracted facts | (Was Ingestion Review.) Pending facts by default, history behind a toggle; grouped by document and sentence with the sentence highlighted in context; Accept / Edit / Reject per fact and in bulk; reviewer and time from the audit log |
+| Decisions | Sortable, filterable register from `/decisions` + `/flags`. A row opens the decision's page: why, compliance then vs now, the clause versions relied on and every later version, flags, proposals, a dated "What happened" timeline, audit entries naming it, the source document. **Record a decision** opens the form |
+| Policies | Versions and clauses with a side-by-side comparison of one clause across versions. **New version** opens the form |
+| Authoring forms | Record a decision / Add a policy version: fields instead of YAML, a live preview of the exact Markdown, and a list of what is missing (existing ID, no clause version in force on the date, values the deterministic check needs). Saves through `POST /documents`; a policy version runs the impact scanner |
+| Audit Trail | Server and browser verification side by side (every row), linked parent hashes, filters, JSON/CSV export, row drawer with the canonical hashed payload; dev-only tamper simulation on an in-memory copy (`VITE_DEV_TAMPER=1`) |
+| Ingest Document | Presets that know whether they are already ingested, custom Markdown or meeting audio, observable progress with Cancel, specific errors, per-stage results, jump to the Inbox; several Markdown files at once (chosen or dropped), uploaded policy versions first with a result per file; links to the authoring forms |
+| Everywhere | Ctrl/Cmd+K search; every ID chip opens its record; one colour and icon per entity type |
 
-Target: 1920×1080 at 125% scaling (1536×~730 CSS px). No page-level scrolling on app screens. Logo swap: replace
-`public/keystone-mark.png` (also the favicon).
+Target: 1920×1080 at 125% scaling (1536×~730 CSS px), also checked at 1366×768, 1920×1080 and 1024×700. No page-level
+scrolling on app screens. Screenshots: `docs/screenshots/`. Logo swap: replace `public/keystone-mark.png` (also
+the favicon).
 
 ---
 
@@ -401,8 +413,10 @@ RBAC is the first roadmap item.
 | Open-textured clauses | `not_checkable`, never guessed |
 | Exceptions, waivers, decision conflicts | Not modelled; the ontology has room |
 | Permissions | Restricted-visibility user list at retrieval; RBAC and source ACLs are roadmap |
+| Visibility in list endpoints | `/graph`, `/decisions`, `/extractions`, `/flags`, `/proposals`, `/audit` and `/documents/{id}` do not filter restricted items; the UI hides them on screen for non-readers, but they are in the HTTP responses (`KNOWN_ISSUES.md`) |
+| MCP `propose_action` | Fails with HTTP 500 (audit CHECK constraints); the 6 read tools work (`KNOWN_ISSUES.md`) |
 | Executor output | Writes `.eml` files to `outbox/`; real Jira/Gmail are roadmap |
-| Ingestion Review edit | API only, no button |
+| Rejection reasons | Stored only as a hash in the audit log; the UI shows "reason recorded (hash …)" |
 | Auth | Demo role picker and `X-User` header; real auth out of scope |
 | Single-tenant | Isolation per graph is the path |
 | Audit log | Tamper-evident, not regulatory-grade |

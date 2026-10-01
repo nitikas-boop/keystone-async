@@ -48,9 +48,16 @@ _NS = uuid.UUID('9b1f3a52-6c0e-4d8e-9a57-4b0c2f1e7d11')
 g = None
 
 
+def gid() -> str:
+    """The graph partition (Graphiti group_id) for the current org: group_id = org_id (A). Outside a request
+    (watcher, seed) it is the default org, config.GROUP_ID. Use this, not config.GROUP_ID."""
+    from .contracts import current_user
+    return (current_user() or {}).get('org_id') or config.GROUP_ID
+
+
 def uid(key: str) -> str:
     """Deterministic graph uuid from a business key, so re-ingesting a document is idempotent."""
-    return str(uuid.uuid5(_NS, f'{config.GROUP_ID}:{key}'))
+    return str(uuid.uuid5(_NS, f'{gid()}:{key}'))
 
 
 def at(d: date) -> datetime:
@@ -100,7 +107,7 @@ async def upsert_node(key: str, type_: str, name: str, attrs: dict, summary: str
     """attrs must be flat (Neo4j properties): provenance, valid_from/valid_to as 'YYYY-MM-DD' strings."""
     u = uid(key)
     cleaned = _clean_attrs(attrs)
-    node = EntityNode(uuid=u, name=name, group_id=config.GROUP_ID, labels=[type_], summary=summary,
+    node = EntityNode(uuid=u, name=name, group_id=gid(), labels=[type_], summary=summary,
                       attributes={'key': key, 'type': type_, **cleaned})
     # Ingestion time is when we first learned the fact; keep it across re-ingests.
     node.created_at = await _existing_created_at('MATCH (x:Entity {uuid: $u})', u) or node.created_at
@@ -119,7 +126,7 @@ async def upsert_edge(src: str, rel: str, dst: str, fact: str, valid_at: datetim
                       episode_uuid: str, invalid_at: datetime | None = None, extra: dict | None = None) -> str:
     u = uid(f'{src}|{rel}|{dst}')
     cleaned_prov = _clean_attrs(prov)
-    edge = EntityEdge(uuid=u, group_id=config.GROUP_ID, source_node_uuid=uid(src), target_node_uuid=uid(dst),
+    edge = EntityEdge(uuid=u, group_id=gid(), source_node_uuid=uid(src), target_node_uuid=uid(dst),
                       created_at=datetime.now(timezone.utc), name=rel, fact=fact, episodes=[episode_uuid],
                       valid_at=valid_at, invalid_at=invalid_at, reference_time=valid_at,
                       attributes={'source_key': src, 'target_key': dst, **cleaned_prov, **(extra or {})})
@@ -131,7 +138,7 @@ async def upsert_edge(src: str, rel: str, dst: str, fact: str, valid_at: datetim
 
 async def save_episode(doc_id: str, doc_type: str, raw: str, ref: datetime, edge_uuids: list[str]) -> str:
     """The episode's reference time is the front-matter date, never ingestion time (§6.3)."""
-    ep = EpisodicNode(uuid=uid(f'episode:{doc_id}'), name=doc_id, group_id=config.GROUP_ID,
+    ep = EpisodicNode(uuid=uid(f'episode:{doc_id}'), name=doc_id, group_id=gid(),
                       source=EpisodeType.text, source_description=doc_type, content=raw,
                       valid_at=ref, entity_edges=edge_uuids)
     await ep.save(g.driver)
@@ -147,27 +154,43 @@ def node_ok(v: str) -> str:
 EDGE_OK = 'coalesce(e.rejected, false) = false AND e.valid_at <= $dt AND (e.invalid_at IS NULL OR e.invalid_at > $dt)'
 
 
+def _visible():
+    """The caller's access predicate (B): filtering happens here, at retrieval, before anything reaches a prompt."""
+    from . import contracts
+    return contracts.visible_filter(contracts.current_user())
+
+
+def _edge_ok(ok, e: dict, shown: set) -> bool:
+    """An edge is shown when both ends are, and its own provenance is not restricted from this user."""
+    return e['source_key'] in shown and e['target_key'] in shown and (e.get('visibility') != 'restricted' or ok(e))
+
+
 async def read(as_of: date, keys: list[str] | None = None) -> dict:
-    """Nodes and edges valid on as_of (valid time, not ingestion time); optionally only among `keys`."""
-    d, dt = as_of.isoformat(), at(as_of)
+    """Nodes and edges valid on as_of (valid time, not ingestion time) that the caller may see; optionally only
+    among `keys`."""
+    d, dt, ok = as_of.isoformat(), at(as_of), _visible()
     only = 'AND n.key IN $keys' if keys is not None else ''
-    nodes = await q(f'MATCH (n:Entity {{group_id: $g}}) WHERE {node_ok("n")} {only} RETURN properties(n) AS p',
-                    g=config.GROUP_ID, d=d, keys=keys)
+    nodes = [r['p'] for r in await q(f'MATCH (n:Entity {{group_id: $g}}) WHERE {node_ok("n")} {only} '
+                                     'RETURN properties(n) AS p', g=gid(), d=d, keys=keys)]
+    nodes = [p for p in nodes if ok(p)]
+    shown = {p['key'] for p in nodes}
     only = 'AND a.key IN $keys AND b.key IN $keys' if keys is not None else ''
     edges = await q(
         f'MATCH (a:Entity)-[e:RELATES_TO {{group_id: $g}}]->(b:Entity) '
         f'WHERE {EDGE_OK} AND {node_ok("a")} AND {node_ok("b")} {only} RETURN properties(e) AS p',
-        g=config.GROUP_ID, d=d, dt=dt, keys=keys)
-    return {'as_of': d, 'nodes': [node_out(r['p']) for r in nodes], 'edges': [edge_out(r['p']) for r in edges]}
+        g=gid(), d=d, dt=dt, keys=keys)
+    return {'as_of': d, 'nodes': [node_out(p) for p in nodes],
+            'edges': [edge_out(r['p']) for r in edges if _edge_ok(ok, r['p'], shown)]}
 
 
 async def neighbours(keys: list[str], as_of: date) -> list[str]:
-    """Keys one hop from `keys`, as of a date."""
+    """Keys one hop from `keys`, as of a date, that the caller may see."""
+    ok = _visible()
     rows = await q(
-        f'MATCH (a:Entity)-[e:RELATES_TO]-(b:Entity) WHERE a.key IN $keys AND {EDGE_OK} '
-        f'AND {node_ok("a")} AND {node_ok("b")} RETURN DISTINCT b.key AS k',
-        keys=keys, d=as_of.isoformat(), dt=at(as_of))
-    return [r['k'] for r in rows]
+        f'MATCH (a:Entity {{group_id: $g}})-[e:RELATES_TO]-(b:Entity) WHERE a.key IN $keys AND {EDGE_OK} '
+        f'AND {node_ok("a")} AND {node_ok("b")} RETURN DISTINCT properties(b) AS p',
+        g=gid(), keys=keys, d=as_of.isoformat(), dt=at(as_of))
+    return [r['p']['key'] for r in rows if ok(r['p'])]
 
 
 async def set_props(kind: str, u: str, props: dict):
@@ -202,3 +225,19 @@ def edge_out(p: dict) -> dict:
     return {'id': p['uuid'], 'source': p['source_key'], 'target': p['target_key'], 'relation': p['name'],
             'fact': p['fact'], 'valid_from': _iso(p.get('valid_at')), 'valid_to': _iso(p.get('invalid_at')),
             'created_at': _iso(p.get('created_at')), 'provenance': _prov(p)}
+
+
+async def hidden_keys(keys: list[str]) -> set[str]:
+    """The subset of `keys` whose node the current user may not see (at any date). A key unknown to the graph is not
+    hidden in the default org (proposals may name ids the graph lacks); in any other org it is, because the
+    pre-tenancy Postgres tables (flags, proposals) hold only the default org's items."""
+    from . import contracts
+    if not keys:
+        return set()
+    u = contracts.current_user()
+    ok = contracts.visible_filter(u)
+    rows = await q('MATCH (n:Entity {group_id: $g}) WHERE n.key IN $k RETURN properties(n) AS p', g=gid(), k=list(keys))
+    hidden = {r['p']['key'] for r in rows if not ok(r['p'])}
+    if u and u.get('org_id') and u['org_id'] != config.GROUP_ID:
+        hidden |= set(keys) - {r['p']['key'] for r in rows}
+    return hidden

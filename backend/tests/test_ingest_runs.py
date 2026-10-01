@@ -11,7 +11,7 @@ import pytest
 
 from conftest import TEST_ENV, wipe
 
-H = {'X-User': 'priya'}
+H = {'X-User': 'nitika'}  # the admin account (executive): may upload policies and decisions in any domain
 PEOPLE = 'people:\n  - {id: T-p-ana, name: Ana Test, role: CEO, joined: 2024-01-01}\n'
 POLICY = '''---
 doc_type: policy_version

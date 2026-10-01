@@ -3,9 +3,13 @@
 Any MCP client (Claude Desktop, an IDE agent) can ask Keystone questions and propose actions; nothing it does can
 approve or execute: proposals land in the Review Queue as 'proposed' and wait for a human.
 
-  {"mcpServers": {"keystone": {"command": "python", "args": ["<repo>/mcp/keystone_mcp.py"]}}}
+  {"mcpServers": {"keystone": {"command": "python", "args": ["<repo>/mcp/keystone_mcp.py"],
+                               "env": {"KEYSTONE_EMPLOYEE_ID": "NL-003", "KEYSTONE_PASSWORD": "..."}}}}
 
-Env: KEYSTONE_URL (default http://localhost:8000), KEYSTONE_USER (default priya; must be a Keystone user).
+It signs in as a Keystone user (KEYSTONE_EMPLOYEE_ID + KEYSTONE_PASSWORD) and gets an agent session: it sees exactly
+what that user may see, and it can never approve. The Owner can switch it off on the Plugins page.
+Env: KEYSTONE_URL (default http://localhost:8000). Dev only: KEYSTONE_USER (X-User header, backend with
+KEYSTONE_DEV_AUTH=1) when no employee ID is set.
 """
 import json
 import os
@@ -16,17 +20,39 @@ import urllib.request
 
 URL = os.environ.get('KEYSTONE_URL', 'http://localhost:8000')
 USER = os.environ.get('KEYSTONE_USER', 'priya')
+EMPLOYEE_ID = os.environ.get('KEYSTONE_EMPLOYEE_ID')
+_token = None
+
+
+def _auth() -> dict:
+    """Bearer token from /auth/login (client=mcp), fetched once; X-User only as the dev fallback."""
+    global _token
+    if not EMPLOYEE_ID:
+        return {'X-User': USER}
+    if _token is None:
+        req = urllib.request.Request(URL + '/auth/login', method='POST', headers={'Content-Type': 'application/json'},
+                                     data=json.dumps({'employee_id': EMPLOYEE_ID, 'client': 'mcp',
+                                                      'password': os.environ.get('KEYSTONE_PASSWORD', '')}).encode())
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                _token = json.load(r)['token']
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f'Keystone sign-in failed {e.code}: {e.read().decode(errors="replace")}')
+    return {'Authorization': f'Bearer {_token}'}
 
 
 def call(method, path, body=None, **query):
+    global _token
     q = urllib.parse.urlencode({k: v for k, v in query.items() if v})
     req = urllib.request.Request(URL + path + (f'?{q}' if q else ''), method=method,
                                  data=json.dumps(body).encode() if body is not None else None,
-                                 headers={'X-User': USER, 'Content-Type': 'application/json'})
+                                 headers={**_auth(), 'Content-Type': 'application/json'})
     try:
         with urllib.request.urlopen(req, timeout=300) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
+        if e.code == 401:
+            _token = None  # session expired: sign in again on the next call
         raise RuntimeError(f'Keystone {e.code}: {e.read().decode(errors="replace")}')
 
 
@@ -61,19 +87,19 @@ TOOLS = {
 }
 
 
-def handle(msg):
+def handle(msg, name='keystone', tools=TOOLS):
     m, p = msg.get('method'), msg.get('params') or {}
     if m == 'initialize':
         return {'protocolVersion': p.get('protocolVersion', '2025-06-18'), 'capabilities': {'tools': {}},
-                'serverInfo': {'name': 'keystone', 'version': '1.0'}}
+                'serverInfo': {'name': name, 'version': '1.1'}}
     if m == 'tools/list':
-        return {'tools': [{'name': n, 'description': d, 'inputSchema': s} for n, (d, s, _) in TOOLS.items()]}
+        return {'tools': [{'name': n, 'description': d, 'inputSchema': s} for n, (d, s, _) in tools.items()]}
     if m == 'tools/call':
-        name = p.get('name')
-        if name not in TOOLS:
-            raise ValueError(f'unknown tool {name}')
+        tool = p.get('name')
+        if tool not in tools:
+            raise ValueError(f'unknown tool {tool}')
         try:
-            out = TOOLS[name][2](p.get('arguments') or {})
+            out = tools[tool][2](p.get('arguments') or {})
             return {'content': [{'type': 'text', 'text': json.dumps(out, ensure_ascii=False, indent=1)}]}
         except (RuntimeError, OSError, KeyError) as e:
             return {'content': [{'type': 'text', 'text': f'{type(e).__name__}: {e}'}], 'isError': True}
@@ -82,7 +108,7 @@ def handle(msg):
     raise LookupError(m)
 
 
-def main():
+def main(name='keystone', tools=TOOLS):
     for line in sys.stdin:
         if not line.strip():
             continue
@@ -90,7 +116,7 @@ def main():
         if 'id' not in msg:  # notification, e.g. notifications/initialized
             continue
         try:
-            reply = {'jsonrpc': '2.0', 'id': msg['id'], 'result': handle(msg)}
+            reply = {'jsonrpc': '2.0', 'id': msg['id'], 'result': handle(msg, name, tools)}
         except LookupError as e:
             reply = {'jsonrpc': '2.0', 'id': msg['id'], 'error': {'code': -32601, 'message': f'method not found: {e}'}}
         except Exception as e:

@@ -1,326 +1,526 @@
-import React, { useState, useRef } from 'react';
-import { 
-  Upload, 
-  CheckCircle2, 
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Upload,
+  CheckCircle2,
   AlertTriangle,
-  Info,
-  Sparkles, 
+  Loader2,
   X,
-  FileCode,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  Square
 } from 'lucide-react';
-import { uploadDocument, transcribe } from '../api';
+import { fetchDecisions, fetchPolicies, uploadDocument } from '../api';
+import Audio from '../features/p2/Audio';
+import IdChip from './IdChip';
+import DateField from './DateField';
+import { impactLabel } from '../utils/entities';
+import { day, plural } from '../utils/format';
 import retV3 from '../../data/demo-upload/POL-RET-v3.md?raw';
 import procV2 from '../../data/vault/policies/POL-PROC-v2.md?raw';
 
 // Presets are the real files, imported verbatim, so the demo uploads exactly what is committed in data/.
 const PRESET_FILES = {
-  'RET-v3': {
-    filename: 'POL-RET-v3.md',
-    title: 'Customer Data Retention Policy (v3 - 90 Days)',
-    desc: 'Sets RET-2.1 to 90-day ceiling (breaks DEC-007 180-day practice)',
-    impactExpected: 'ONGOING_PRACTICE_BREACH on DEC-007',
-    content: retV3
-  },
-  'PROC-v2': {
-    filename: 'POL-PROC-v2.md',
-    title: 'Procurement Approval Policy (v2 - ₹2 Lakh Ceiling)',
-    desc: 'Reduces CTO unilateral threshold from ₹5L to ₹2L',
-    impactExpected: 'RULE_CHANGED_SINCE on DEC-004',
-    content: procV2
-  }
+  'RET-v3': { filename: 'POL-RET-v3.md', label: 'Policy RET-2.1 v3', content: retV3 },
+  'PROC-v2': { filename: 'POL-PROC-v2.md', label: 'Procurement PROC-3.1 v2', content: procV2 },
 };
 
-export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProceedToQueue }) {
+// Minimal front-matter read (flat keys only), to know which record a file would create before uploading it.
+function frontMatter(text) {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text || '');
+  if (!m) return null;
+  const fm = {};
+  for (const line of m[1].split(/\r?\n/)) {
+    const kv = /^([a-z_]+):\s*(.*)$/.exec(line);
+    if (kv) fm[kv[1]] = kv[2].replace(/^["']|["']$/g, '');
+  }
+  return fm;
+}
+
+function docIdOf(fm) {
+  if (!fm) return null;
+  if (fm.doc_type === 'policy_version') return fm.policy_id && fm.version ? `${fm.policy_id}@${fm.version}` : null;
+  if (fm.doc_type === 'decision') return fm.decision_id || null;
+  if (fm.doc_type === 'meeting_note') return fm.doc_id || null;
+  return null;
+}
+
+// What the engine reads (backend ingest.SUPPORTED); anything else is refused before it is uploaded.
+const READABLE = /\.(md|txt|pdf|docx)$/i;
+const BINARY = /\.(pdf|docx)$/i;  // text is extracted on the server
+const AUDIO = /\.(wav|mp3|m4a|webm|ogg)$/i;
+const isAudio = (f) => f.type.startsWith('audio/') || AUDIO.test(f.name);
+const unsupported = (f) => ({ title: 'Not a supported file type',
+  text: `${f.name}: upload Markdown, plain text, PDF or Word (.md, .txt, .pdf, .docx). Excel, PowerPoint, HTML and images are not read.` });
+
+// The server answers 0 (unreachable), 422 (the document itself is wrong) or 503 (local model down).
+function explain(err, stage) {
+  const d = typeof err.detail === 'string' ? err.detail : err.message;
+  if (err.status === 0) return { title: 'Backend unreachable', text: `${d}. Is the Docker stack running?` };
+  if (err.status === 503) return { title: 'Local model unreachable (Ollama)', text: d };
+  if (stage === 'transcribe') return { title: 'Transcription failed (local Whisper)', text: d };
+  if (err.status === 422) return { title: 'The document was rejected', text: d };
+  return { title: `Upload failed (HTTP ${err.status})`, text: d };
+}
+
+// onAudioIngested: a recording's transcript went to Ingestion Review (refresh pending counts).
+export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProceedToQueue, onAuthor, onAudioIngested }) {
+  const [source, setSource] = useState('document');  // document | audio
   const [selectedPreset, setSelectedPreset] = useState('RET-v3');
   const [customFile, setCustomFile] = useState(null);
-  const [isIngesting, setIsIngesting] = useState(false);
-  const [ingestStep, setIngestStep] = useState('');
-  const [ingestComplete, setIngestComplete] = useState(false);
-  const [returnedFlags, setReturnedFlags] = useState([]);
-  const [errorMsg, setErrorMsg] = useState(null);
+  const [customText, setCustomText] = useState(null);
   const [transcript, setTranscript] = useState(null);
+  const [stages, setStages] = useState([]);   // [{key, label, state: running|done|failed, note, startedAt, endedAt}]
+  const [result, setResult] = useState(null);
+  const [failure, setFailure] = useState(null);
+  const [cancelled, setCancelled] = useState(false);
+  const [known, setKnown] = useState({ policies: [], decisions: [] });
+  const [confirmDup, setConfirmDup] = useState(false);
+  const [batch, setBatch] = useState(null);   // several Markdown files: [{file, text, fm, id, state, res, error}]
+  const [dragOver, setDragOver] = useState(false);
+  const [docDate, setDocDate] = useState('');  // for a file without front-matter: the date it was written or agreed
+  const [docTitle, setDocTitle] = useState('');
+  const [, tick] = useState(0);
+  const abortRef = useRef(null);
   const fileInputRef = useRef(null);
+  const running = stages.some(s => s.state === 'running');
+
+  // What is already ingested, so presets and custom files can say "already in the record" before upload.
+  useEffect(() => {
+    if (!isOpen) return;
+    Promise.all([fetchPolicies(), fetchDecisions()])
+      .then(([p, d]) => setKnown({ policies: p.flatMap(x => x.versions), decisions: d.map(x => x.id) }))
+      .catch(() => {});
+  }, [isOpen]);
+
+  useEffect(() => {  // elapsed-time display while a stage runs
+    if (!running) return undefined;
+    const t = setInterval(() => tick(n => n + 1), 500);
+    return () => clearInterval(t);
+  }, [running]);
 
   if (!isOpen) return null;
 
-  const handleFileChange = async (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    if (!file.type.startsWith('audio/') && !/\.(wav|mp3|m4a|webm|ogg)$/i.test(file.name)) {
-      setCustomFile(file);
+  const content = customFile ? customText : PRESET_FILES[selectedPreset].content;
+  const fm = frontMatter(content);
+  const docId = docIdOf(fm);
+  const existingVersion = fm?.doc_type === 'policy_version' && known.policies.find(v => v.document_id === docId);
+  const plain = !!customFile && !fm;  // no front-matter: stored as a plain document, dated by the uploader
+  const duplicate = !!(existingVersion || (fm?.doc_type === 'decision' && known.decisions.includes(docId)));
+
+  const presetInfo = (key) => {
+    const f = frontMatter(PRESET_FILES[key].content);
+    const id = docIdOf(f);
+    const have = known.policies.find(v => v.document_id === id);
+    const prev = known.policies.filter(v => v.policy_id === f.policy_id && v.valid_from < f.effective_from)
+      .sort((a, b) => b.valid_from.localeCompare(a.valid_from))[0];
+    return { id, have, prev, effective: f.effective_from };
+  };
+
+  const setStage = (key, patch) => setStages(ss => ss.map(s => (s.key === key ? { ...s, ...patch } : s)));
+  const reset = () => { setStages([]); setResult(null); setFailure(null); setCancelled(false); setConfirmDup(false); };
+
+  // Several files: policies first (so decisions can rely on their clauses), then decisions, then meeting notes.
+  const ORDER = { policy_version: 0, decision: 1, meeting_note: 2 };
+  const startBatch = async (files) => {
+    const items = await Promise.all(files.map(async (file) => {
+      if (!READABLE.test(file.name)) return { file, state: 'invalid', reason: unsupported(file).text };
+      const text = BINARY.test(file.name) ? '' : await file.text();
+      const fm = frontMatter(text);
+      return { file, text, fm, id: docIdOf(fm), state: fm ? 'waiting' : 'invalid',
+               reason: fm ? null : 'No YAML front-matter: upload it on its own to give it a date. Skipped.' };
+    }));
+    items.sort((a, b) => (ORDER[a.fm?.doc_type] ?? 3) - (ORDER[b.fm?.doc_type] ?? 3));
+    reset(); setCustomFile(null); setCustomText(null); setTranscript(null);
+    setBatch(items);
+  };
+
+  // A file whose ID is already ingested waits for an explicit tick (known loads after the dialog opens).
+  const isKnown = (id) => known.decisions.includes(id) || known.policies.some(v => v.document_id === id);
+  const shownBatch = batch?.map(x => (x.state === 'waiting' && isKnown(x.id) && !x.confirmed ? { ...x, state: 'exists' } : x));
+
+  const runBatch = async () => {
+    for (let i = 0; i < shownBatch.length; i++) {
+      if (shownBatch[i].state !== 'waiting') continue;
+      setBatch(b => b.map((x, j) => (j === i ? { ...x, state: 'running' } : x)));
+      try {
+        const res = await uploadDocument(batch[i].file);
+        setBatch(b => b.map((x, j) => (j === i ? { ...x, state: 'done', res } : x)));
+        if (onPolicyUploaded) onPolicyUploaded(res);
+      } catch (err) {
+        setBatch(b => b.map((x, j) => (j === i ? { ...x, state: 'failed', error: explain(err, 'upload') } : x)));
+      }
+    }
+  };
+
+  const takeFiles = (list) => {
+    const files = [...(list || [])];
+    if (files.length > 1) {
+      const audio = files.filter(isAudio);
+      if (audio.length) { setSource('audio'); return; }  // recordings go through the Meeting audio tab
+      startBatch(files);
       return;
     }
-    // Meeting audio: transcribe locally, then upload the transcript as an ordinary meeting_note document.
-    // Meeting date comes from the filename (meeting-YYYY-MM-DD.wav), else today.
-    const meetingDate = file.name.match(/\d{4}-\d{2}-\d{2}/)?.[0] || new Date().toISOString().slice(0, 10);
-    setErrorMsg(null);
-    setIsIngesting(true);
-    setIngestStep(`Transcribing ${file.name} locally (Whisper, no network)...`);
-    try {
-      const { markdown } = await transcribe(file, file.name, meetingDate, `Meeting ${meetingDate} (audio)`);
-      setTranscript(markdown);
-      setCustomFile(new File([markdown], `MTG-${meetingDate}-AUDIO.md`, { type: 'text/markdown' }));
-    } catch (err) {
-      setErrorMsg(`Transcription failed: ${err.message}`);
-    } finally {
-      setIsIngesting(false);
-      setIngestStep('');
+    if (files[0]) handleFile(files[0]);
+  };
+
+  const handleFileChange = (e) => {
+    const list = e.target.files;
+    takeFiles(list);
+    e.target.value = '';
+  };
+
+  const handleFile = async (file) => {
+    setBatch(null);
+    reset();
+    setTranscript(null);
+    if (!isAudio(file)) {
+      if (!READABLE.test(file.name)) { setCustomFile(null); setCustomText(null); setFailure(unsupported(file)); return; }
+      setCustomFile(file);
+      setCustomText(BINARY.test(file.name) ? null : await file.text());
+      setDocTitle(file.name.replace(/\.[^.]+$/, ''));
+      return;
     }
+    // Meeting audio has its own tab: recorded consent, speaker mapping, then Ingestion Review.
+    setSource('audio');
   };
 
   const handleUpload = async () => {
-    setIsIngesting(true);
-    setErrorMsg(null);
-    setIngestStep("Preparing multipart document payload...");
-
-    let fileToUpload;
-    if (customFile) {
-      fileToUpload = customFile;
-    } else {
-      const preset = PRESET_FILES[selectedPreset];
-      fileToUpload = new File([preset.content], preset.filename, { type: 'text/markdown' });
-    }
-
+    const file = customFile || new File([PRESET_FILES[selectedPreset].content], PRESET_FILES[selectedPreset].filename, { type: 'text/markdown' });
+    const ctl = new AbortController();
+    abortRef.current = ctl;
+    setFailure(null);
+    setCancelled(false);
+    const keep = stages.filter(s => s.key === 'transcribe' && s.state === 'done');
+    // One request does parse -> store -> extract (meeting notes) / scan (policies) on the server; the UI does not
+    // pretend to see inside it. Its results are listed stage by stage once the response arrives.
+    setStages([...keep, { key: 'server', label: `Upload ${file.name}: the server parses, stores, extracts and scans in one request`,
+                          state: 'running', startedAt: Date.now() }]);
     try {
-      setIngestStep(`Uploading ${fileToUpload.name} to POST /documents...`);
-      const res = await uploadDocument(fileToUpload);
-
-      setIngestStep("Parsing front-matter & extracting structured clauses...");
-      const flags = res.flags || [];
-      setReturnedFlags(flags);
-      setIngestComplete(true);
-
-      if (onPolicyUploaded) {
-        onPolicyUploaded(res);
-      }
+      const res = await uploadDocument(file, ctl.signal, plain ? { docDate, title: docTitle } : {});
+      setStage('server', { state: 'done', endedAt: Date.now() });
+      setResult(res);
+      if (onPolicyUploaded) onPolicyUploaded(res);
     } catch (err) {
-      // Never simulate a scanner result: a failed upload must look failed.
-      setErrorMsg(err.message);
-    } finally {
-      setIsIngesting(false);
-      setIngestStep('');
+      if (err.name === 'AbortError') {
+        setStage('server', { state: 'failed', endedAt: Date.now(), note: 'Stopped waiting.' });
+        setCancelled(true);
+        return;
+      }
+      setStage('server', { state: 'failed', endedAt: Date.now() });
+      setFailure(explain(err, 'upload'));
     }
   };
 
+  const clearAll = () => { reset(); setCustomFile(null); setCustomText(null); setTranscript(null); setBatch(null); setDocDate(''); setDocTitle(''); };
   const handleResetAndClose = () => {
-    setIngestComplete(false);
-    setReturnedFlags([]);
-    setCustomFile(null);
-    setTranscript(null);
-    setErrorMsg(null);
+    if (running) abortRef.current?.abort();
+    clearAll();
     onClose();
   };
 
+  const flags = result?.flags || [];
+  const isPolicy = result?.doc_type === 'policy_version';
+  const isMeeting = result?.doc_type === 'meeting_note';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-fade-in">
-      <div className="w-full max-w-xl paper-sheet-elevated p-6 relative">
-        <button
-          onClick={handleResetAndClose}
-          className="absolute top-4 right-4 text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
-        >
-          <X size={18} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-kb-navy/25 backdrop-blur-xs p-4" role="dialog" aria-modal="true" aria-labelledby="ingest-title">
+      <div className={`w-full ${source === 'audio' ? 'max-w-4xl' : 'max-w-2xl'} max-h-[calc(100dvh-2rem)] overflow-y-auto paper-sheet-elevated p-5 relative text-[13px]`}>
+        <button onClick={handleResetAndClose} className="absolute top-4 right-4 icon-btn" aria-label="Close" title="Close">
+          <X size={16} />
         </button>
 
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-lg bg-sky-50 text-[#0284C7]">
-            <Upload size={18} />
-          </div>
+        <div className="flex items-center gap-3 mb-4 pr-10">
+          <div className="p-2 rounded-lg bg-kb-ice text-kb-cobalt-ink"><Upload size={18} aria-hidden="true" /></div>
           <div>
-            <h3 className="font-heading font-bold text-base text-[#0F172A]">
-              Ingest Document & Trigger Policy Impact Scanner
-            </h3>
-            <p className="text-xs text-[#64748B]">
-              Upload markdown policy version or decision document to <code className="text-[11px] font-mono bg-slate-100 px-1 py-0.5 rounded">POST /documents</code>.
+            <h3 id="ingest-title" className="font-heading font-bold text-[15px] text-kb-navy">Ingest a document</h3>
+            <p className="text-[12.5px] text-kb-muted">
+              A policy version, decision or meeting note in Markdown with YAML front-matter; any other Markdown, text, PDF or
+              Word document, dated by you; or meeting audio (transcribed on this machine).
             </p>
           </div>
         </div>
 
-        {!ingestComplete ? (
-          <div className="space-y-4">
-            <div>
-              <label className="text-[10.5px] font-mono text-[#64748B] uppercase tracking-wider block mb-1.5">
-                Select Demo Policy Version or Upload Local File:
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setSelectedPreset('RET-v3'); setCustomFile(null); }}
-                  className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
-                    selectedPreset === 'RET-v3' && !customFile
-                      ? 'bg-sky-50/70 border-sky-300 text-[#0F172A] shadow-xs'
-                      : 'bg-white border-slate-200 text-[#64748B] hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-xs font-heading font-semibold">
-                    <span>Policy RET-2.1 v3</span>
-                    <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded-md badge-note-rose">DEMO HERO</span>
-                  </div>
-                  <div className="text-[10.5px] font-mono text-[#0284C7] mt-1 font-medium">
-                    90-Day Raw Log Ceiling
-                  </div>
-                  <div className="text-[10px] text-[#64748B] mt-0.5">
-                    Triggers ONGOING_PRACTICE_BREACH on DEC-007
-                  </div>
-                </button>
+        <div className="flex gap-1 p-1 mb-3 rounded-xl bg-kb-ice/60 border border-kb-line w-fit" role="tablist" aria-label="What to ingest">
+          {[['document', 'Document'], ['audio', 'Meeting audio']].map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={source === id} disabled={running} onClick={() => setSource(id)}
+              className={`h-8 px-3 rounded-lg text-[13px] cursor-pointer ${source === id ? 'bg-kb-bg font-semibold shadow-xs' : 'text-kb-muted hover:text-kb-navy'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
 
-                <button
-                  type="button"
-                  onClick={() => { setSelectedPreset('PROC-v2'); setCustomFile(null); }}
-                  className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
-                    selectedPreset === 'PROC-v2' && !customFile
-                      ? 'bg-sky-50/70 border-sky-300 text-[#0F172A] shadow-xs'
-                      : 'bg-white border-slate-200 text-[#64748B] hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-xs font-heading font-semibold">
-                    <span>Procurement PROC-3.1 v2</span>
-                  </div>
-                  <div className="text-[10.5px] font-mono text-[#0284C7] mt-1 font-medium">
-                    ₹2,00,000 CTO Ceiling
-                  </div>
-                  <div className="text-[10px] text-[#64748B] mt-0.5">
-                    Triggers RULE_CHANGED_SINCE on DEC-004
-                  </div>
-                </button>
-              </div>
+
+        {source === 'audio' ? <Audio onChanged={onAudioIngested} /> : batch ? (
+          <BatchList batch={shownBatch} setBatch={setBatch} onRun={runBatch} onClear={clearAll} onClose={handleResetAndClose}
+            onInbox={(view) => { handleResetAndClose(); onProceedToQueue(view); }} />
+        ) : !result ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(PRESET_FILES).map(([key, preset]) => {
+                const info = presetInfo(key);
+                const sel = selectedPreset === key && !customFile;
+                return (
+                  <button key={key} type="button" disabled={running}
+                    onClick={() => { setSelectedPreset(key); clearAll(); }}
+                    className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${sel ? 'bg-kb-ice/60 border-kb-cobalt shadow-xs' : 'bg-kb-bg border-kb-line hover:border-kb-line-strong'}`}
+                    aria-pressed={sel}>
+                    <div className="flex items-center justify-between gap-2 font-semibold text-kb-navy">
+                      <span>{preset.label}</span>
+                      {info.have
+                        ? <span className="text-[11.5px] px-1.5 py-0.5 rounded badge-note-slate font-normal">already ingested</span>
+                        : <span className="text-[11.5px] px-1.5 py-0.5 rounded badge-note-sky font-normal">new version</span>}
+                    </div>
+                    {key === 'RET-v3' ? (
+                      <p className="text-[12.5px] text-kb-muted mt-1 leading-snug">
+                        Lowers the RET-2.1 retention ceiling to 90 days{info.prev ? ` (from ${info.prev.clauses.find(c => c.clause_id === 'RET-2.1')?.fields?.retention_days_max} days in ${info.prev.version})` : ''}, effective {day(info.effective)}.
+                        {info.have ? ' Uploading it again changes nothing: the scanner raises no new flags.'
+                          : ' In the demo data the scanner flags DEC-007 (ongoing breach, a proposal is queued) and DEC-002 (superseded, historical only).'}
+                      </p>
+                    ) : (
+                      <p className="text-[12.5px] text-kb-muted mt-1 leading-snug">
+                        Lowers the CTO approval ceiling on PROC-3.1 to ₹2,00,000, effective {day(info.effective)}.
+                        {info.have ? ' It is already in the seed data (it is what flags DEC-004), so uploading it again raises no new flags.'
+                          : ' In the demo data the scanner flags DEC-004 (rule changed since).'}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Custom File Upload Option */}
-            <div className="pt-1">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".md,.txt,.json,.wav,.mp3,.m4a,.webm,.ogg,audio/*"
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className={`w-full p-2.5 rounded-lg border border-dashed text-center text-xs font-mono transition-colors cursor-pointer ${
-                  customFile 
-                    ? 'border-sky-400 bg-sky-50/50 text-[#0284C7]' 
-                    : 'border-slate-300 hover:border-slate-400 text-[#64748B]'
-                }`}
-              >
-                {customFile ? `Selected custom file: ${customFile.name}` : '+ Or browse a Markdown document, or meeting audio (transcribed locally)...'}
+            <div>
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple
+                     accept=".md,.txt,.pdf,.docx" data-testid="ingest-file" />
+              <button type="button" disabled={running} onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); if (!running) takeFiles(e.dataTransfer.files); }}
+                className={`w-full p-2.5 rounded-lg border border-dashed text-center transition-colors cursor-pointer ${dragOver ? 'border-kb-cobalt bg-kb-ice' : customFile ? 'border-kb-cobalt bg-kb-ice/50 text-kb-cobalt-ink' : 'border-kb-line-strong hover:border-kb-line-strong text-kb-muted'}`}>
+                {customFile ? `Selected: ${customFile.name}` : '+ Choose or drop a document: .md, .txt, .pdf or .docx (several Markdown files at once)…'}
               </button>
             </div>
 
-            {/* Markdown Preview with Front-matter */}
-            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[11px]">
-              <pre className="text-[#334155] whitespace-pre-wrap max-h-36 overflow-y-auto leading-relaxed">
-                {transcript && customFile ? transcript.trim() : customFile ? `[Custom file ready for upload: ${customFile.name}]` : PRESET_FILES[selectedPreset].content.trim()}
+            <div className="p-3 rounded-lg bg-kb-bg-soft border border-kb-line">
+              <div className="flex items-center justify-between gap-2 mb-1 text-[12px] text-kb-muted">
+                <span>{transcript ? 'Transcript, as it will be uploaded' : 'Front-matter and text'}</span>
+                {docId && <span className="font-mono">creates or updates {docId}</span>}
+              </div>
+              <pre className="font-mono text-[12px] text-kb-navy whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">
+                {customFile && BINARY.test(customFile.name) ? `(${customFile.name}: the text is extracted on the server)`
+                  : (content || '').trim() || '(waiting for the transcript)'}
               </pre>
             </div>
 
-            {errorMsg && (
-              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 flex items-start gap-2 text-xs text-rose-900">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-semibold">Upload failed. Nothing was ingested and the scanner did not run.</div>
-                  <div className="font-mono text-[11px] mt-0.5 break-all">{errorMsg}</div>
+            {plain && (
+              <div className="p-3 rounded-lg bg-kb-ice/60 border border-kb-cobalt/50 space-y-2">
+                <p className="text-kb-navy">
+                  No YAML front-matter: this is stored as a plain document. Its facts are extracted and wait in the Inbox
+                  for review. It gets cited answers, not compliance verdicts.
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-kb-muted">Dated</span>
+                  <DateField value={docDate} onChange={setDocDate} max={new Date().toISOString().slice(0, 10)}
+                    label="Date the document was written or agreed" placeholder="Pick its date (required)" />
+                  <input value={docTitle} onChange={e => setDocTitle(e.target.value)} aria-label="Title" placeholder="Title"
+                    className="h-[1.875rem] px-2 rounded-lg border border-kb-line-strong bg-kb-bg text-[13px] flex-1 min-w-40" />
                 </div>
-              </div>
-            )}
-
-            {isIngesting ? (
-              <div className="p-3 rounded-lg bg-sky-50 border border-sky-200 flex items-center gap-3">
-                <div className="w-4 h-4 border-2 border-[#0284C7] border-t-transparent rounded-full animate-spin shrink-0"></div>
-                <div className="text-xs font-mono text-[#0284C7]">
-                  {ingestStep}
-                </div>
-              </div>
-            ) : (
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={handleResetAndClose}
-                  className="px-3.5 py-1.5 rounded-lg bg-slate-100 text-xs font-mono text-[#475569] hover:bg-slate-200 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleUpload}
-                  className="px-4 py-2 rounded-lg btn-sky-gradient text-white text-xs font-mono font-medium flex items-center gap-1.5 cursor-pointer shadow-xs hover:brightness-105"
-                >
-                  <Sparkles size={13} />
-                  <span>Upload & Run Scanner</span>
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* Scanner Output State */
-          <div className="space-y-4 animate-fade-in">
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-3">
-              <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-heading font-semibold text-xs text-emerald-950">
-                  Ingestion Successful & Impact Scanner Executed
-                </h4>
-                <p className="text-[11px] text-emerald-800 font-mono mt-0.5">
-                  Document ingested into PostgreSQL + Neo4j with valid-time metadata.
+                <p className="text-[12px] text-kb-muted">
+                  Use the date it was written or agreed, not today: an answer as of a date only sees documents dated on or before it.
                 </p>
               </div>
-            </div>
+            )}
 
-            {/* Scanner Flags Returned */}
-            <div>
-              <div className="flex items-center gap-2 mb-2 font-mono text-xs font-semibold text-[#0F172A]">
-                <ShieldAlert size={14} className="text-rose-600" />
-                <span>Impact Scanner Findings ({returnedFlags.length} Flag{returnedFlags.length === 1 ? '' : 's'} Raised):</span>
+            {duplicate && (
+              <div className="p-3 rounded-lg badge-note-amber flex items-start gap-2">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" aria-hidden="true" />
+                <div>
+                  <div className="font-semibold">{docId} is already ingested{existingVersion ? ` (in force from ${day(existingVersion.valid_from)})` : ''}.</div>
+                  <p>Uploading it again replaces the stored text with this file; for an unchanged policy the scanner raises no new flags.</p>
+                  <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                    <input type="checkbox" checked={confirmDup} onChange={e => setConfirmDup(e.target.checked)} /> Upload it again anyway
+                  </label>
+                </div>
               </div>
+            )}
 
-              {returnedFlags.length === 0 ? (
-                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-[#64748B]">
-                  No retroactive conflicts detected against existing decisions.
+            {onAuthor && !running && (
+              <p className="text-[12.5px] text-kb-muted">
+                No file? Fill in a form instead:{' '}
+                <button type="button" className="underline text-kb-cobalt-ink cursor-pointer" onClick={() => { clearAll(); onAuthor('decision'); }}>Record a decision</button>
+                {' · '}
+                <button type="button" className="underline text-kb-cobalt-ink cursor-pointer" onClick={() => { clearAll(); onAuthor('policy'); }}>Add a policy version</button>
+              </p>
+            )}
+
+            <Stages stages={stages} />
+
+            {cancelled && (
+              <div className="p-3 rounded-lg badge-note-amber">
+                Stopped waiting for the server. If the upload had already reached it, the ingest may still finish:
+                check the Inbox and the Audit Trail in a moment.
+              </div>
+            )}
+            {failure && (
+              <div className="p-3 rounded-lg bg-kb-alert/8 border border-kb-alert/40 flex items-start gap-2 text-kb-alert" role="alert">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" aria-hidden="true" />
+                <div>
+                  <div className="font-semibold">{failure.title}. Nothing was ingested and the scanner did not run.</div>
+                  <div className="font-mono text-[12px] mt-0.5 break-all">{failure.text}</div>
                 </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              {running ? (
+                <button type="button" onClick={() => abortRef.current?.abort()} className="btn-secondary">
+                  <Square size={12} /> Cancel
+                </button>
               ) : (
-                <div className="space-y-2">
-                  {returnedFlags.map((flag, idx) => (
-                    <div 
-                      key={idx}
-                      className="p-3 rounded-lg border bg-rose-50/60 border-rose-200 text-rose-950 font-mono text-xs"
-                    >
-                      <div className="flex items-center justify-between font-bold mb-1">
-                        <span className="px-2 py-0.5 rounded badge-note-rose text-[10.5px]">
-                          {flag.impact_type}
-                        </span>
-                        <span className="text-[#0284C7] text-[11px]">
-                          Target: {flag.decision_id}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-700 font-sans mt-1">
-                        Flag <span className="font-mono">{flag.id}</span> recorded in the graph and the audit log.
-                      </p>
-                      <div className="mt-2 text-[10px] text-slate-500 font-mono flex items-center gap-1">
-                        <ArrowRight size={10} className="text-[#0284C7]" />
-                        <span>{flag.proposal_id
-                          ? `Proposal #${flag.proposal_id} queued for human review.`
-                          : 'Historical record only: no action proposed.'}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <button type="button" onClick={handleResetAndClose} className="btn-secondary">Close</button>
+                  <button type="button" onClick={handleUpload} disabled={(duplicate && !confirmDup) || (plain && !docDate) || (!content && !customFile)}
+                    className="px-4 py-2 rounded-lg btn-sky-gradient text-white font-medium flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed">
+                    <Upload size={14} />
+                    <span>Upload & Run Scanner</span>
+                  </button>
+                </>
               )}
             </div>
+          </div>
+        ) : (
+          /* Results: what the server reported, per stage */
+          <div className="space-y-3">
+            <Stages stages={stages} />
+            <ul className="rounded-lg border border-kb-line divide-y divide-kb-line">
+              <li className="p-2.5 flex items-center gap-2 flex-wrap"><CheckCircle2 size={15} className="text-kb-cobalt-ink" aria-hidden="true" />
+                Stored <IdChip id={result.document_id} /> ({plain ? 'plain document' : result.doc_type.replace('_', ' ')}), dated {day(result.ref_time)}{plain ? ' as you entered it' : ' from its front-matter'}.</li>
+              {isMeeting && (
+                <li className="p-2.5 flex items-start gap-2">
+                  {result.extraction_error
+                    ? <><AlertTriangle size={15} className="text-kb-alert shrink-0 mt-0.5" aria-hidden="true" /><span>Extraction failed: <span className="font-mono">{result.extraction_error}</span></span></>
+                    : <><CheckCircle2 size={15} className="text-kb-cobalt-ink shrink-0 mt-0.5" aria-hidden="true" />
+                      <span>Extracted {plural(result.extracted?.nodes ?? 0, 'node')} and {plural(result.extracted?.edges ?? 0, 'edge')}
+                        {result.extracted?.already_known ? ` (${result.extracted.already_known} already recorded elsewhere, not queued)` : ''};
+                        {' '}{plural(result.pending_review ?? 0, 'fact')} now wait in the Inbox.</span></>}
+                </li>
+              )}
+              {!isPolicy && <li className="p-2.5 text-kb-muted">The impact scanner runs only when a policy version is ingested.</li>}
+            </ul>
 
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => { handleResetAndClose(); onProceedToQueue(); }}
-                className="px-4 py-2 rounded-lg btn-sky-gradient text-white text-xs font-mono font-medium cursor-pointer"
-              >
-                Proceed to Review Queue →
+            {isPolicy && (
+              <div>
+                <div className="flex items-center gap-2 mb-2 font-semibold text-kb-navy">
+                  <ShieldAlert size={15} className="text-kb-alert" aria-hidden="true" />
+                  <span>Impact Scanner Findings ({plural(flags.length, 'flag')} raised)</span>
+                </div>
+                {flags.length === 0 ? (
+                  <p className="p-3 rounded-lg bg-kb-bg-soft border border-kb-line text-kb-muted">
+                    No new flags: no past decision relied on a clause this version changed in a way that makes it
+                    non-compliant, or the flags already exist from an earlier upload.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {flags.map(flag => (
+                      <li key={flag.id} className="p-3 rounded-lg border bg-kb-alert/8 border-kb-alert/40">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 rounded badge-note-rose text-[12px]" title={flag.impact_type}>{impactLabel(flag.impact_type)}</span>
+                          <IdChip id={flag.decision_id} type="decision" withTitle />
+                        </div>
+                        <p className="mt-1.5 flex items-center gap-1 flex-wrap text-kb-navy">
+                          <ArrowRight size={12} className="text-kb-cobalt-ink" aria-hidden="true" />
+                          {flag.proposal_id ? <>Proposal <IdChip id={`#${flag.proposal_id}`} type="proposal" /> queued for human review.</>
+                            : 'Historical only: no action proposed.'}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={clearAll} className="btn-secondary">Ingest another</button>
+              <button type="button" onClick={() => { handleResetAndClose(); onProceedToQueue(isMeeting ? 'EXTRACTIONS' : 'QUEUE'); }}
+                className="px-4 py-2 rounded-lg btn-sky-gradient text-white font-medium cursor-pointer">
+                {isMeeting ? 'Review the extracted facts →' : 'Open the Inbox →'}
               </button>
             </div>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+const TYPE_LABEL = { policy_version: 'policy version', decision: 'decision', meeting_note: 'meeting note' };
+
+function BatchList({ batch, setBatch, onRun, onClear, onClose, onInbox }) {
+  const started = batch.some(x => !['waiting', 'invalid', 'exists'].includes(x.state));
+  const busy = batch.some(x => x.state === 'running');
+  const done = started && !busy;
+  const flags = batch.flatMap(x => x.res?.flags || []);
+  const facts = batch.reduce((n, x) => n + (x.res?.pending_review || 0), 0);
+  return (
+    <div className="space-y-3">
+      <p className="text-kb-muted">{batch.length} files, uploaded one after another in this order: policy versions first, so decisions can rely on their clauses.</p>
+      <ol className="rounded-lg border border-kb-line divide-y divide-kb-line" aria-label="Files">
+        {batch.map((x, i) => (
+          <li key={i} className="p-2.5 flex items-start gap-2">
+            {x.state === 'running' && <Loader2 size={15} className="animate-spin text-kb-cobalt-ink shrink-0 mt-0.5" aria-hidden="true" />}
+            {x.state === 'done' && <CheckCircle2 size={15} className="text-kb-cobalt-ink shrink-0 mt-0.5" aria-hidden="true" />}
+            {(x.state === 'failed' || x.state === 'invalid') && <AlertTriangle size={15} className="text-kb-alert shrink-0 mt-0.5" aria-hidden="true" />}
+            {(x.state === 'waiting' || x.state === 'exists') && <span className="w-[15px] shrink-0" />}
+            <div className="min-w-0">
+              <div><span className="font-mono">{x.file.name}</span>
+                {x.fm && <span className="text-kb-muted"> · {TYPE_LABEL[x.fm.doc_type] || x.fm.doc_type} {x.id}</span>}</div>
+              {x.state === 'invalid' && <div className="text-kb-alert text-[12.5px]">{x.reason}</div>}
+              {(x.state === 'exists' || x.confirmed) && !started && (
+                <label className="flex items-center gap-1.5 text-[12.5px] text-kb-navy cursor-pointer">
+                  <input type="checkbox" checked={!!x.confirmed}
+                    onChange={e => setBatch(b => b.map((y, j) => (j === i ? { ...y, confirmed: e.target.checked } : y)))} />
+                  {x.id} is already ingested: skipped unless you tick this (uploading replaces its stored text)
+                </label>
+              )}
+              {x.state === 'failed' && <div className="text-kb-alert text-[12.5px]">{x.error.title}: <span className="font-mono">{x.error.text}</span></div>}
+              {x.state === 'done' && (
+                <div className="text-[12.5px] text-kb-muted">
+                  Stored, dated {day(x.res.ref_time)}.
+                  {x.res.doc_type === 'policy_version' && ` Scanner raised ${plural(x.res.flags?.length || 0, 'flag')}.`}
+                  {x.res.doc_type === 'meeting_note' && ` ${plural(x.res.pending_review || 0, 'fact')} to review.`}
+                </div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div className="flex justify-end gap-2">
+        {!busy && <button type="button" onClick={onClear} className="btn-secondary">{done ? 'Ingest more' : 'Choose other files'}</button>}
+        {!started && <button type="button" onClick={onRun} disabled={!batch.some(x => x.state === 'waiting')}
+          className="px-4 py-2 rounded-lg btn-sky-gradient text-white font-medium flex items-center gap-1.5 cursor-pointer disabled:opacity-50"><Upload size={14} /> Upload all</button>}
+        {done && (flags.some(f => f.proposal_id) || facts > 0)
+          ? <button type="button" onClick={() => onInbox(flags.some(f => f.proposal_id) ? 'QUEUE' : 'EXTRACTIONS')} className="px-4 py-2 rounded-lg btn-sky-gradient text-white font-medium cursor-pointer">Open the Inbox →</button>
+          : done && <button type="button" onClick={onClose} className="btn-secondary">Close</button>}
+      </div>
+    </div>
+  );
+}
+
+function Stages({ stages }) {
+  if (!stages.length) return null;
+  const secs = (s) => (((s.endedAt || Date.now()) - s.startedAt) / 1000).toFixed(1);
+  return (
+    <ol className="space-y-1.5" aria-label="Progress" aria-live="polite">
+      {stages.map(s => (
+        <li key={s.key} className="flex items-start gap-2">
+          {s.state === 'running' && <Loader2 size={15} className="animate-spin text-kb-cobalt-ink shrink-0 mt-0.5" aria-hidden="true" />}
+          {s.state === 'done' && <CheckCircle2 size={15} className="text-kb-cobalt-ink shrink-0 mt-0.5" aria-hidden="true" />}
+          {s.state === 'failed' && <AlertTriangle size={15} className="text-kb-alert shrink-0 mt-0.5" aria-hidden="true" />}
+          <span>
+            {s.label} <span className="text-kb-muted font-mono text-[12px]">{secs(s)} s</span>
+            {s.state === 'running' && <span className="text-kb-muted"> (the local model can take a minute)</span>}
+            {s.note && <span className="block text-[12px] text-kb-muted">{s.note}</span>}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }

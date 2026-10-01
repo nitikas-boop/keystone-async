@@ -14,21 +14,23 @@ export default function Logo({ size = 32, showText = true, subtitle = "TEMPORAL 
         height={size}
         width={Math.round(size * MARK_ASPECT)}
         className="shrink-0 object-contain mix-blend-multiply"
-        style={{ height: size, width: 'auto' }}
+        // The PNG is a multicolour mark on white: multiply drops the white, and grayscale keeps it to one calm
+        // tone (white stays white, so no box) that sits on the Ice & Butter palette.
+        style={{ height: size, width: 'auto', filter: 'grayscale(1) contrast(1.2)' }}
       />
 
       {showText && (
         <div className="flex flex-col justify-center leading-none">
           <div className="flex items-center gap-1.5">
-            <span className="font-heading font-bold text-lg leading-none tracking-tight text-[#0B1437]">
+            <span className="font-heading font-bold text-lg leading-none tracking-tight text-kb-navy">
               KeyStone
             </span>
-            <span className="px-1.5 py-0.5 text-[9.5px] leading-none font-mono uppercase bg-sky-50 border border-sky-200 text-[#0284C7] rounded tracking-wider font-semibold">
+            <span className="px-1.5 py-0.5 text-[11px] leading-none font-mono uppercase bg-kb-ice border border-kb-cobalt/50 text-kb-cobalt-ink rounded tracking-wider font-semibold">
               SOVEREIGN
             </span>
           </div>
           {subtitle && (
-            <span className="mt-1 text-[9px] leading-none font-mono tracking-wider text-[#64748B] uppercase">
+            <span className="mt-1 text-[11px] leading-none font-mono tracking-wider text-kb-muted uppercase">
               {subtitle}
             </span>
           )}
