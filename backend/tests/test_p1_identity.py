@@ -156,3 +156,22 @@ def test_login_checks_the_registered_account(api):
         'that employee ID and password do not match a registered account'
     assert not wrong_pw.cookies.get(identity.COOKIE)
     assert login(api, 'NL-005').json()['user_id'] == 'divya'
+
+
+def test_new_org_policy_versions_close_in_its_own_graph(api):
+    """Uploading v2 in a non-default org ends v1 in that org's graph partition (it used to update the default org's,
+    leaving every version of the clause 'in force' at once)."""
+    from neo4j import GraphDatabase
+    from app import config
+    r, _ = register(api)
+    org, ceo = r.json()['org_id'], httpx.Client(base_url=api, cookies=r.cookies, timeout=600)
+    pid = uniq('POL-TEN-').upper()
+    for ver, day, days in (('v1', '2024-01-01', 365), ('v2', '2025-01-01', 180)):
+        md = (f'---\ndoc_type: policy_version\npolicy_id: {pid}\nversion: {ver}\ntitle: Tenant retention\n'
+              f'effective_from: {day}\nclauses:\n  - clause_id: {pid}-1\n    text: "Keep logs {days} days."\n'
+              f'    checkable: false\n---\nTenant retention {ver}.\n')
+        assert ceo.post('/documents', files={'file': (f'{pid}-{ver}.md', md.encode())}).status_code == 201
+    with GraphDatabase.driver(config.NEO4J_URI, auth=(config.NEO4J_USER, config.NEO4J_PASSWORD)) as d:
+        rows = d.execute_query('MATCH (n:Entity {group_id: $g}) WHERE n.policy_id = $p AND n.type = "Clause" '
+                               'RETURN n.version AS v, n.valid_to AS t', g=org, p=pid).records
+    assert {x['v']: x['t'] for x in rows} == {'v1': '2025-01-01', 'v2': None}

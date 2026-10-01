@@ -1,6 +1,7 @@
 """Front-matter ingestion. Dates come from YAML front-matter and become valid time + episode reference time."""
 import asyncio
 import hashlib
+import io
 import json
 import logging
 import re
@@ -195,11 +196,11 @@ async def _policy_graph(fm, did, ref, prov, episode) -> list[str]:
         if v['version'] != ver and v['effective_to']:
             vto = v['effective_to'].isoformat()
             await graph.q('MATCH (n:Entity {group_id: $g}) WHERE n.policy_id=$p AND n.version=$v SET n.valid_to=$to',
-                          g=config.GROUP_ID, p=pid, v=v['version'], to=vto)
+                          g=graph.gid(), p=pid, v=v['version'], to=vto)
             await graph.q('MATCH ()-[e:RELATES_TO {group_id: $g, name: "BELONGS_TO"}]->() '
                           'WHERE e.policy_id=$p AND e.version=$v AND e.invalid_at IS NULL '
                           'SET e.invalid_at=$to, e.expired_at=$now',
-                          g=config.GROUP_ID, p=pid, v=v['version'], to=graph.at(v['effective_to']), now=now)
+                          g=graph.gid(), p=pid, v=v['version'], to=graph.at(v['effective_to']), now=now)
     return edges
 
 
@@ -287,16 +288,45 @@ async def completed_docs() -> dict[str, dict]:
             if v.get('status') in ('ok', 'skipped') and stored.get(v.get('document_id')) == v.get('sha256')}
 
 
+SUPPORTED = ('.md', '.txt', '.pdf', '.docx')
+
+
+def text_of(name: str, data: bytes) -> str:
+    """Text of an uploaded or scanned file: .md/.txt as is, .pdf and .docx extracted locally. Anything the engine
+    cannot read is refused here with the reason (ValueError -> 422), never stored as an empty or garbled document."""
+    suffix = Path(name).suffix.lower()
+    if suffix not in SUPPORTED:
+        raise ValueError(f"{suffix or 'a file without an extension'} is not supported: upload "
+                         f"{', '.join(SUPPORTED)} (Excel, PowerPoint, HTML and images are not read)")
+    try:
+        if suffix == '.pdf':
+            from pypdf import PdfReader
+            text = '\n\n'.join((page.extract_text() or '').strip() for page in PdfReader(io.BytesIO(data)).pages)
+        elif suffix == '.docx':
+            import docx
+            text = '\n\n'.join(par.text for par in docx.Document(io.BytesIO(data)).paragraphs if par.text.strip())
+        else:
+            text = data.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        raise ValueError(f'{name} is not UTF-8 text')
+    except Exception as e:  # pypdf / python-docx raise their own types for corrupt or encrypted files
+        raise ValueError(f'{name} could not be read as {suffix[1:].upper()}: {e}')
+    if not text.strip():
+        raise ValueError(f'{name} has no text' + (' (a scanned PDF? there is no OCR)' if suffix == '.pdf' else ''))
+    return text
+
+
 def read_text(p: Path) -> str:
-    """Text of a scanned file: .md/.txt as is, .pdf and .docx extracted locally."""
-    suffix = p.suffix.lower()
-    if suffix == '.pdf':
-        from pypdf import PdfReader
-        return '\n\n'.join((page.extract_text() or '').strip() for page in PdfReader(p).pages).strip()
-    if suffix == '.docx':
-        import docx
-        return '\n\n'.join(par.text for par in docx.Document(p).paragraphs if par.text.strip())
-    return p.read_text(encoding='utf-8')
+    return text_of(p.name, p.read_bytes())
+
+
+def has_front_matter(text: str) -> bool:
+    return text.replace('\r\n', '\n').startswith('---\n')
+
+
+def doc_id_for(name: str) -> str:
+    """ID for a document that has no front-matter of its own: 'Q3 report.pdf' -> DOC-Q3-REPORT."""
+    return 'DOC-' + re.sub(r'[^A-Za-z0-9]+', '-', Path(name).stem).strip('-').upper()
 
 
 def meeting_note(text: str, doc_id: str, title: str, meeting_date: date, source: str, extra: dict | None = None) -> str:
@@ -316,10 +346,10 @@ async def ingest_source(text: str, source_name: str, actor: str, *, doc_id: str,
 
 
 async def _announce_policy(did: str):
-    """'A policy version was uploaded' for every active member of the default org (who owns the knowledge tables)."""
+    """'A policy version was uploaded' for every active member of the uploader's org."""
     from . import comms
     async with db.pool.acquire() as c, c.transaction():
-        for r in await c.fetch("SELECT user_id FROM memberships WHERE org_id = $1 AND status = 'active'", config.GROUP_ID):
+        for r in await c.fetch("SELECT user_id FROM memberships WHERE org_id = $1 AND status = 'active'", graph.gid()):
             await comms.notify(r['user_id'], 'policy_uploaded', did, conn=c)
 
 

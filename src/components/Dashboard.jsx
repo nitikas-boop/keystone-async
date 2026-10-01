@@ -400,7 +400,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
             onClick={() => setIsIngestModalOpen(true)}
             disabled={noAuthority || perms?.read_only}
             className="h-8 px-3 rounded-lg btn-sky-gradient text-white text-[13px] font-medium flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            title={noAuthority ? 'Your approval authority is ₹0: ask your lead to ingest documents' : 'Upload a policy version, decision or meeting note (Markdown or meeting audio)'}
+            title={noAuthority ? 'Your approval authority is ₹0: ask your lead to ingest documents' : 'Upload a policy version, decision or meeting note, any Markdown, text, PDF or Word document, or meeting audio'}
           >
             <Upload size={14} />
             <span className="hidden min-[1280px]:inline">Ingest Document</span>

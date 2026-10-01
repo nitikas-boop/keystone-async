@@ -46,3 +46,7 @@ backend/models/
 
 # uploaded meeting audio (feature F); the transcript stays in Postgres
 backend/audio_store/
+
+# public demo datasets (~770 MB); re-fetch live ones with data/external/fetch_live.py
+data/external/*
+!data/external/fetch_live.py

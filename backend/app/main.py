@@ -100,9 +100,23 @@ async def health():
 # ---- documents ----
 
 @app.post('/documents', status_code=201)
-async def upload(file: UploadFile, who: str = Depends(writer)):
+async def upload(file: UploadFile, doc_date: date | None = Form(None), title: str | None = Form(None),
+                 who: str = Depends(writer)):
+    """A Keystone document (Markdown with front-matter), or any .md/.txt/.pdf/.docx without it. The latter is stored
+    as a meeting_note dated doc_date: the date comes from the uploader, never from the model or the upload time."""
+    name = file.filename or 'upload.md'
     try:
-        raw = (await file.read()).decode('utf-8')
+        raw = await asyncio.to_thread(ingest.text_of, name, await file.read())
+        if not ingest.has_front_matter(raw):
+            if not doc_date:
+                try:
+                    await ingest.ingest(raw, name, who)  # raises the front-matter error and records the failed run
+                except ValueError as e:
+                    raise ValueError(f'{e}; or give the date it was written or agreed (doc_date) to store it as a '
+                                     'plain document')
+            return await ingest.ingest_source(raw, name, who, doc_id=ingest.doc_id_for(name),
+                                              title=(title or '').strip() or Path(name).stem, meeting_date=doc_date,
+                                              label={'visibility': 'org'})
         try:
             fm = ingest.parse(raw)[0]
         except Exception:
@@ -110,7 +124,7 @@ async def upload(file: UploadFile, who: str = Depends(writer)):
         fields = fm.get('fields') or {}
         _authority(fields.get('amount_inr') if isinstance(fields, dict) else None, 'upload')
         await _may_author(fm)
-        return await ingest.ingest(raw, file.filename or 'upload.md', who)
+        return await ingest.ingest(raw, name, who)
     except (ValueError, UnicodeDecodeError) as e:
         raise HTTPException(422, str(e))
 

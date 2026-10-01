@@ -1,7 +1,6 @@
 """L. Session start endpoints: model status line, heartbeat, scan report, Rescan now, baseline confirmation, and the
 scanned-file queue shown in Ingestion Review (Ingest or Ignore each file; nothing is ingested automatically)."""
 import asyncio
-import re
 from datetime import date
 from pathlib import Path
 
@@ -81,10 +80,6 @@ async def _file(file_id: int, user: dict):
     return row
 
 
-def suggested_id(path: str) -> str:
-    return 'DOC-' + re.sub(r'[^A-Za-z0-9]+', '-', Path(path).stem).strip('-').upper()
-
-
 @router.post('/scan/files/{file_id}/ingest')
 async def ingest_file(file_id: int, body: FileIngestIn, user: dict = Depends(current_user)):
     row = await _file(file_id, user)
@@ -103,12 +98,12 @@ async def ingest_file(file_id: int, body: FileIngestIn, user: dict = Depends(cur
             source_id = f"AUDIO-{out['id']}"
         else:
             raw = await asyncio.to_thread(ingest.read_text, p)
-            if raw.replace('\r\n', '\n').startswith('---\n'):
+            if ingest.has_front_matter(raw):
                 out = await ingest.ingest(raw, source, user['actor'], visibility=row['visibility'])
             else:
                 if not body.meeting_date:
                     raise ValueError('this file has no front-matter: confirm a meeting_date for it')
-                out = await ingest.ingest_source(raw, source, user['actor'], doc_id=body.doc_id or suggested_id(row['path']),
+                out = await ingest.ingest_source(raw, source, user['actor'], doc_id=body.doc_id or ingest.doc_id_for(row['path']),
                                                  title=body.title or p.stem, meeting_date=body.meeting_date,
                                                  label={'visibility': row['visibility']})
             source_id = out['document_id']

@@ -137,7 +137,7 @@ async def _known(as_of: date) -> list[dict]:
     # Errors surface: extracting without the known entities would silently create duplicates.
     rows = await graph.q(f'MATCH (n:Entity {{group_id: $g}}) WHERE n.type IN $t AND {graph.node_ok("n")} '
                          'RETURN n.key AS key, n.type AS type, n.name AS name',
-                         g=config.GROUP_ID, t=NODE_TYPES, d=as_of.isoformat())
+                         g=graph.gid(), t=NODE_TYPES, d=as_of.isoformat())
     return [dict(r) for r in rows]
 
 
