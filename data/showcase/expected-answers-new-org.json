@@ -1,0 +1,578 @@
+{
+ "_about": "Real answers from Keystone (qwen2.5-7b-16k) for questions.json, ingested into an empty newly signed-up organisation (org-1a1ac041) as its CEO in the order of effective_from. Refusal sentence: I have no recorded decision about that",
+ "passed": "29/30",
+ "answers": [
+  {
+   "id": "Q01",
+   "area": "HR",
+   "as_of": "2026-09-30",
+   "q": "How many weeks of vacation does an employee with 12 years of service get?",
+   "expect": "answer",
+   "cite": [
+    "TOF-4@v1"
+   ],
+   "mention": [
+    "4 weeks"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "An employee with 12 years of service gets 4 weeks of vacation as per the policy in force from 2024-01-01. [TOF-4@v1]",
+   "cited": [
+    "TOF-4@v1"
+   ]
+  },
+  {
+   "id": "Q02",
+   "area": "HR",
+   "as_of": "2026-09-30",
+   "q": "Can unused personal sick time be carried over to the next year?",
+   "expect": "answer",
+   "cite": [
+    "TOF-6@v1"
+   ],
+   "mention": [
+    "cannot"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "No, unused personal sick time cannot be carried over to the next year as per TOF-6 version v1 in force from 2024-01-01. [TOF-6@v1]",
+   "cited": [
+    "TOF-6@v1"
+   ]
+  },
+  {
+   "id": "Q03",
+   "area": "HR",
+   "as_of": "2026-09-30",
+   "q": "Can supplemental employees earn personal choice holidays?",
+   "expect": "answer",
+   "cite": [
+    "TOF-3@v1"
+   ],
+   "mention": [
+    "cannot"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "No, supplemental employees cannot earn personal choice holidays as per TOF-3 version v1 in force from 2024-01-01. [TOF-3@v1]",
+   "cited": [
+    "TOF-3@v1"
+   ]
+  },
+  {
+   "id": "Q04",
+   "area": "Sales",
+   "as_of": "2026-09-30",
+   "q": "Who must approve a 15% discount on a $12,000 deal?",
+   "expect": "answer",
+   "cite": [
+    "DSC-2@v1",
+    "DSC-4@v1"
+   ],
+   "mention": [
+    "Sales Manager"
+   ],
+   "pass": false,
+   "problems": [
+    "cites ['DSC-1@v1'], expected one of ['DSC-2@v1', 'DSC-4@v1']",
+    "does not mention \"Sales Manager\""
+   ],
+   "refused": false,
+   "answer": "A Sales Representative may approve a 15% discount on a $12,000 deal for Tier 2 customers according to DSC-1@v1. [DSC-1@v1] However, as of 2026-09-30, the current version of the policy does not change this requirement; thus, a Sales Representative still has the authority to approve such discounts for Tier 2 customers. [DSC-1@v1]",
+   "cited": [
+    "DSC-1@v1"
+   ],
+   "note": "Known failure: needs two rules at once (DSC-1 tier limit and DSC-2 deal size). The 7B model applied only DSC-1; correct answer: a Sales Manager, since the deal is between $5,000 and $25,000 and the discount exceeds 10%."
+  },
+  {
+   "id": "Q05",
+   "area": "Sales",
+   "as_of": "2026-09-30",
+   "q": "What is the maximum discount a sales representative can give a Tier 3 startup customer without further approval?",
+   "expect": "answer",
+   "cite": [
+    "DSC-1@v1"
+   ],
+   "mention": [
+    "10%"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "The maximum discount a sales representative can give a Tier 3 startup customer without further approval is 10%. This was decided as per DSC-1, which is in force from 2025-01-01. [DSC-1@v1]",
+   "cited": [
+    "DSC-1@v1"
+   ]
+  },
+  {
+   "id": "Q06",
+   "area": "Sales",
+   "as_of": "2026-09-30",
+   "q": "What is the minimum gross margin allowed after a discount?",
+   "expect": "answer",
+   "cite": [
+    "DSC-3@v1",
+    "DSC-4@v1"
+   ],
+   "mention": [
+    "30%"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "The minimum gross margin allowed after a discount is 30%, unless explicitly approved by the Vice President of Sales. [DSC-3@v1]",
+   "cited": [
+    "DSC-3@v1"
+   ]
+  },
+  {
+   "id": "Q07",
+   "area": "HR",
+   "as_of": "2026-09-30",
+   "q": "What signing bonus does a newly hired First Officer pilot receive?",
+   "expect": "answer",
+   "cite": [
+    "PAY-2.2@v1"
+   ],
+   "mention": [
+    "10,000"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "A newly hired First Officer pilot receives a one-time signing bonus of $10,000. [PAY-2.2@v1]",
+   "cited": [
+    "PAY-2.2@v1"
+   ]
+  },
+  {
+   "id": "Q08",
+   "area": "HR",
+   "as_of": "2026-09-30",
+   "q": "What is the per diem rate for pilots on international assignments?",
+   "expect": "answer",
+   "cite": [
+    "PAY-3@v1"
+   ],
+   "mention": [
+    "5.00"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "The per diem rate for pilots on international assignments is $5.00 per hour, as stated in Clause PAY-3 version v1 effective from 2025-02-01. [PAY-3@v1]",
+   "cited": [
+    "PAY-3@v1"
+   ]
+  },
+  {
+   "id": "Q09",
+   "area": "Compliance",
+   "as_of": "2026-09-30",
+   "q": "At what amount must a single transaction be flagged for money laundering?",
+   "expect": "answer",
+   "cite": [
+    "AML-1@v1"
+   ],
+   "mention": [
+    "10,000"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "As of 2026-09-30, a single transaction must be flagged for money laundering if its amount is greater than or equal to 10,000 USD (or equivalent in any supported currency). [AML-1@v1]",
+   "cited": [
+    "AML-1@v1"
+   ]
+  },
+  {
+   "id": "Q10",
+   "area": "Compliance",
+   "as_of": "2026-09-30",
+   "q": "When is an account considered dormant for anti-money laundering monitoring?",
+   "expect": "answer",
+   "cite": [
+    "AML-4@v1"
+   ],
+   "mention": [
+    "180"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "An account is considered dormant for anti-money laundering monitoring if it has no debit or credit activity for at least 180 consecutive days. [AML-4@v1]",
+   "cited": [
+    "AML-4@v1"
+   ]
+  },
+  {
+   "id": "Q11",
+   "area": "Compliance",
+   "as_of": "2026-09-30",
+   "q": "When do we have to apply enhanced due diligence to a customer?",
+   "expect": "answer",
+   "cite": [
+    "CDD-2@v1"
+   ],
+   "mention": [
+    "politically exposed"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "Enhanced due diligence (EDD) should be applied when any of the following conditions are met: The customer is a politically exposed person (PEP) or closely associated with a PEP. The transaction involves a country classified as high-risk by the EU or the FATF. The customer qualifies as a high-net-worth individual, with wealth equal to or exceeding €50 million. The transaction involves the use of auto-hosted crypto wallets or a correspondent relationship between crypto-asset service providers across borders. [CDD-2@v1] For individuals, the institution must verify the full name, date of birth, nationality, residential address, official government-issued ID, and a recent photograph. For legal entities, it must verify the registered legal name, company registration number, address, legal structure, and the identity of the ultimate beneficial owners (UBOs). [CDD-3@v1] The compliance system must automatically block or delay transactions when regulatory thresholds are exceeded until CDD is complete. If a customer matches a PEP list or a financial sanctions list, the system must initiate enhanced due diligence protocols and notify the compliance officer. [CDD-5@v1]",
+   "cited": [
+    "CDD-2@v1",
+    "CDD-3@v1",
+    "CDD-5@v1"
+   ]
+  },
+  {
+   "id": "Q12",
+   "area": "Compliance",
+   "as_of": "2026-09-30",
+   "q": "How long must customer due diligence records be retained?",
+   "expect": "answer",
+   "cite": [
+    "CDD-4@v1"
+   ],
+   "mention": [
+    "five years"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "Customer due diligence records must be retained for a minimum of five years after the end of the business relationship or the execution of the occasional transaction, as per Clause CDD-4 version v1 in force from 2025-07-01. [CDD-4@v1]",
+   "cited": [
+    "CDD-4@v1"
+   ]
+  },
+  {
+   "id": "Q13",
+   "area": "Lending",
+   "as_of": "2026-09-30",
+   "q": "What does an applicant need for a personal loan to be auto-approved?",
+   "expect": "answer",
+   "cite": [
+    "LNP-2@v1"
+   ],
+   "mention": [
+    "700"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "An applicant needs a minimum credit score of 700 and a debt-to-income ratio of 30% or lower for their personal loan to be auto-approved. [LNP-2@v1]",
+   "cited": [
+    "LNP-2@v1"
+   ]
+  },
+  {
+   "id": "Q14",
+   "area": "Lending",
+   "as_of": "2026-09-30",
+   "q": "What is the maximum debt-to-income ratio allowed under the US loan approval policy?",
+   "expect": "answer",
+   "cite": [
+    "LNU-3@v1"
+   ],
+   "mention": [
+    "40%"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "The maximum debt-to-income ratio allowed under the US loan approval policy is 40% as per LNU-3. [LNU-3@v1]",
+   "cited": [
+    "LNU-3@v1"
+   ]
+  },
+  {
+   "id": "Q15",
+   "area": "Operations",
+   "as_of": "2026-09-30",
+   "q": "What is the excess baggage fee for an oversized bag?",
+   "expect": "answer",
+   "cite": [
+    "LUG-5@v1"
+   ],
+   "mention": [
+    "100"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "The excess baggage fee for an oversized bag is $100. [LUG-5@v1]",
+   "cited": [
+    "LUG-5@v1"
+   ]
+  },
+  {
+   "id": "Q16",
+   "area": "Operations",
+   "as_of": "2026-09-30",
+   "q": "Are imported electronics shipments subject to customs inspection?",
+   "expect": "answer",
+   "cite": [
+    "BRD-5@v1"
+   ],
+   "mention": [
+    "inspection"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "Imported electronics shipments are subject to customs inspection if they meet certain conditions as per the Border Compliance Policy for Imported Goods. [BRD-5@v1] Specifically, inspections may be required if the goods include electronics or luxury items, are declared as such, originate from a high-risk country, or are otherwise warranted by customs enforcement criteria. [BRD-5@v1]",
+   "cited": [
+    "BRD-5@v1"
+   ]
+  },
+  {
+   "id": "Q17",
+   "area": "Operations",
+   "as_of": "2026-09-30",
+   "q": "By what date must annual aircraft emissions reports be submitted?",
+   "expect": "answer",
+   "cite": [
+    "ENV-1@v1"
+   ],
+   "mention": [
+    "March 31"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "Annual aircraft emissions reports must be submitted by March 31st for the preceding calendar year. [ENV-1@v1]",
+   "cited": [
+    "ENV-1@v1"
+   ]
+  },
+  {
+   "id": "Q18",
+   "area": "Fraud (time travel)",
+   "as_of": "2025-06-01",
+   "q": "What happens to a cross-border transaction with a fraud risk score above 60?",
+   "expect": "answer",
+   "cite": [
+    "XBF-6@v2"
+   ],
+   "mention": [
+    "compliance team"
+   ],
+   "note": "v2 in force: block and notify the compliance team",
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "A cross-border transaction with a fraud risk score above 60 is blocked and notified to the compliance team. [XBF-6@v2]",
+   "cited": [
+    "XBF-6@v2"
+   ]
+  },
+  {
+   "id": "Q19",
+   "area": "Fraud (time travel)",
+   "as_of": "2026-03-01",
+   "q": "What happens to a cross-border transaction with a fraud risk score above 60?",
+   "expect": "answer",
+   "cite": [
+    "XBF-6@v3"
+   ],
+   "mention": [
+    "SAR"
+   ],
+   "note": "same question after v3 (2026-01-15): block and initiate EDD / SAR",
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "A cross-border transaction with a fraud risk score above 60 is blocked and initiated for Enhanced Due Diligence (EDD) / Suspicious Activity Report (SAR) process. [XBF-6@v3] Further, every flagged transaction must include Geo-IP location, Merchant jurisdiction, Currency conversion path, AML/KYC status of user, and Sanctions or watchlist match flags as per Clause XBF-7. [XBF-7@v3]",
+   "cited": [
+    "XBF-6@v3",
+    "XBF-7@v3"
+   ]
+  },
+  {
+   "id": "Q20",
+   "area": "Fraud (time travel)",
+   "as_of": "2026-03-01",
+   "q": "What must be recorded for every flagged cross-border transaction?",
+   "expect": "answer",
+   "cite": [
+    "XBF-7@v3"
+   ],
+   "mention": [
+    "Geo-IP"
+   ],
+   "note": "XBF-7 exists only from v3",
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "Every flagged cross-border transaction must include Geo-IP location, Merchant jurisdiction, Currency conversion path, AML/KYC status of user, and Sanctions or watchlist match flags. [XBF-7@v3]",
+   "cited": [
+    "XBF-7@v3"
+   ]
+  },
+  {
+   "id": "Q21",
+   "area": "Sales (time travel)",
+   "as_of": "2025-06-01",
+   "q": "What is the maximum discount for Tier 1 enterprise customers without further approval?",
+   "expect": "answer",
+   "cite": [
+    "DSC-1@v1"
+   ],
+   "mention": [
+    "20%"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "The maximum discount for Tier 1 enterprise customers without further approval is 20%, as per DSC-1@v1, which was decided on 2025-01-01. [DSC-1@v1]",
+   "cited": [
+    "DSC-1@v1"
+   ]
+  },
+  {
+   "id": "Q22",
+   "area": "Sales (time travel)",
+   "as_of": "2024-06-01",
+   "q": "What is the maximum discount for Tier 1 enterprise customers without further approval?",
+   "expect": "refuse",
+   "note": "the discount policy takes effect 2025-01-01: as of mid-2024 there is no rule",
+   "pass": true,
+   "problems": [],
+   "refused": true,
+   "answer": "I have no recorded decision about that",
+   "cited": []
+  },
+  {
+   "id": "Q23",
+   "area": "Refusal",
+   "as_of": "2026-09-30",
+   "q": "Why did we choose MongoDB?",
+   "expect": "refuse",
+   "pass": true,
+   "problems": [],
+   "refused": true,
+   "answer": "I have no recorded decision about that",
+   "cited": []
+  },
+  {
+   "id": "Q24",
+   "area": "Refusal",
+   "as_of": "2026-09-30",
+   "q": "What is our remote work policy?",
+   "expect": "refuse",
+   "pass": true,
+   "problems": [],
+   "refused": true,
+   "answer": "I have no recorded decision about that",
+   "cited": []
+  },
+  {
+   "id": "Q25",
+   "area": "Refusal",
+   "as_of": "2026-09-30",
+   "q": "How many weeks of parental leave do employees get?",
+   "expect": "refuse",
+   "note": "the time-off policy covers holidays, vacation and sick time only",
+   "pass": true,
+   "problems": [],
+   "refused": true,
+   "answer": "I have no recorded decision about that",
+   "cited": []
+  },
+  {
+   "id": "Q26",
+   "area": "Contracts (PDF)",
+   "as_of": "2026-09-30",
+   "q": "How much does Horst Entertainment pay Galacticomm per access under the web hosting agreement?",
+   "expect": "answer",
+   "cite": [],
+   "mention": [
+    "0.01"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "Horst Entertainment pays Galacticomm $0.01 per access up to 400,000 accesses thereafter payment shall be $0.005 per access. [DOC-WEB-HOSTING-AGREEMENT-GALACTICOMM-D2]",
+   "cited": [
+    "DOC-WEB-HOSTING-AGREEMENT-GALACTICOMM-D2"
+   ]
+  },
+  {
+   "id": "Q27",
+   "area": "Contracts (PDF)",
+   "as_of": "2026-09-30",
+   "q": "What is the monthly fee in the managed hosting agreement with deep systems?",
+   "expect": "answer",
+   "cite": [],
+   "mention": [
+    "175"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "The monthly fee in the managed hosting agreement with deep systems is $175. [DOC-MANAGED-HOSTING-AGREEMENT-DEEP-SYSTEMS]",
+   "cited": [
+    "DOC-MANAGED-HOSTING-AGREEMENT-DEEP-SYSTEMS"
+   ]
+  },
+  {
+   "id": "Q28",
+   "area": "Contracts (PDF)",
+   "as_of": "2026-09-30",
+   "q": "What server uptime does deep systems guarantee in the managed hosting agreement?",
+   "expect": "answer",
+   "cite": [],
+   "mention": [
+    "99"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "deep systems guarantees a 99 percent server uptime as part of their managed hosting agreement with AstroNutrition.com. [DOC-MANAGED-HOSTING-AGREEMENT-DEEP-SYSTEMS-D1]",
+   "cited": [
+    "DOC-MANAGED-HOSTING-AGREEMENT-DEEP-SYSTEMS-D1"
+   ]
+  },
+  {
+   "id": "Q29",
+   "area": "Contracts (TXT)",
+   "as_of": "2026-09-30",
+   "q": "Which company will provide information processing services to United National Bank?",
+   "expect": "answer",
+   "cite": [],
+   "mention": [
+    "BISYS"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "BISYS will provide information processing services to United National Bank. [DOC-BISYS-OUTSOURCING-AGREEMENT-UNITED-NATIONAL-BANCORP]",
+   "cited": [
+    "DOC-BISYS-OUTSOURCING-AGREEMENT-UNITED-NATIONAL-BANCORP"
+   ]
+  },
+  {
+   "id": "Q30",
+   "area": "Contracts (DOCX)",
+   "as_of": "2026-09-30",
+   "q": "What is the cancellation fee in the Watchit content license agreement?",
+   "expect": "answer",
+   "cite": [],
+   "mention": [
+    "5,000"
+   ],
+   "pass": true,
+   "problems": [],
+   "refused": false,
+   "answer": "The cancellation fee in the Watchit content license agreement is Five Thousand Dollars ($5,000) per month multiplied by the number of months remaining on the agreement as of September 1, 2006. [DOC-CONTENT-LICENSE-AGREEMENT-WATCHIT-MEDIA]",
+   "cited": [
+    "DOC-CONTENT-LICENSE-AGREEMENT-WATCHIT-MEDIA"
+   ]
+  }
+ ]
+}

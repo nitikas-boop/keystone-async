@@ -1,0 +1,390 @@
+{
+ "_about": "On-site simulation for the Policy-Corpus library (data/showcase/policies). Each question is what a staff member would type into Ask, with the date the as-of slider is set to. expect=answer: the answer must cite one of `cite` (clause@version) and mention every string in `mention`. expect=refuse: the answer must be the refusal sentence. Run: backend/tests/simulate_policy_corpus.py `documents`: files without front-matter, uploaded as plain documents with the given date and title. cite=[] accepts any citation.",
+ "questions": [
+  {
+   "id": "Q01",
+   "area": "HR",
+   "as_of": "2026-09-30",
+   "q": "How many weeks of vacation does an employee with 12 years of service get?",
+   "expect": "answer",
+   "cite": [
+    "TOF-4@v1"
+   ],
+   "mention": [
+    "4 weeks"
+   ]
+  },
+  {
+   "id": "Q02",
+   "area": "HR",
+   "as_of": "2026-09-30",
+   "q": "Can unused personal sick time be carried over to the next year?",
+   "expect": "answer",
+   "cite": [
+    "TOF-6@v1"
+   ],
+   "mention": [
+    "cannot"
+   ]
+  },
+  {
+   "id": "Q03",
+   "area": "HR",
+   "as_of": "2026-09-30",
+   "q": "Can supplemental employees earn personal choice holidays?",
+   "expect": "answer",
+   "cite": [
+    "TOF-3@v1"
+   ],
+   "mention": [
+    "cannot"
+   ]
+  },
+  {
+   "id": "Q04",
+   "area": "Sales",
+   "as_of": "2026-09-30",
+   "q": "Who must approve a 15% discount on a $12,000 deal?",
+   "expect": "answer",
+   "cite": [
+    "DSC-2@v1",
+    "DSC-4@v1"
+   ],
+   "mention": [
+    "Sales Manager"
+   ]
+  },
+  {
+   "id": "Q05",
+   "area": "Sales",
+   "as_of": "2026-09-30",
+   "q": "What is the maximum discount a sales representative can give a Tier 3 startup customer without further approval?",
+   "expect": "answer",
+   "cite": [
+    "DSC-1@v1"
+   ],
+   "mention": [
+    "10%"
+   ]
+  },
+  {
+   "id": "Q06",
+   "area": "Sales",
+   "as_of": "2026-09-30",
+   "q": "What is the minimum gross margin allowed after a discount?",
+   "expect": "answer",
+   "cite": [
+    "DSC-3@v1",
+    "DSC-4@v1"
+   ],
+   "mention": [
+    "30%"
+   ]
+  },
+  {
+   "id": "Q07",
+   "area": "HR",
+   "as_of": "2026-09-30",
+   "q": "What signing bonus does a newly hired First Officer pilot receive?",
+   "expect": "answer",
+   "cite": [
+    "PAY-2.2@v1"
+   ],
+   "mention": [
+    "10,000"
+   ]
+  },
+  {
+   "id": "Q08",
+   "area": "HR",
+   "as_of": "2026-09-30",
+   "q": "What is the per diem rate for pilots on international assignments?",
+   "expect": "answer",
+   "cite": [
+    "PAY-3@v1"
+   ],
+   "mention": [
+    "5.00"
+   ]
+  },
+  {
+   "id": "Q09",
+   "area": "Compliance",
+   "as_of": "2026-09-30",
+   "q": "At what amount must a single transaction be flagged for money laundering?",
+   "expect": "answer",
+   "cite": [
+    "AML-1@v1"
+   ],
+   "mention": [
+    "10,000"
+   ]
+  },
+  {
+   "id": "Q10",
+   "area": "Compliance",
+   "as_of": "2026-09-30",
+   "q": "When is an account considered dormant for anti-money laundering monitoring?",
+   "expect": "answer",
+   "cite": [
+    "AML-4@v1"
+   ],
+   "mention": [
+    "180"
+   ]
+  },
+  {
+   "id": "Q11",
+   "area": "Compliance",
+   "as_of": "2026-09-30",
+   "q": "When do we have to apply enhanced due diligence to a customer?",
+   "expect": "answer",
+   "cite": [
+    "CDD-2@v1"
+   ],
+   "mention": [
+    "politically exposed"
+   ]
+  },
+  {
+   "id": "Q12",
+   "area": "Compliance",
+   "as_of": "2026-09-30",
+   "q": "How long must customer due diligence records be retained?",
+   "expect": "answer",
+   "cite": [
+    "CDD-4@v1"
+   ],
+   "mention": [
+    "five years"
+   ]
+  },
+  {
+   "id": "Q13",
+   "area": "Lending",
+   "as_of": "2026-09-30",
+   "q": "What does an applicant need for a personal loan to be auto-approved?",
+   "expect": "answer",
+   "cite": [
+    "LNP-2@v1"
+   ],
+   "mention": [
+    "700"
+   ]
+  },
+  {
+   "id": "Q14",
+   "area": "Lending",
+   "as_of": "2026-09-30",
+   "q": "What is the maximum debt-to-income ratio allowed under the US loan approval policy?",
+   "expect": "answer",
+   "cite": [
+    "LNU-3@v1"
+   ],
+   "mention": [
+    "40%"
+   ]
+  },
+  {
+   "id": "Q15",
+   "area": "Operations",
+   "as_of": "2026-09-30",
+   "q": "What is the excess baggage fee for an oversized bag?",
+   "expect": "answer",
+   "cite": [
+    "LUG-5@v1"
+   ],
+   "mention": [
+    "100"
+   ]
+  },
+  {
+   "id": "Q16",
+   "area": "Operations",
+   "as_of": "2026-09-30",
+   "q": "Are imported electronics shipments subject to customs inspection?",
+   "expect": "answer",
+   "cite": [
+    "BRD-5@v1"
+   ],
+   "mention": [
+    "inspection"
+   ]
+  },
+  {
+   "id": "Q17",
+   "area": "Operations",
+   "as_of": "2026-09-30",
+   "q": "By what date must annual aircraft emissions reports be submitted?",
+   "expect": "answer",
+   "cite": [
+    "ENV-1@v1"
+   ],
+   "mention": [
+    "March 31"
+   ]
+  },
+  {
+   "id": "Q18",
+   "area": "Fraud (time travel)",
+   "as_of": "2025-06-01",
+   "q": "What happens to a cross-border transaction with a fraud risk score above 60?",
+   "expect": "answer",
+   "cite": [
+    "XBF-6@v2"
+   ],
+   "mention": [
+    "compliance team"
+   ],
+   "note": "v2 in force: block and notify the compliance team"
+  },
+  {
+   "id": "Q19",
+   "area": "Fraud (time travel)",
+   "as_of": "2026-03-01",
+   "q": "What happens to a cross-border transaction with a fraud risk score above 60?",
+   "expect": "answer",
+   "cite": [
+    "XBF-6@v3"
+   ],
+   "mention": [
+    "SAR"
+   ],
+   "note": "same question after v3 (2026-01-15): block and initiate EDD / SAR"
+  },
+  {
+   "id": "Q20",
+   "area": "Fraud (time travel)",
+   "as_of": "2026-03-01",
+   "q": "What must be recorded for every flagged cross-border transaction?",
+   "expect": "answer",
+   "cite": [
+    "XBF-7@v3"
+   ],
+   "mention": [
+    "Geo-IP"
+   ],
+   "note": "XBF-7 exists only from v3"
+  },
+  {
+   "id": "Q21",
+   "area": "Sales (time travel)",
+   "as_of": "2025-06-01",
+   "q": "What is the maximum discount for Tier 1 enterprise customers without further approval?",
+   "expect": "answer",
+   "cite": [
+    "DSC-1@v1"
+   ],
+   "mention": [
+    "20%"
+   ]
+  },
+  {
+   "id": "Q22",
+   "area": "Sales (time travel)",
+   "as_of": "2024-06-01",
+   "q": "What is the maximum discount for Tier 1 enterprise customers without further approval?",
+   "expect": "refuse",
+   "note": "the discount policy takes effect 2025-01-01: as of mid-2024 there is no rule"
+  },
+  {
+   "id": "Q23",
+   "area": "Refusal",
+   "as_of": "2026-09-30",
+   "q": "Why did we choose MongoDB?",
+   "expect": "refuse"
+  },
+  {
+   "id": "Q24",
+   "area": "Refusal",
+   "as_of": "2026-09-30",
+   "q": "What is our remote work policy?",
+   "expect": "refuse"
+  },
+  {
+   "id": "Q25",
+   "area": "Refusal",
+   "as_of": "2026-09-30",
+   "q": "How many weeks of parental leave do employees get?",
+   "expect": "refuse",
+   "note": "the time-off policy covers holidays, vacation and sick time only"
+  },
+  {
+   "id": "Q26",
+   "area": "Contracts (PDF)",
+   "as_of": "2026-09-30",
+   "q": "How much does Horst Entertainment pay Galacticomm per access under the web hosting agreement?",
+   "expect": "answer",
+   "cite": [],
+   "mention": [
+    "0.01"
+   ]
+  },
+  {
+   "id": "Q27",
+   "area": "Contracts (PDF)",
+   "as_of": "2026-09-30",
+   "q": "What is the monthly fee in the managed hosting agreement with deep systems?",
+   "expect": "answer",
+   "cite": [],
+   "mention": [
+    "175"
+   ]
+  },
+  {
+   "id": "Q28",
+   "area": "Contracts (PDF)",
+   "as_of": "2026-09-30",
+   "q": "What server uptime does deep systems guarantee in the managed hosting agreement?",
+   "expect": "answer",
+   "cite": [],
+   "mention": [
+    "99"
+   ]
+  },
+  {
+   "id": "Q29",
+   "area": "Contracts (TXT)",
+   "as_of": "2026-09-30",
+   "q": "Which company will provide information processing services to United National Bank?",
+   "expect": "answer",
+   "cite": [],
+   "mention": [
+    "BISYS"
+   ]
+  },
+  {
+   "id": "Q30",
+   "area": "Contracts (DOCX)",
+   "as_of": "2026-09-30",
+   "q": "What is the cancellation fee in the Watchit content license agreement?",
+   "expect": "answer",
+   "cite": [],
+   "mention": [
+    "5,000"
+   ]
+  }
+ ],
+ "documents": [
+  {
+   "file": "contracts/Web Hosting Agreement - Galacticomm.pdf",
+   "doc_date": "1997-09-09",
+   "title": "Web Hosting Agreement between Galacticomm and Horst Entertainment"
+  },
+  {
+   "file": "contracts/BISYS Outsourcing Agreement - United National Bancorp.txt",
+   "doc_date": "1999-02-18",
+   "title": "United National Bancorp outsourcing agreement with BISYS"
+  },
+  {
+   "file": "contracts/Managed Hosting Agreement - Deep Systems.pdf",
+   "doc_date": "2005-03-01",
+   "title": "Premium Managed Hosting Agreement between deep systems and AstroNutrition.com"
+  },
+  {
+   "file": "contracts/Content License Agreement - Watchit Media.docx",
+   "doc_date": "2006-09-01",
+   "title": "Content License Agreement between Watchit Media and Oceanic Time Warner Cable"
+  }
+ ]
+}
