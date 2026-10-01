@@ -95,6 +95,7 @@ async def members(status: str | None = None, u: dict = Depends(signed_in)):
 class ApproveIn(BaseModel):
     role: str = 'member'
     team_id: str | None = None
+    designation: str | None = None  # owner only: the job title (CEO, CTO, Engineer, ...); it drives the tier
 
 
 async def _team_ok(c, org_id: str, team_id: str | None):
@@ -110,6 +111,8 @@ async def approve_join(user_id: str, body: ApproveIn | None = None, u: dict = De
     if u['role'] == 'lead':
         if body.role != 'member':
             raise HTTPException(403, 'a team lead can only admit members')
+        if body.designation:
+            raise HTTPException(403, 'only the owner assigns designations')
         body.team_id = body.team_id if body.team_id in u['teams'] else (u['teams'] or [None])[0]
     if body.role not in access.ROLES:
         raise HTTPException(422, f'role must be one of {access.ROLES}')
@@ -123,10 +126,13 @@ async def approve_join(user_id: str, body: ApproveIn | None = None, u: dict = De
         if body.team_id:
             await c.execute('INSERT INTO team_members VALUES ($1,$2,$3) ON CONFLICT DO NOTHING', body.team_id, user_id,
                             u['org_id'])
-        await db.audit(_who(u), 'join_approved', 'membership', user_id, [], {'role': body.role, 'team_id': body.team_id},
-                       conn=c)
+        if body.designation and body.designation.strip():
+            await c.execute('UPDATE users SET designation = $2 WHERE id = $1', user_id, body.designation.strip())
+        await db.audit(_who(u), 'join_approved', 'membership', user_id, [],
+                       {'role': body.role, 'team_id': body.team_id, 'designation': body.designation}, conn=c)
         await comms.notify(user_id, 'join_approved', None, conn=c)
-    return {'user_id': user_id, 'status': 'active', 'role': body.role, 'team_id': body.team_id}
+    return {'user_id': user_id, 'status': 'active', 'role': body.role, 'team_id': body.team_id,
+            'designation': body.designation}
 
 
 @router.post('/org/members/{user_id}/reject')
@@ -144,6 +150,7 @@ async def reject_join(user_id: str, u: dict = Depends(person)):
 class MemberEdit(BaseModel):
     role: str | None = None
     team_id: str | None = None
+    designation: str | None = None     # the job title; CEO / CTO make an executive (app/permissions.py)
     status: str | None = None          # 'removed' revokes all access at once
     expires_at: datetime | None = None  # auditors
     audit_from: date | None = None
@@ -175,6 +182,8 @@ async def edit_member(user_id: str, body: MemberEdit, u: dict = Depends(person))
                         'audit_from = coalesce($7, audit_from), audit_to = coalesce($8, audit_to) '
                         'WHERE user_id = $1 AND org_id = $2', user_id, u['org_id'], body.role, body.team_id,
                         body.status, body.expires_at, body.audit_from, body.audit_to)
+        if body.designation is not None:
+            await c.execute('UPDATE users SET designation = $2 WHERE id = $1', user_id, body.designation.strip() or None)
         if body.team_id:
             await c.execute('DELETE FROM team_members WHERE user_id = $1', user_id)
             await c.execute('INSERT INTO team_members VALUES ($1,$2,$3)', body.team_id, user_id, u['org_id'])

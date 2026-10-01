@@ -50,15 +50,16 @@ function Members({ me }) {
     <>
       <Section title={`Join requests (${pending.length})`} hint="Pending members see nothing until approved. A team lead admits members into their own team.">
         <ErrorNote error={list.error || error} />
-        <Table head={['Name', 'Employee ID', 'Requested', 'Role', 'Team', '']} empty="No pending requests."
+        <Table head={['Name', 'Employee ID', 'Requested', 'Role', 'Team', 'Designation', '']} empty="No pending requests."
           rows={pending.map(m => {
-            const p = pick[m.user_id] || { role: 'member', team_id: '' };
+            const p = pick[m.user_id] || { role: 'member', team_id: '', designation: '' };
             const set = (k) => (e) => setPick(s => ({ ...s, [m.user_id]: { ...p, [k]: e.target.value } }));
             return [m.name, <span className="font-mono">{m.employee_id}</span>, when(m.joined_at),
               owner ? <Select value={p.role} onChange={set('role')} options={ROLES} /> : 'member',
               owner ? <Select value={p.team_id} onChange={set('team_id')} options={teamOpts} /> : 'your team',
+              owner ? <Input placeholder="e.g. Engineer" value={p.designation} onChange={set('designation')} aria-label={`Designation for ${m.name}`} /> : 'set by the owner',
               <div className="flex gap-1">
-                <Btn kind="approve" disabled={busy} onClick={() => act(() => p1.approveJoin(m.user_id, { role: p.role, team_id: p.team_id || null }))}>Approve</Btn>
+                <Btn kind="approve" disabled={busy} onClick={() => act(() => p1.approveJoin(m.user_id, { role: p.role, team_id: p.team_id || null, designation: p.designation || null }))}>Approve</Btn>
                 <Btn kind="danger" disabled={busy} onClick={() => act(() => p1.rejectJoin(m.user_id))}>Reject</Btn>
               </div>];
           })} />
@@ -66,7 +67,11 @@ function Members({ me }) {
       <Section title="Members" hint={owner ? 'Change a role or team, or remove someone: access changes at once and is audited.' : 'Your team.'}>
         <Table head={['Name', 'Employee ID', 'Designation', 'Role', 'Team', 'Status', '']}
           rows={all.filter(m => m.status !== 'pending').map(m => [
-            m.name, <span className="font-mono">{m.employee_id}</span>, m.designation || '—',
+            m.name, <span className="font-mono">{m.employee_id}</span>,
+            owner && m.status === 'active'
+              ? <Input defaultValue={m.designation || ''} placeholder="—" disabled={busy} aria-label={`Designation of ${m.name}`}
+                  onBlur={e => e.target.value.trim() !== (m.designation || '') && act(() => p1.editMember(m.user_id, { designation: e.target.value }))} />
+              : m.designation || '—',
             owner && m.status === 'active' ? <Select value={m.role} disabled={busy} onChange={e => act(() => p1.editMember(m.user_id, { role: e.target.value }))} options={ROLES} /> : m.role,
             owner && m.status === 'active' ? <Select value={m.team_id || ''} disabled={busy} onChange={e => e.target.value && act(() => p1.editMember(m.user_id, { team_id: e.target.value }))} options={teamOpts} />
               : (teams.data || []).find(t => t.id === m.team_id)?.name || '—',

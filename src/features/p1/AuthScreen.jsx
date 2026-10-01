@@ -73,7 +73,9 @@ export default function AuthScreen({ onSignedIn, onBack }) {
               {tab !== 'login' && (
                 <>
                   <Field label="Your name"><Input required value={form.display_name || ''} onChange={set('display_name')} /></Field>
-                  <Field label="Designation (optional)"><Input placeholder="e.g. Compliance lead" value={form.designation || ''} onChange={set('designation')} /></Field>
+                  <p className="text-[12px] text-[#64748B]">{tab === 'register'
+                    ? 'You become the owner of the organisation, with the designation CEO.'
+                    : 'Your designation, role and team are set by the owner when your request is approved.'}</p>
                 </>
               )}
               <ErrorNote error={error} />

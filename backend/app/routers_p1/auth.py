@@ -21,15 +21,13 @@ class RegisterIn(BaseModel):
     employee_id: str
     password: str
     display_name: str
-    designation: str | None = None
 
 
-class JoinIn(BaseModel):
+class JoinIn(BaseModel):  # no designation: the owner assigns it when approving (or later in Members)
     join_code: str
     employee_id: str
     password: str
     display_name: str
-    designation: str | None = None
 
 
 class LoginIn(BaseModel):
@@ -57,19 +55,20 @@ def start_session(request: Request, response: Response, user: dict):
     contracts.on_login.fire(user)  # model warm-up and directory scan, in the background: never delays the response
 
 
-async def _new_user(c, org_id: str, body, pw_hash: str) -> str:
+async def _new_user(c, org_id: str, body, pw_hash: str, designation: str | None = None) -> str:
     if await c.fetchval('SELECT 1 FROM users WHERE employee_id = $1', body.employee_id):
         raise HTTPException(409, 'that employee ID is already registered')
     uid = f'u-{secrets.token_hex(4)}'
     await c.execute('INSERT INTO users (id, org_id, employee_id, password_hash, display_name, designation) '
                     'VALUES ($1,$2,$3,$4,$5,$6)', uid, org_id, body.employee_id, pw_hash, body.display_name.strip(),
-                    body.designation)
+                    designation)
     return uid
 
 
 @router.post('/auth/register', status_code=201)
 async def register(body: RegisterIn, request: Request, response: Response):
-    """A new organisation with the caller as Owner. The join code is shown once, here; only its hash is stored."""
+    """A new organisation with the caller as Owner and CEO (an executive). The join code is shown once, here; only
+    its hash is stored."""
     _check_new(body.employee_id, body.password, body.display_name)
     if not body.org_name.strip():
         raise HTTPException(422, 'organisation name is required')
@@ -78,9 +77,9 @@ async def register(body: RegisterIn, request: Request, response: Response):
     async with db.pool.acquire() as c, c.transaction():
         await c.execute('INSERT INTO organizations (id, name, join_code_hash) VALUES ($1,$2,$3)', org,
                         body.org_name.strip(), identity.sha(code))
-        uid = await _new_user(c, org, body, pw)
-        await c.execute("INSERT INTO memberships (user_id, org_id, role, status) VALUES ($1,$2,'owner','active')",
-                        uid, org)
+        uid = await _new_user(c, org, body, pw, 'CEO')
+        await c.execute("INSERT INTO memberships (user_id, org_id, role, status, tier) "
+                        "VALUES ($1,$2,'owner','active','executive')", uid, org)
         await comms.ensure_org_channels(c, org)
         await db.audit(f'user:{uid}', 'org_created', 'organization', org, [], {'owner': uid}, conn=c)
     user = await identity.load_user(uid)

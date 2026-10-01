@@ -44,7 +44,9 @@ def test_register_join_approve_login(api):
     r, _ = register(api)
     owner = httpx.Client(base_url=api, cookies=r.cookies)
     org, code = r.json()['org_id'], r.json()['join_code']
-    assert owner.get('/auth/me').json()['role'] == 'owner'
+    me = owner.get('/auth/me').json()
+    assert (me['role'], me['designation']) == ('owner', 'CEO')  # registering makes you the CEO, an executive
+    assert owner.get('/me/permissions').json()['tier'] == 'executive'
     assert identity.normalise_code(code) not in str(_sql('SELECT * FROM organizations WHERE id = $1', org))  # hashed
     assert _sql('SELECT join_code_hash FROM organizations WHERE id = $1', org)[0][0] == \
         identity.sha(identity.normalise_code(code))
@@ -56,9 +58,12 @@ def test_register_join_approve_login(api):
     assert login(api, emp).status_code == 403  # pending: no session, sees nothing
     pending = owner.get('/org/members', params={'status': 'pending'}).json()
     assert [m['user_id'] for m in pending] == [uid]
-    assert owner.post(f'/org/members/{uid}/approve', json={'role': 'member'}).status_code == 200
+    assert pending[0]['designation'] is None  # a joiner cannot name their own designation
+    assert owner.post(f'/org/members/{uid}/approve', json={'role': 'member', 'designation': 'Engineer'}).status_code == 200
     s = login(api, emp)
-    assert s.status_code == 200 and s.json()['org_id'] == org
+    assert s.status_code == 200 and s.json()['org_id'] == org and s.json()['designation'] == 'Engineer'
+    assert owner.patch(f'/org/members/{uid}', json={'designation': 'Analyst'}).status_code == 200
+    assert httpx.Client(base_url=api, cookies=s.cookies).get('/auth/me').json()['designation'] == 'Analyst'
     acts = {r['action'] for r in _sql("SELECT action FROM audit_log WHERE object_id = $1", uid)}
     assert {'join_requested', 'join_approved'} <= acts
 
