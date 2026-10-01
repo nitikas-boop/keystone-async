@@ -131,15 +131,15 @@ export default function Proposals({ currentUser, onChanged }) {
 function Side({ s }) {
   const impact = s.impact?.counts;
   return (
-    <div className="border border-slate-200 rounded-md p-3 text-[12.5px] space-y-1">
+    <div className="border border-kb-line rounded-md p-3 text-[12.5px] space-y-1">
       <div className="font-semibold">{s.ref} ({s.kind})</div>
       {s.kind === 'proposal' && <>
         <div>Author: {s.author_id} · created {s.created_at?.slice(0, 10)} · status {s.status}</div>
         <div>Clause {s.clause_id}: {value(s)} from {s.effective_from}</div>
-        <div className="text-[#475569]">{s.clause_text}</div>
+        <div className="text-kb-muted">{s.clause_text}</div>
         {impact && <div>If adopted (from /whatif): {Object.entries(impact).map(([k, v]) => `${v} ${k.replace(/_/g, ' ')}`).join(', ') || 'no recorded decision relies on it'}</div>}
       </>}
-      {s.kind === 'clause' && <><div>Active clause</div><div>{JSON.stringify(s.fields)}</div><div className="text-[#475569]">{s.clause_text}</div></>}
+      {s.kind === 'clause' && <><div>Active clause</div><div>{JSON.stringify(s.fields)}</div><div className="text-kb-muted">{s.clause_text}</div></>}
       {s.kind === 'decision' && <><div>{s.title}</div><div>Decided {s.decided_on} · {JSON.stringify(s.fields)}</div></>}
     </div>
   );
@@ -153,7 +153,7 @@ function CollisionDetail({ c, onClose, onRule }) {
     <Section title={`Collision #${c.id} (type ${c.type}) · authority ${c.authority_id} · ${c.status}`}
              actions={<button className="btn-secondary" onClick={onClose}>Close</button>}>
       {c.in_force && <p className="text-[12.5px]">In force now: {c.in_force.ref} {JSON.stringify(c.in_force.fields)}</p>}
-      <p className="text-[12.5px] text-[#475569]">{c.summary?.reason}</p>
+      <p className="text-[12.5px] text-kb-muted">{c.summary?.reason}</p>
       <div className="grid grid-cols-2 gap-3">{(c.sides || []).map(s => <Side key={s.ref} s={s} />)}</div>
       {c.status === 'open' && (
         <div className="space-y-2">

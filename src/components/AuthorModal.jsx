@@ -52,26 +52,26 @@ export default function AuthorModal({ mode, onMode, onClose, onSaved, onProceed,
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" role="dialog" aria-modal="true" aria-labelledby="author-title">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-kb-navy/25 backdrop-blur-xs p-4" role="dialog" aria-modal="true" aria-labelledby="author-title">
       <div className="w-full max-w-5xl max-h-[calc(100dvh-2rem)] flex flex-col paper-sheet-elevated text-[13px]">
-        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-sky-50 text-[#0284C7]"><FilePlus2 size={18} aria-hidden="true" /></div>
-          <h3 id="author-title" className="font-heading font-bold text-[15px] text-[#0F172A]">
+        <div className="px-5 py-3 border-b border-kb-line flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-kb-ice text-kb-cobalt-ink"><FilePlus2 size={18} aria-hidden="true" /></div>
+          <h3 id="author-title" className="font-heading font-bold text-[15px] text-kb-navy">
             {mode === 'decision' ? (propose ? 'Propose a decision (a lead reviews it)' : 'Record a decision') : 'Add a policy version'}
           </h3>
           {!result && (
-            <div className="flex gap-1 p-0.5 rounded-lg bg-slate-100 border border-slate-200 ml-2" role="tablist">
+            <div className="flex gap-1 p-0.5 rounded-lg bg-kb-ice/60 border border-kb-line ml-2" role="tablist">
               {[['decision', 'Decision'], ...(canPolicy ? [['policy', 'Policy version']] : [])].map(([m, label]) => (
                 <button key={m} role="tab" aria-selected={mode === m} onClick={() => onMode(m)}
-                  className={`h-7 px-2.5 rounded-md cursor-pointer ${mode === m ? 'bg-white font-semibold shadow-xs' : 'text-[#475569]'}`}>{label}</button>
+                  className={`h-7 px-2.5 rounded-md cursor-pointer ${mode === m ? 'bg-kb-bg font-semibold shadow-xs' : 'text-kb-muted'}`}>{label}</button>
               ))}
             </div>
           )}
           <button onClick={onClose} className="ml-auto icon-btn" aria-label="Close" title="Close"><X size={16} /></button>
         </div>
 
-        {loadError && <p className="p-5 text-rose-700">Could not load the existing records: {loadError}</p>}
-        {!loadError && !known && <p className="p-5 text-[#64748B] flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Loading policies and decisions…</p>}
+        {loadError && <p className="p-5 text-kb-alert">Could not load the existing records: {loadError}</p>}
+        {!loadError && !known && <p className="p-5 text-kb-muted flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Loading policies and decisions…</p>}
         {known && result && <Saved res={result} onClose={onClose} onProceed={onProceed} />}
         {known && !result && mode === 'decision' && <DecisionForm known={known} saving={saving} failure={failure} onSave={save} onCancel={onClose} />}
         {known && !result && mode === 'policy' && <PolicyForm known={known} saving={saving} failure={failure} onSave={save} onCancel={onClose} />}
@@ -85,20 +85,20 @@ function Layout({ form, markdown, problems, note, saving, failure, saveLabel, on
   return (
     <>
       <div className="flex-1 min-h-0 grid md:grid-cols-2 overflow-hidden">
-        <div className="overflow-y-auto p-5 space-y-3 border-r border-slate-100">{form}</div>
-        <div className="overflow-y-auto p-5 bg-slate-50 space-y-2">
-          <div className="text-[12px] text-[#475569]">Preview: the document that will be ingested</div>
-          <pre className="font-mono text-[12px] text-[#334155] whitespace-pre-wrap leading-relaxed" data-testid="author-preview">{markdown}</pre>
+        <div className="overflow-y-auto p-5 space-y-3 border-r border-kb-line">{form}</div>
+        <div className="overflow-y-auto p-5 bg-kb-bg-soft space-y-2">
+          <div className="text-[12px] text-kb-muted">Preview: the document that will be ingested</div>
+          <pre className="font-mono text-[12px] text-kb-navy whitespace-pre-wrap leading-relaxed" data-testid="author-preview">{markdown}</pre>
         </div>
       </div>
-      <div className="px-5 py-3 border-t border-slate-100 space-y-2">
+      <div className="px-5 py-3 border-t border-kb-line space-y-2">
         {problems.length > 0 && (
-          <ul className="text-[12.5px] text-amber-900 space-y-0.5" aria-label="Problems">
+          <ul className="text-[12.5px] text-kb-navy space-y-0.5" aria-label="Problems">
             {problems.map(p => <li key={p} className="flex items-start gap-1.5"><AlertTriangle size={13} className="shrink-0 mt-0.5" aria-hidden="true" />{p}</li>)}
           </ul>
         )}
-        {note && <p className="text-[12.5px] text-[#475569]">{note}</p>}
-        {failure && <p className="p-2 rounded-md bg-rose-50 border border-rose-200 text-rose-900" role="alert">The server rejected it, nothing was saved: <span className="font-mono">{failure}</span></p>}
+        {note && <p className="text-[12.5px] text-kb-muted">{note}</p>}
+        {failure && <p className="p-2 rounded-md bg-kb-alert/8 border border-kb-alert/40 text-kb-alert" role="alert">The server rejected it, nothing was saved: <span className="font-mono">{failure}</span></p>}
         <div className="flex justify-end gap-2">
           <button onClick={onCancel} className="btn-secondary">Cancel</button>
           <button onClick={onSave} disabled={problems.length > 0 || saving}
@@ -113,9 +113,9 @@ function Layout({ form, markdown, problems, note, saving, failure, saveLabel, on
 
 const Field = ({ label, hint, children }) => (
   <label className="block">
-    <span className="block text-[12px] font-medium text-[#334155] mb-1">{label}</span>
+    <span className="block text-[12px] font-medium text-kb-navy mb-1">{label}</span>
     {children}
-    {hint && <span className="block text-[12px] text-[#64748B] mt-0.5">{hint}</span>}
+    {hint && <span className="block text-[12px] text-kb-muted mt-0.5">{hint}</span>}
   </label>
 );
 
@@ -171,25 +171,25 @@ function DecisionForm({ known, saving, failure, onSave, onCancel }) {
           </Field>
         </div>
         <fieldset>
-          <legend className="text-[12px] font-medium text-[#334155] mb-1">Policy clauses it relied on</legend>
+          <legend className="text-[12px] font-medium text-kb-navy mb-1">Policy clauses it relied on</legend>
           <div className="flex flex-wrap gap-1.5">
             {allClauses.map(cid => {
               const on = f.reliedOn.includes(cid);
               const c = clauseInForce(known.policies, cid, f.decidedOn);
               return (
-                <label key={cid} className={`px-2 py-1 rounded-md border cursor-pointer ${on ? 'border-sky-400 bg-sky-50' : 'border-slate-200'}`}>
+                <label key={cid} className={`px-2 py-1 rounded-md border cursor-pointer ${on ? 'border-kb-cobalt bg-kb-ice' : 'border-kb-line'}`}>
                   <input type="checkbox" className="mr-1.5 align-middle" checked={on}
                     onChange={() => set({ reliedOn: on ? f.reliedOn.filter(x => x !== cid) : [...f.reliedOn, cid] })} />
                   <span className="font-mono">{cid}</span>
-                  <span className="ml-1 text-[12px] text-[#64748B]">{c ? `${c.version} on that date` : 'not in force then'}</span>
+                  <span className="ml-1 text-[12px] text-kb-muted">{c ? `${c.version} on that date` : 'not in force then'}</span>
                 </label>
               );
             })}
           </div>
         </fieldset>
         {needs.length > 0 && (
-          <div className="rounded-lg border border-slate-200 p-3 space-y-2">
-            <p className="text-[12px] text-[#475569]">These clauses are machine-checked, so Keystone needs the values the check compares:</p>
+          <div className="rounded-lg border border-kb-line p-3 space-y-2">
+            <p className="text-[12px] text-kb-muted">These clauses are machine-checked, so Keystone needs the values the check compares:</p>
             <div className="grid grid-cols-2 gap-3">
               {needs.map(n => (
                 <Field key={n.key} label={n.label} hint={n.kind === 'number' && f.fields[n.key] && n.key === 'amount_inr' && /^\d+$/.test(f.fields[n.key]) ? inr(Number(f.fields[n.key])) : null}>
@@ -291,7 +291,7 @@ function PolicyForm({ known, saving, failure, onSave, onCancel }) {
         {f.clauses.map((c, i) => {
           const fields = c.fields || {};
           return (
-            <fieldset key={i} className="rounded-lg border border-slate-200 p-3 space-y-2">
+            <fieldset key={i} className="rounded-lg border border-kb-line p-3 space-y-2">
               <div className="flex items-center gap-2">
                 <input className="field w-28 font-mono" aria-label="Clause ID" placeholder="RET-5.1" value={c.clause_id} onChange={e => setClause(i, { clause_id: e.target.value })} />
                 <input className="field flex-1" aria-label="Clause title" placeholder="Clause title" value={c.title} onChange={e => setClause(i, { title: e.target.value })} />
@@ -299,7 +299,7 @@ function PolicyForm({ known, saving, failure, onSave, onCancel }) {
                   onClick={() => set({ clauses: f.clauses.filter((_, j) => j !== i) })}><Trash2 size={13} /></button>
               </div>
               <textarea className="field w-full h-16 py-1.5" aria-label="Clause text" value={c.text} onChange={e => setClause(i, { text: e.target.value })} />
-              {was(i, o => o.text) !== undefined && was(i, o => o.text) !== c.text && <p className="text-[12px] text-[#92400E]">Text changed from {prev.version}.</p>}
+              {was(i, o => o.text) !== undefined && was(i, o => o.text) !== c.text && <p className="text-[12px] text-kb-navy">Text changed from {prev.version}.</p>}
               {'retention_days_max' in fields && (
                 <Field label="Maximum retention (days)" hint={was(i, o => o.fields?.retention_days_max) !== undefined && was(i, o => o.fields?.retention_days_max) !== fields.retention_days_max ? `was ${was(i, o => o.fields?.retention_days_max)} in ${prev.version}` : null}>
                   <input className="field w-32" inputMode="numeric" value={fields.retention_days_max ?? ''}
@@ -330,7 +330,7 @@ function PolicyForm({ known, saving, failure, onSave, onCancel }) {
                   </select>
                 </Field>
               )}
-              <label className="flex items-center gap-1.5 text-[12.5px] text-[#334155]">
+              <label className="flex items-center gap-1.5 text-[12.5px] text-kb-navy">
                 <input type="checkbox" checked={!!c.checkable} onChange={e => setClause(i, { checkable: e.target.checked })} />
                 Machine-checkable (the deterministic check compares decisions against its values)
               </label>
@@ -350,10 +350,10 @@ function Saved({ res, onClose, onProceed }) {
   const isPolicy = res.doc_type === 'policy_version';
   return (
     <div className="p-5 space-y-3">
-      <p className="flex items-center gap-2 flex-wrap"><CheckCircle2 size={16} className="text-emerald-700" aria-hidden="true" />
+      <p className="flex items-center gap-2 flex-wrap"><CheckCircle2 size={16} className="text-kb-cobalt-ink" aria-hidden="true" />
         Stored <IdChip id={res.document_id} withTitle /> ({res.doc_type.replace('_', ' ')}), dated {day(res.ref_time)}.</p>
       {isPolicy && (flags.length === 0
-        ? <p className="text-[#475569]">The impact scanner raised no flags: no recorded decision relied on a clause this version changed in a way that matters.</p>
+        ? <p className="text-kb-muted">The impact scanner raised no flags: no recorded decision relied on a clause this version changed in a way that matters.</p>
         : <>
             <p>The impact scanner raised {plural(flags.length, 'flag')}:</p>
             <ul className="space-y-1.5">

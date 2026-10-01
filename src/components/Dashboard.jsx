@@ -359,7 +359,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
   return (
     <AppContext.Provider value={ctx}>
-    <div className="h-dvh bg-[#F8FAFC] text-[#0F172A] flex overflow-hidden">
+    <div className="h-dvh bg-kb-bg-soft text-kb-navy flex overflow-hidden">
       <Sidebar
         items={navItems.map(v => ({ ...v, badge: v.id === 'INBOX' ? inboxBadge : 0 }))}
         active={activeView}
@@ -368,11 +368,11 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
       />
     <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
       {/* Top Header Bar */}
-      <header className="h-14 shrink-0 bg-white border-b border-slate-200/80 px-4 flex items-center justify-between gap-3 z-30 select-none shadow-xs">
+      <header className="h-14 shrink-0 bg-kb-bg border-b border-kb-line/80 px-4 flex items-center justify-between gap-3 z-30 select-none shadow-xs">
         <div className="flex items-center gap-2.5 shrink-0">
           <button
             onClick={onHome}
-            className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center text-[#64748B] hover:bg-slate-100 hover:text-[#0284C7] transition-colors cursor-pointer"
+            className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center text-kb-muted hover:bg-kb-ice/60 hover:text-kb-cobalt-ink transition-colors cursor-pointer"
             title="Home (public landing page)"
             aria-label="Home"
           >
@@ -385,7 +385,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
             title={health ? `Answers: ${health.models?.answer} · embeddings: ${health.models?.embed} · telemetry: ${String(health.telemetry)}`
               : health === null ? 'The backend did not answer GET /health.' : 'Checking GET /health…'}
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${engineOk === false ? 'bg-rose-600' : engineOk ? 'bg-emerald-600' : 'bg-slate-400'}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${engineOk === false ? 'bg-kb-alert' : engineOk ? 'bg-kb-cobalt' : 'bg-kb-navy/35'}`} />
             {engineOk === false ? (health === null ? 'Backend unreachable' : 'Local model unreachable')
               : engineOk ? `Local model · ${health.models?.answer}` : 'Checking engine…'}
           </span>
@@ -394,7 +394,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
         {/* Right Action Icons & User Profile */}
         <div className="flex items-center gap-3 shrink-0">
           <button onClick={() => setPaletteOpen(true)} className="btn-secondary" title="Search records (Ctrl+K)" aria-label="Search records">
-            <Search size={14} /> <kbd className="hidden min-[1500px]:inline font-mono text-[11px] text-[#475569]">Ctrl K</kbd>
+            <Search size={14} /> <kbd className="hidden min-[1500px]:inline font-mono text-[11px] text-kb-muted">Ctrl K</kbd>
           </button>
           <button
             onClick={() => setIsIngestModalOpen(true)}
@@ -408,14 +408,14 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
           </button>
 
           {headerExtras}
-          <div className="h-8 flex items-center gap-2 pl-3 border-l border-slate-200">
+          <div className="h-8 flex items-center gap-2 pl-3 border-l border-kb-line">
             <div className="flex flex-col justify-center text-right leading-tight" title={`Signed in (demo role picker) as ${currentUser.id}`}>
-              <span className="text-[#0F172A] font-semibold text-[13px]">{userSwitcher ? userSwitcher(displayUser) : displayUser}</span>
-              <span className="text-[#64748B] text-[11.5px] capitalize">{currentUser.role}{perms && ` · ${perms.tier}`}</span>
+              <span className="text-kb-navy font-semibold text-[13px]">{userSwitcher ? userSwitcher(displayUser) : displayUser}</span>
+              <span className="text-kb-muted text-[11.5px] capitalize">{currentUser.role}{perms && ` · ${perms.tier}`}</span>
             </div>
             <button
               onClick={signOut}
-              className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-[#64748B] hover:text-rose-600 transition-colors cursor-pointer"
+              className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-kb-ice/60 text-kb-muted hover:text-kb-alert transition-colors cursor-pointer"
               title="Sign out"
               aria-label="Sign out"
             >
@@ -427,7 +427,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
       {/* As-of ribbon: only on the views that are evaluated as of a date (chat and graph). */}
       {(activeView === 'UNIFIED' || activeView === 'GRAPH') && (
-        <div className="px-4 pt-3 bg-[#F8FAFC] shrink-0">
+        <div className="px-4 pt-3 bg-kb-bg-soft shrink-0">
           <TemporalSlider
             refreshKey={policyRefresh}
             asOfDate={asOfDate}
@@ -440,30 +440,30 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
       {/* Toast */}
       {notification && (
-        <div className="absolute bottom-5 right-5 z-50" role="status">
+        <div className="absolute bottom-5 right-5 z-50 rounded-xl bg-kb-bg" role="status">
           <div className={`px-4 py-2.5 rounded-xl text-[13px] shadow-md border flex items-center gap-2 ${
             notification.type === 'success' ? 'badge-note-green' :
             notification.type === 'warning' ? 'badge-note-amber' :
-            'bg-white border-slate-200 text-[#0F172A]'
+            'bg-kb-bg border-kb-line text-kb-navy'
           }`}>
-            <Bell size={13} className="text-[#0284C7]" />
+            <Bell size={13} className="text-kb-cobalt-ink" />
             <span>{notification.msg}</span>
           </div>
         </div>
       )}
 
       {/* Main Workspace Body with Generous Padding */}
-      <div className="flex-1 p-4 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-[#F8FAFC]">
+      <div className="flex-1 p-4 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-kb-bg-soft">
         <ViewBoundary key={activeView}>
         {(activeView === 'UNIFIED' || activeView === 'GRAPH') && (
-          <div className="flex-1 flex gap-4 min-h-0">
+          <div className="flex-1 flex gap-4 min-h-0 kb-tab-in">
             {/* Ask = conversation + evidence for the latest answer. Temporal Graph = the full graph to explore, console
                 on demand. The console is the same element in both (only hidden), so the conversation survives. */}
             {activeView === 'GRAPH' && chatCollapsed && (
-              <button onClick={() => setChatCollapsed(false)} className="shrink-0 w-9 paper-sheet flex flex-col items-center gap-2 py-3 cursor-pointer hover:bg-slate-50"
+              <button onClick={() => setChatCollapsed(false)} className="shrink-0 w-9 paper-sheet flex flex-col items-center gap-2 py-3 cursor-pointer hover:bg-kb-bg-soft"
                       title="Show the console" aria-label="Show the console">
-                <PanelLeftOpen size={15} className="text-[#0284C7]" />
-                <span className="text-[12px] text-[#334155] [writing-mode:vertical-rl]">Console</span>
+                <PanelLeftOpen size={15} className="text-kb-cobalt-ink" />
+                <span className="text-[12px] text-kb-navy [writing-mode:vertical-rl]">Console</span>
               </button>
             )}
             <div className={`${activeView === 'GRAPH' ? (chatCollapsed ? 'hidden' : 'w-[31%]') : 'w-[56%]'} shrink-0 min-h-0 relative`}>
@@ -530,7 +530,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
         )}
 
         {activeView === 'INBOX' && (
-          <div className="flex-1 h-full min-h-0">
+          <div className="flex-1 h-full min-h-0 kb-tab-in">
             <Inbox segment={inboxSegment} onSegment={setInboxSegment} onOpen={openInboxItem}
               onChanged={() => { loadProposals(); loadAudit(); loadPendingFacts(); loadInbox(); }}
               registry={<DecisionRegister refreshKey={policyRefresh} focus={registryFocus} proposals={queueItems} auditLogs={auditLogs}
@@ -539,14 +539,14 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
         )}
 
         {activeView === 'DASHBOARD' && (
-          <div className="flex-1 h-full min-h-0 overflow-y-auto">
+          <div className="flex-1 h-full min-h-0 overflow-y-auto kb-tab-in">
             <WorkspaceDashboard onOpenInbox={() => { setInboxSegment('mine'); setActiveView('INBOX'); }}
               onOpenItem={openInboxItem} onNavigate={setActiveView} />
           </div>
         )}
 
         {activeView === 'REVIEW' && (
-          <div className="flex-1 h-full min-h-0">
+          <div className="flex-1 h-full min-h-0 kb-tab-in">
             <ReviewHub tab={inboxTab} onTab={setInboxTab} pendingProposals={pendingProposals} pendingFacts={pendingFacts}
               proposals={<ReviewQueue
               queueItems={queueItems}
@@ -566,19 +566,19 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
         )}
 
         {activeView === 'DECISIONS' && (
-          <div className="flex-1 h-full min-h-0">
+          <div className="flex-1 h-full min-h-0 kb-tab-in">
             <DecisionRegister refreshKey={policyRefresh} proposals={queueItems} auditLogs={auditLogs} onRecord={recordDecision} />
           </div>
         )}
 
         {activeView === 'POLICIES' && (
-          <div className="flex-1 h-full min-h-0">
+          <div className="flex-1 h-full min-h-0 kb-tab-in">
             <PoliciesView focus={policyFocus} refreshKey={policyRefresh} asOfDate={todayIST()} onAdd={can('policy.upload') ? () => setAuthorMode('policy') : undefined} />
           </div>
         )}
 
         {activeView === 'AUDIT' && (
-          <div className="flex-1 h-full min-h-0">
+          <div className="flex-1 h-full min-h-0 kb-tab-in">
             <AuditLogTable
               auditLogs={auditLogs}
               onRefresh={loadAudit}
@@ -588,7 +588,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
         )}
 
         {extraViews.filter(v => v.render && v.id === activeView).map(v => (
-          <div key={v.id} className="flex-1 h-full min-h-0 overflow-y-auto">
+          <div key={v.id} className="flex-1 h-full min-h-0 overflow-y-auto kb-tab-in">
             {v.render({ asOfDate, currentUser, notify: showNotification, refreshKey: policyRefresh, auditLogs, can, chatFocus,
                         onChanged: () => { loadAudit(); loadPendingFacts(); loadProposals(); setPolicyRefresh(k => k + 1); } })}
           </div>

@@ -7,7 +7,7 @@ export function Section({ title, children, actions }) {
   return (
     <section className="paper-sheet p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-heading font-semibold text-[14px] text-[#0F172A]">{title}</h2>
+        <h2 className="font-heading font-semibold text-[14px] text-kb-navy">{title}</h2>
         <div className="flex items-center gap-2">{actions}</div>
       </div>
       {children}
@@ -16,16 +16,16 @@ export function Section({ title, children, actions }) {
 }
 
 export function Table({ head, rows, empty = 'Nothing here.' }) {
-  if (!rows.length) return <p className="text-[13px] text-[#475569]">{empty}</p>;
+  if (!rows.length) return <p className="text-[13px] text-kb-muted">{empty}</p>;
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-[12.5px] border-collapse">
         <thead>
-          <tr>{head.map(h => <th key={h} className="text-left font-semibold text-[#334155] border-b border-slate-200 px-2 py-1.5">{h}</th>)}</tr>
+          <tr>{head.map(h => <th key={h} className="text-left font-semibold text-kb-navy border-b border-kb-line px-2 py-1.5">{h}</th>)}</tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={r.key ?? i} className="border-b border-slate-100 align-top">
+            <tr key={r.key ?? i} className="border-b border-kb-line align-top">
               {r.cells.map((c, j) => <td key={j} className="px-2 py-1.5">{c}</td>)}
             </tr>
           ))}
@@ -37,14 +37,14 @@ export function Table({ head, rows, empty = 'Nothing here.' }) {
 
 export function Field({ label, children }) {
   return (
-    <label className="flex flex-col gap-1 text-[12px] text-[#334155]">
+    <label className="flex flex-col gap-1 text-[12px] text-kb-navy">
       <span>{label}</span>
       {children}
     </label>
   );
 }
 
-export const inputCls = 'border border-slate-300 rounded-md px-2 py-1.5 text-[13px] bg-white';
+export const inputCls = 'border border-kb-line-strong rounded-md px-2 py-1.5 text-[13px] bg-kb-bg';
 
 export function Msg({ msg }) {
   if (!msg) return null;

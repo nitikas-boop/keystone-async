@@ -34,9 +34,9 @@ export default function AgentActions({ me }) {
       editing ? <Input value={edits[a.id]} onChange={e => setEdits(s => ({ ...s, [a.id]: e.target.value }))} className="w-full" />
         : <span className="whitespace-pre-wrap">{text}</span>,
       <div className="flex flex-col gap-1"><Badge tone={TONE[a.status]}>{a.status}</Badge>
-        <span className="text-[11.5px] text-[#64748B]">{a.proposed_by}{a.decided_by && ` → ${a.decided_by}`}</span>
-        {a.result?.error && <span className="text-[11.5px] text-rose-700">{a.result.error}</span>}</div>,
-      <span className="text-[12px] text-[#64748B]">{when(a.created_at)}</span>,
+        <span className="text-[11.5px] text-kb-muted">{a.proposed_by}{a.decided_by && ` → ${a.decided_by}`}</span>
+        {a.result?.error && <span className="text-[11.5px] text-kb-alert">{a.result.error}</span>}</div>,
+      <span className="text-[12px] text-kb-muted">{when(a.created_at)}</span>,
       a.status === 'proposed' ? (
         <div className="flex gap-1 flex-wrap">
           {editing
@@ -50,7 +50,7 @@ export default function AgentActions({ me }) {
 
   return (
     <div className="p-4 flex flex-col gap-3 max-w-6xl">
-      <Section title={<span className="flex items-center gap-2"><Bot size={15} className="text-[#0284C7]" /> Agent actions</span>}
+      <Section title={<span className="flex items-center gap-2"><Bot size={15} className="text-kb-cobalt-ink" /> Agent actions</span>}
         hint={me.role === 'owner' ? 'Every agent action in the organisation.' : 'Actions an agent drafted for you. Nothing is sent until you approve it.'}
         actions={<Select value={status} onChange={e => setStatus(e.target.value)}
           options={[{ value: '', label: 'All statuses' }, ...Object.keys(TONE)]} />}>

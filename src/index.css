@@ -4,233 +4,268 @@
 @source "../src";
 @source "../index.html";
 
-@layer base {
-  :root {
-    --font-heading: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
-    --font-body: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
-    --font-mono: 'JetBrains Mono Variable', Consolas, monospace;
-    
-    --bg-page: #F8FAFC;
-    --bg-paper: #FFFFFF;
-    --bg-slate-tint: #F1F5F9;
-    --text-primary: #0F172A;
-    --text-muted: #64748B;
-    --border-subtle: #E2E8F0;
+/* "Ice & Butter": one set of tokens for every screen, exposed as Tailwind colours (bg-kb-ice, text-kb-navy,
+   border-kb-line …) and mirrored for SVG in src/theme.js. Contrast rules: cobalt (#7DA7D9) is never text
+   (2.5:1); readable cobalt is cobalt-ink. Alert means a breach, an affected decision or an error, nothing else. */
+@theme {
+  --color-kb-bg: #FFFFFF;          /* clean white: main background */
+  --color-kb-bg-soft: #FBFAF6;     /* warm off-white: alternate sections, app canvas */
+  --color-kb-ice: #DCEEFF;         /* tinted surfaces, selected rows, halos, compliant chips */
+  --color-kb-butter: #FFF7CC;      /* highlighter, new/active glow, policy-change notice, informational chips */
+  --color-kb-cobalt: #7DA7D9;      /* lines, fills, icons, borders, focus rings: never text */
+  --color-kb-cobalt-ink: #3D6FA8;  /* links and small accent text (5.2:1) */
+  --color-kb-navy: #2F4860;        /* primary text, headlines, nav, primary buttons (9.5:1) */
+  --color-kb-muted: #5A6F86;       /* secondary text (5.2:1) */
+  --color-kb-line: rgba(47, 72, 96, 0.12);        /* thin borders and dividers */
+  --color-kb-line-strong: rgba(47, 72, 96, 0.22); /* hover / input borders */
+  --color-kb-alert: #B83A3A;       /* breach, affected decision, errors only (5.7:1) */
 
-    --brand-sky: #0284C7;
-    --brand-sky-light: #E0F2FE;
-    --brand-indigo: #6366F1;
-    --brand-indigo-light: #EEF2FF;
-    
-    --pastel-amber: #FEF3C7;
-    --pastel-amber-text: #92400E;
-    --pastel-green: #DCFCE7;
-    --pastel-green-text: #166534;
-    --pastel-lavender: #E0E7FF;
-    --pastel-lavender-text: #3730A3;
-    --pastel-rose: #FEE2E2;
-    --pastel-rose-text: #991B1B;
-  }
-
-  html {
-    font-family: var(--font-body);
-    background-color: var(--bg-page);
-    color: var(--text-primary);
-    scroll-behavior: smooth;
-  }
-
-  h1, h2, h3, h4, h5, h6, .font-heading {
-    font-family: var(--font-heading);
-    letter-spacing: -0.025em;
-  }
-
-  code, pre, .font-mono {
-    font-family: var(--font-mono);
-  }
+  --font-sans: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', Consolas, monospace;
 }
 
-/* Airy Paper Sheet & Note Card Metaphor */
+@layer base {
+  :root {
+    color-scheme: light;
+    --font-heading: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
+    --font-body: 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
+
+    --kb-bg: var(--color-kb-bg);
+    --kb-bg-soft: var(--color-kb-bg-soft);
+    --kb-ice: var(--color-kb-ice);
+    --kb-butter: var(--color-kb-butter);
+    --kb-cobalt: var(--color-kb-cobalt);
+    --kb-cobalt-ink: var(--color-kb-cobalt-ink);
+    --kb-navy: var(--color-kb-navy);
+    --kb-muted: var(--color-kb-muted);
+    --kb-line: var(--color-kb-line);
+    --kb-alert: var(--color-kb-alert);
+    --kb-shadow: 0 1px 2px rgba(47, 72, 96, 0.05), 0 8px 24px -12px rgba(47, 72, 96, 0.08);
+    --kb-shadow-lg: 0 2px 4px rgba(47, 72, 96, 0.05), 0 18px 40px -16px rgba(47, 72, 96, 0.14);
+    --kb-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+    /* Older names, re-pointed so anything still reading them follows the palette. */
+    --bg-page: var(--kb-bg);
+    --bg-paper: var(--kb-bg);
+    --bg-slate-tint: var(--kb-bg-soft);
+    --text-primary: var(--kb-navy);
+    --text-muted: var(--kb-muted);
+    --border-subtle: var(--kb-line);
+  }
+
+  html, body {
+    font-family: var(--font-body);
+    background-color: var(--kb-bg);
+    color: var(--kb-navy);
+  }
+  html { scroll-behavior: smooth; }
+
+  /* Hierarchy from size and weight: bold, tight, navy. */
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: var(--font-heading);
+    color: inherit;
+    letter-spacing: -0.02em;
+  }
+  h1, h2 { letter-spacing: -0.03em; }
+  :is(h1, h2, h3, h4).uppercase { letter-spacing: 0.06em; }
+
+  code, pre, .font-mono { font-family: var(--font-mono); }
+
+  ::selection { background: var(--kb-ice); color: var(--kb-navy); }
+}
+
+/* Cards: white, thin navy-tinted border, soft blue shadow. */
 .paper-sheet {
-  background-color: #FFFFFF;
-  border-radius: 1rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: var(--kb-bg);
+  border-radius: 12px;
+  border: 1px solid var(--kb-line);
+  box-shadow: var(--kb-shadow);
+  transition: border-color 0.2s var(--kb-ease), box-shadow 0.2s var(--kb-ease), background-color 0.2s var(--kb-ease);
 }
 
 .paper-sheet-elevated {
-  background-color: #FFFFFF;
-  border-radius: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(226, 232, 240, 0.85);
+  background-color: var(--kb-bg);
+  border-radius: 14px;
+  border: 1px solid var(--kb-line);
+  box-shadow: var(--kb-shadow-lg);
 }
 
 .paper-sheet-interactive {
-  background-color: #FFFFFF;
-  border-radius: 1rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  transition: all 0.2s ease;
+  background-color: var(--kb-bg);
+  border-radius: 12px;
+  border: 1px solid var(--kb-line);
+  box-shadow: var(--kb-shadow);
+  transition: transform 0.25s var(--kb-ease), border-color 0.25s var(--kb-ease), box-shadow 0.25s var(--kb-ease);
 }
 
 .paper-sheet-interactive:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px -2px rgba(2, 132, 199, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  border-color: #BAE6FD;
+  border-color: var(--color-kb-line-strong);
+  box-shadow: var(--kb-shadow-lg);
 }
 
-/* Subtle Sky-Indigo Gradient for Primary CTA */
+/* Primary CTA (the class name is historical): navy button, white text (9.5:1). */
 .btn-sky-gradient {
-  background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
+  background: var(--kb-navy);
   color: #FFFFFF;
-  border: 1px solid rgba(2, 132, 199, 0.2);
-  box-shadow: 0 2px 8px -1px rgba(2, 132, 199, 0.25);
-  transition: all 0.2s ease;
+  border: 1px solid var(--kb-navy);
+  box-shadow: 0 1px 2px rgba(47, 72, 96, 0.12);
+  transition: transform 0.2s var(--kb-ease), box-shadow 0.2s var(--kb-ease), background-color 0.2s var(--kb-ease);
 }
-
 .btn-sky-gradient:hover {
-  background: linear-gradient(135deg, #0369A1 0%, #075985 100%);
-  box-shadow: 0 4px 12px -1px rgba(2, 132, 199, 0.35);
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px -6px rgba(47, 72, 96, 0.35);
 }
 
-/* Gentle Pastel Notes Badges */
-.badge-note-amber {
-  background-color: #FEF3C7;
-  color: #92400E;
-  border: 1px solid #FDE68A;
+/* Status chips: one meaning per colour in every screen. */
+.status-ok, .badge-note-green {
+  background-color: var(--kb-ice);
+  color: var(--kb-cobalt-ink);
+  border: 1px solid rgba(125, 167, 217, 0.45);
+}
+.status-info, .badge-note-amber, .badge-note-sky, .badge-note-lavender {
+  background-color: var(--kb-butter);
+  color: var(--kb-navy);
+  border: 1px solid var(--color-kb-line-strong);
+}
+.status-breach, .badge-note-rose {
+  background-color: rgba(184, 58, 58, 0.07);
+  color: var(--kb-alert);
+  border: 1px solid rgba(184, 58, 58, 0.35);
+}
+.status-old, .badge-note-slate {
+  background-color: transparent;
+  color: rgba(47, 72, 96, 0.62);
+  border: 1px solid var(--kb-line);
+}
+.status-restricted, .badge-restricted {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  background-color: transparent;
+  color: var(--kb-navy);
+  border: 1px solid var(--kb-navy);
 }
 
-.badge-note-green {
-  background-color: #DCFCE7;
-  color: #166534;
-  border: 1px solid #BBF7D0;
-}
-
-.badge-note-lavender {
-  background-color: #E0E7FF;
-  color: #3730A3;
-  border: 1px solid #C7D2FE;
-}
-
-.badge-note-sky {
-  background-color: #E0F2FE;
-  color: #0369A1;
-  border: 1px solid #BAE6FD;
-}
-
-.badge-note-rose {
-  background-color: #FEE2E2;
-  color: #991B1B;
-  border: 1px solid #FECACA;
-}
-
-/* Citation Pill (Paper Note Style) */
+/* Citation pill */
 .citation-pill-paper {
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  background-color: #F1F5F9;
-  color: #0369A1;
-  border: 1px solid #CBD5E1;
+  background-color: var(--kb-ice);
+  color: var(--kb-cobalt-ink);
+  border: 1px solid rgba(125, 167, 217, 0.5);
   padding: 0.15rem 0.5rem;
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color 0.18s var(--kb-ease), box-shadow 0.18s var(--kb-ease), transform 0.18s var(--kb-ease);
 }
-
 .citation-pill-paper:hover {
-  background-color: #E0F2FE;
-  border-color: #38BDF8;
-  color: #0284C7;
-  box-shadow: 0 1px 4px rgba(2, 132, 199, 0.15);
+  border-color: var(--kb-cobalt);
+  box-shadow: 0 2px 8px -2px rgba(61, 111, 168, 0.3);
+  transform: translateY(-1px);
 }
 
-/* Custom Clean Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #F8FAFC;
-}
-::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+/* Butter highlighter behind quoted source sentences */
+.kb-highlight {
+  background-color: var(--kb-butter);
+  color: var(--kb-navy);
+  border-radius: 3px;
+  padding: 0 0.15em;
+  box-shadow: 0 0 0 1px rgba(47, 72, 96, 0.06);
 }
 
-.badge-note-slate {
-  background-color: #F1F5F9;
-  color: #334155;
-  border: 1px solid #CBD5E1;
-}
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(47, 72, 96, 0.18); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(47, 72, 96, 0.3); background-clip: padding-box; border: 2px solid transparent; }
 
-/* Shared controls. Approve (emerald, solid) is deliberately unlike the sky Ingest Document CTA. */
+/* Shared controls. Approve (cobalt ink) is deliberately unlike the navy Ingest Document CTA. */
 .btn-approve {
   display: inline-flex; align-items: center; gap: 0.375rem;
   padding: 0.375rem 0.75rem; border-radius: 0.5rem; font-size: 13px; font-weight: 600;
-  background: #047857; color: #FFFFFF; border: 1px solid #065F46; cursor: pointer;
+  background: var(--kb-cobalt-ink); color: #FFFFFF; border: 1px solid var(--kb-cobalt-ink); cursor: pointer;
+  transition: transform 0.18s var(--kb-ease), box-shadow 0.18s var(--kb-ease);
 }
-.btn-approve:hover { background: #065F46; }
+.btn-approve:hover { transform: translateY(-1px); box-shadow: 0 6px 14px -6px rgba(61, 111, 168, 0.5); }
 .btn-secondary {
   display: inline-flex; align-items: center; gap: 0.375rem;
   padding: 0.3rem 0.625rem; border-radius: 0.5rem; font-size: 13px; font-weight: 500;
-  background: #FFFFFF; color: #1E293B; border: 1px solid #CBD5E1; cursor: pointer;
+  background: var(--kb-bg); color: var(--kb-navy); border: 1px solid var(--color-kb-line-strong); cursor: pointer;
+  transition: border-color 0.18s var(--kb-ease), background-color 0.18s var(--kb-ease), transform 0.18s var(--kb-ease);
 }
-.btn-secondary:hover { background: #F1F5F9; }
+.btn-secondary:hover { border-color: var(--kb-cobalt); background: var(--kb-bg-soft); transform: translateY(-1px); }
 .btn-danger {
   display: inline-flex; align-items: center; gap: 0.375rem;
   padding: 0.3rem 0.625rem; border-radius: 0.5rem; font-size: 13px; font-weight: 500;
-  background: #FFFFFF; color: #9F1239; border: 1px solid #FDA4AF; cursor: pointer;
+  background: var(--kb-bg); color: var(--kb-alert); border: 1px solid rgba(184, 58, 58, 0.4); cursor: pointer;
+  transition: background-color 0.18s var(--kb-ease), border-color 0.18s var(--kb-ease);
 }
-.btn-danger:hover { background: #FFF1F2; }
-.btn-approve:disabled, .btn-secondary:disabled, .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-danger:hover { background: rgba(184, 58, 58, 0.06); border-color: var(--kb-alert); }
+.btn-approve:disabled, .btn-secondary:disabled, .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 1.75rem; height: 1.75rem; border-radius: 0.5rem; color: #475569; border: 1px solid #E2E8F0; cursor: pointer;
+  width: 1.75rem; height: 1.75rem; border-radius: 0.5rem; color: var(--kb-muted); border: 1px solid var(--kb-line); cursor: pointer;
+  transition: color 0.18s var(--kb-ease), border-color 0.18s var(--kb-ease), background-color 0.18s var(--kb-ease);
 }
-.icon-btn:hover { background: #F1F5F9; color: #0F172A; }
+.icon-btn:hover { background: var(--kb-bg-soft); color: var(--kb-navy); border-color: var(--color-kb-line-strong); }
 .field {
   height: 1.875rem; padding: 0 0.5rem; border-radius: 0.5rem; font-size: 13px;
-  background: #FFFFFF; color: #0F172A; border: 1px solid #CBD5E1;
+  background: var(--kb-bg); color: var(--kb-navy); border: 1px solid var(--color-kb-line-strong);
+  transition: border-color 0.18s var(--kb-ease);
 }
-.field:focus { outline: 2px solid #0284C7; outline-offset: 0; border-color: transparent; }
+.field:focus { outline: 2px solid var(--kb-cobalt); outline-offset: 0; border-color: transparent; }
+.field::placeholder, input::placeholder, textarea::placeholder { color: var(--kb-muted); }
 
 /* Keyboard focus is always visible. */
-:focus-visible { outline: 2px solid #0284C7; outline-offset: 2px; }
-
+:focus-visible { outline: 2px solid var(--kb-cobalt); outline-offset: 2px; }
 
 /* As-of slider: a 16px thumb (TemporalSlider positions its milestone markers against this width). */
 .kst-range { -webkit-appearance: none; appearance: none; height: 16px; background: transparent; cursor: pointer; }
-.kst-range::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: #CBD5E1; }
-.kst-range::-moz-range-track { height: 4px; border-radius: 4px; background: #CBD5E1; }
+.kst-range::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: var(--kb-ice); }
+.kst-range::-moz-range-track { height: 4px; border-radius: 4px; background: var(--kb-ice); }
 .kst-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%;
-  background: #0284C7; border: 2px solid #FFFFFF; box-shadow: 0 0 0 1px #0284C7; }
-.kst-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #0284C7; border: 2px solid #FFFFFF; }
+  background: var(--kb-navy); border: 3px solid var(--kb-bg); box-shadow: 0 0 0 1px var(--kb-navy), 0 2px 6px rgba(47, 72, 96, 0.25);
+  transition: transform 0.2s var(--kb-ease); }
+.kst-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--kb-navy); border: 2px solid var(--kb-bg); }
 
 /* Graph nodes: show keyboard focus as a ring on the node, not a square box around the SVG group. */
 svg g[role="button"]:focus { outline: none; }  /* the browser draws a square box on mouse focus too */
-svg g[role="button"]:focus-visible > circle { stroke: #0284C7; stroke-width: 3; }
+svg g[role="button"]:focus-visible > circle { stroke: var(--kb-cobalt); stroke-width: 3; }
 
-/* Jurisdiction (employee workspace): notebook paper, sticky-note tabs, highlighter marks, the pink restricted note. */
-.notebook {
-  background-color: #FAF9F6;
-  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 27px, rgba(148, 163, 184, 0.16) 27px, rgba(148, 163, 184, 0.16) 28px);
-  border: 1px solid #E7E2D8;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+/* Breach pulse on flagged graph nodes: opacity and scale only, so it stays cheap. */
+@keyframes kb-breach-pulse {
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 0.15; transform: scale(1.35); }
 }
-.note-yellow { background-color: #FEF3C7; color: #78350F; }
-.note-green { background-color: #DCFCE7; color: #14532D; }
-.note-lavender { background-color: #E0E7FF; color: #312E81; }
-.note-pink { background-color: #FCE7F3; border: 1px solid #FBCFE8; box-shadow: inset 4px 0 0 #F9A8D4; }
-.hl-yellow { background-color: #FEF08A; color: #713F12; }
-.hl-pink { background-color: #FBCFE8; color: #831843; }
-.hl-green { background-color: #BBF7D0; color: #14532D; }
+.kb-breach-ring { transform-box: fill-box; transform-origin: center; animation: kb-breach-pulse 2.2s ease-in-out infinite; }
+
+/* Gentle entrance when switching tabs */
+@keyframes kb-tab-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.kb-tab-in { animation: kb-tab-in 0.2s var(--kb-ease) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-breach-ring, .kb-tab-in { animation: none; }
+}
+
+/* Jurisdiction (employee workspace): notebook paper, sticky-note tabs, highlighter marks, the restricted note. */
+.notebook {
+  background-color: var(--kb-bg-soft);
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 27px, rgba(47, 72, 96, 0.07) 27px, rgba(47, 72, 96, 0.07) 28px);
+  border: 1px solid var(--kb-line);
+  box-shadow: var(--kb-shadow);
+}
+.note-yellow { background-color: var(--kb-butter); color: var(--kb-navy); }
+.note-green { background-color: var(--kb-ice); color: var(--kb-cobalt-ink); }
+.note-lavender { background-color: var(--kb-bg); color: var(--kb-navy); border: 1px solid var(--kb-line); }
+.note-pink { background-color: rgba(184, 58, 58, 0.06); border: 1px solid rgba(184, 58, 58, 0.25); box-shadow: inset 4px 0 0 rgba(184, 58, 58, 0.55); }
+.hl-yellow { background-color: var(--kb-butter); color: var(--kb-navy); }
+.hl-pink { background-color: rgba(184, 58, 58, 0.12); color: var(--kb-alert); }
+.hl-green { background-color: var(--kb-ice); color: var(--kb-cobalt-ink); }
 @keyframes slide-in-right { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
 .slide-in-right { animation: slide-in-right 220ms ease-out; }
 @media (prefers-reduced-motion: reduce) { .slide-in-right { animation: none; } }

@@ -19,10 +19,10 @@ export default function OrgAdmin({ me, notify }) {
       <div className="flex items-center gap-3 flex-wrap">
         <h2 className="font-heading font-semibold text-[15px]">{orgInfo.data?.name || me.org_name}</h2>
         <Badge tone="sky">you: {me.role}</Badge>
-        <div className="flex gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200" role="tablist">
+        <div className="flex gap-1 p-1 rounded-xl bg-kb-ice/60 border border-kb-line" role="tablist">
           {tabs.map(([id, label]) => (
             <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-              className={`h-8 px-3 rounded-lg text-[13px] cursor-pointer ${tab === id ? 'bg-white font-semibold shadow-xs' : 'text-[#475569]'}`}>{label}</button>
+              className={`h-8 px-3 rounded-lg text-[13px] cursor-pointer ${tab === id ? 'bg-kb-bg font-semibold shadow-xs' : 'text-kb-muted'}`}>{label}</button>
           ))}
         </div>
       </div>
@@ -95,8 +95,8 @@ function JoinCode({ info }) {
   return (
     <Section title="Join code" hint="8 characters without look-alikes (no 0/O, 1/I). Stored hashed and never logged; shown only when created. Joins are rate-limited per address.">
       <ErrorNote error={error} />
-      {fresh && <div className="flex items-center gap-3"><span className="font-mono text-2xl tracking-widest px-4 py-2 rounded-lg bg-slate-50 border border-slate-200">{fresh.join_code}</span>
-        <span className="text-[12.5px] text-[#64748B]">New code. Copy it now; it will not be shown again.</span></div>}
+      {fresh && <div className="flex items-center gap-3"><span className="font-mono text-2xl tracking-widest px-4 py-2 rounded-lg bg-kb-bg-soft border border-kb-line">{fresh.join_code}</span>
+        <span className="text-[12.5px] text-kb-muted">New code. Copy it now; it will not be shown again.</span></div>}
       <div className="text-[13px] flex gap-3 flex-wrap">
         <Badge tone={o.code?.disabled ? 'rose' : 'green'}>{o.code?.disabled ? 'disabled' : 'active'}</Badge>
         <span>Uses: {o.code?.uses}{o.code?.max_uses != null && ` / ${o.code.max_uses}`}</span>
@@ -160,7 +160,7 @@ function Access() {
             options={[{ value: '', label: "Follow the project's team" }, ...(teams.data || []).map(t => ({ value: t.id, label: t.name }))]} /></Field>
           <Btn kind="primary" disabled={busy || !l.doc.trim()} onClick={() => run(async () => setResult(await p1.relabel(l.doc.trim(), l.visibility, l.team)))}>Apply</Btn>
         </div>
-        {result && <p className="text-[12.5px] text-[#475569]">{result.document_id} is now <b>{result.visibility}</b>: {result.nodes.length} node(s) and {result.edges} edge(s) relabelled.</p>}
+        {result && <p className="text-[12.5px] text-kb-muted">{result.document_id} is now <b>{result.visibility}</b>: {result.nodes.length} node(s) and {result.edges} edge(s) relabelled.</p>}
       </Section>
       <Section title="Grants" hint="Open one item to one person, whatever its label. Granting and revoking are audited.">
         <Table head={['Person', 'Item', 'Granted by', 'When', '']} empty="No grants."
@@ -189,7 +189,7 @@ function Plugins({ me }) {
     <Section title="Plugins" hint="What each plugin can read and do. MCP servers only ever propose; rule packs feed the deterministic checker.">
       <ErrorNote error={list.error || error} />
       {(list.data || []).map(p => (
-        <div key={p.id} className="border border-slate-200 rounded-lg p-3 flex flex-col gap-1.5 text-[13px]">
+        <div key={p.id} className="border border-kb-line rounded-lg p-3 flex flex-col gap-1.5 text-[13px]">
           <div className="flex items-center gap-2 flex-wrap">
             <b>{p.name}</b><Badge>{p.kind.replace('_', ' ')}</Badge><Badge tone={p.enabled ? 'green' : 'slate'}>{p.enabled ? 'enabled' : 'disabled'}</Badge>
             <div className="ml-auto flex gap-1">
@@ -197,16 +197,16 @@ function Plugins({ me }) {
               {canToggle && <Btn disabled={busy} onClick={() => run(async () => { await p1.setPlugin(p.id, !p.enabled); await list.reload(); if (results[p.id]) await show(p.id); })}>{p.enabled ? 'Disable' : 'Enable'}</Btn>}
             </div>
           </div>
-          {p.description && <p className="text-[#475569]">{p.description}</p>}
-          <div className="text-[12.5px]"><span className="text-[#64748B]">Reads:</span> {p.reads.join('; ')}</div>
-          <div className="text-[12.5px]"><span className="text-[#64748B]">Can do:</span> {p.does.join('; ')}</div>
-          {p.rules.map(r => <div key={r.id} className="text-[12.5px]"><span className="font-mono">{r.id}</span> {r.title} <span className="text-[#94A3B8]">({r.source})</span></div>)}
+          {p.description && <p className="text-kb-muted">{p.description}</p>}
+          <div className="text-[12.5px]"><span className="text-kb-muted">Reads:</span> {p.reads.join('; ')}</div>
+          <div className="text-[12.5px]"><span className="text-kb-muted">Can do:</span> {p.does.join('; ')}</div>
+          {p.rules.map(r => <div key={r.id} className="text-[12.5px]"><span className="font-mono">{r.id}</span> {r.title} <span className="text-kb-muted/70">({r.source})</span></div>)}
           {results[p.id] && (
             <div className="mt-1 text-[12.5px]">
-              {!results[p.id].enabled ? <span className="text-[#64748B]">Disabled: the checker does not use this pack.</span>
-                : results[p.id].results.length === 0 ? <span className="text-[#64748B]">No decision you can see is affected.</span>
+              {!results[p.id].enabled ? <span className="text-kb-muted">Disabled: the checker does not use this pack.</span>
+                : results[p.id].results.length === 0 ? <span className="text-kb-muted">No decision you can see is affected.</span>
                   : results[p.id].results.map(x => x.checks.map(c => (
-                    <div key={x.decision_id + c.rule}><span className="font-mono">{x.decision_id}</span> {x.title}: <Badge tone={c.result === 'compliant' ? 'green' : 'rose'}>{c.result}</Badge> <span className="text-[#64748B]">expected {c.expected}, is {JSON.stringify(c.actual)}</span></div>)))}
+                    <div key={x.decision_id + c.rule}><span className="font-mono">{x.decision_id}</span> {x.title}: <Badge tone={c.result === 'compliant' ? 'green' : 'rose'}>{c.result}</Badge> <span className="text-kb-muted">expected {c.expected}, is {JSON.stringify(c.actual)}</span></div>)))}
             </div>
           )}
         </div>
@@ -243,10 +243,10 @@ function Devices({ me, notify }) {
       {!isPhone && !pairing && <div><Btn kind="primary" disabled={busy} onClick={() => run(async () => { const r = await p1.startPairing(); setPairing(r); setLeft(r.ttl_seconds); })}>Pair a phone</Btn></div>}
       {pairing && (
         <div className="flex gap-4 items-center flex-wrap">
-          <div className="p-3 bg-white border border-slate-200 rounded-lg"><QRCodeSVG value={link} size={180} /></div>
+          <div className="p-3 bg-kb-bg border border-kb-line rounded-lg"><QRCodeSVG value={link} size={180} /></div>
           <div className="text-[13px] flex flex-col gap-1 max-w-md">
             <span>Scan with the phone camera. Expires in <b>{left}s</b>.</span>
-            <span className="font-mono text-[11.5px] break-all text-[#64748B]">{link}</span>
+            <span className="font-mono text-[11.5px] break-all text-kb-muted">{link}</span>
             {local && <span className="badge-note-amber text-[12px] px-2 py-1 rounded-md">This page is on {window.location.hostname}, which a phone cannot reach. Open Keystone by this laptop's LAN address (Vite with --host, backend on :8000 reachable) so the link works on the phone.</span>}
             <Btn onClick={() => setPairing(null)}>Cancel</Btn>
           </div>

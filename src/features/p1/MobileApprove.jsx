@@ -21,24 +21,24 @@ export default function MobileApprove({ me, onSignOut, onDesktop }) {
   const total = data.proposals.length + data.actions.length;
 
   return (
-    <div className="min-h-dvh bg-[#F8FAFC] text-[#0F172A]">
-      <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 h-14 flex items-center justify-between">
+    <div className="min-h-dvh bg-kb-bg-soft text-kb-navy">
+      <header className="sticky top-0 z-10 bg-kb-bg border-b border-kb-line px-4 h-14 flex items-center justify-between">
         <div className="leading-tight">
           <div className="font-heading font-semibold text-[14px]">Keystone approvals</div>
-          <div className="text-[11.5px] text-[#64748B]">{me.display_name} · {me.via === 'device' ? 'linked phone' : me.role}</div>
+          <div className="text-[11.5px] text-kb-muted">{me.display_name} · {me.via === 'device' ? 'linked phone' : me.role}</div>
         </div>
         <div className="flex items-center gap-1">
           <span className="relative p-2" title="Unread notifications"><Bell size={16} />
-            {data.unread > 0 && <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] flex items-center justify-center">{data.unread}</span>}
+            {data.unread > 0 && <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 rounded-full bg-kb-alert text-white text-[10px] flex items-center justify-center">{data.unread}</span>}
           </span>
           <button className="p-2 cursor-pointer" onClick={load} aria-label="Refresh"><RefreshCw size={16} /></button>
-          <button className="p-2 cursor-pointer text-rose-600" onClick={onSignOut} aria-label="Sign out"><LogOut size={16} /></button>
+          <button className="p-2 cursor-pointer text-kb-alert" onClick={onSignOut} aria-label="Sign out"><LogOut size={16} /></button>
         </div>
       </header>
 
       <main className="p-4 flex flex-col gap-3 max-w-xl mx-auto">
         <ErrorNote error={loadError || error} />
-        <p className="text-[13px] text-[#475569]">{total === 0 ? 'Nothing is waiting for you.' : `${total} waiting for your decision.`}</p>
+        <p className="text-[13px] text-kb-muted">{total === 0 ? 'Nothing is waiting for you.' : `${total} waiting for your decision.`}</p>
 
         {data.proposals.map(p => {
           const f = flagOf(p);
@@ -46,15 +46,15 @@ export default function MobileApprove({ me, onSignOut, onDesktop }) {
             <article key={`p${p.id}`} className="paper-sheet p-4 flex flex-col gap-2 text-[13px]">
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge tone="amber">Proposal #{p.id}</Badge>
-                <span className="font-mono text-[12px]">{p.decision_id}</span><span className="text-[#64748B]">·</span>
+                <span className="font-mono text-[12px]">{p.decision_id}</span><span className="text-kb-muted">·</span>
                 <span className="font-mono text-[12px]">{p.clause_id}</span>
               </div>
               <div className="font-semibold">{p.subject}</div>
-              <div className="text-[#334155] whitespace-pre-wrap">{p.body}</div>
-              {f && <div className="text-[12.5px] text-[#475569] bg-slate-50 border border-slate-200 rounded-lg p-2">
+              <div className="text-kb-navy whitespace-pre-wrap">{p.body}</div>
+              {f && <div className="text-[12.5px] text-kb-muted bg-kb-bg-soft border border-kb-line rounded-lg p-2">
                 <b>Why:</b> {f.explanation} <span className="font-mono">[{f.decision_id} · {f.clause_id}@{f.new_version}]</span>
               </div>}
-              <div className="text-[12px] text-[#64748B]">To {p.to} · {when(p.created_at)}</div>
+              <div className="text-[12px] text-kb-muted">To {p.to} · {when(p.created_at)}</div>
               <div className="flex gap-2">
                 <Btn kind="approve" disabled={busy} className="flex-1 flex items-center justify-center gap-1" onClick={() => act(() => p1.approveProposal(p.id))}><Check size={14} /> Approve</Btn>
                 <Btn kind="danger" disabled={busy} className="flex-1 flex items-center justify-center gap-1" onClick={() => act(() => p1.rejectProposal(p.id, 'rejected from phone'))}><X size={14} /> Reject</Btn>
@@ -67,8 +67,8 @@ export default function MobileApprove({ me, onSignOut, onDesktop }) {
           <article key={`a${a.id}`} className="paper-sheet p-4 flex flex-col gap-2 text-[13px]">
             <div className="flex items-center gap-2"><Badge tone="lavender">Agent action #{a.id}</Badge><span className="font-mono text-[12px]">{a.tool}</span>
               {a.via === 'mcp' && <Badge>via MCP</Badge>}</div>
-            <div className="text-[#334155]">To <b>{a.payload.user_id || `channel ${a.payload.channel_id}`}</b>{a.payload.ref_id && <> about <span className="font-mono">{a.payload.ref_id}</span></>}</div>
-            <div className="whitespace-pre-wrap bg-slate-50 border border-slate-200 rounded-lg p-2">{a.payload.reason || a.payload.body}</div>
+            <div className="text-kb-navy">To <b>{a.payload.user_id || `channel ${a.payload.channel_id}`}</b>{a.payload.ref_id && <> about <span className="font-mono">{a.payload.ref_id}</span></>}</div>
+            <div className="whitespace-pre-wrap bg-kb-bg-soft border border-kb-line rounded-lg p-2">{a.payload.reason || a.payload.body}</div>
             <div className="flex gap-2">
               <Btn kind="approve" disabled={busy} className="flex-1 flex items-center justify-center gap-1" onClick={() => act(() => p1.approveAction(a.id))}><Check size={14} /> Approve</Btn>
               <Btn kind="danger" disabled={busy} className="flex-1 flex items-center justify-center gap-1" onClick={() => act(() => p1.rejectAction(a.id, 'rejected from phone'))}><X size={14} /> Reject</Btn>

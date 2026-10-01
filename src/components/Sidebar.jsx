@@ -32,17 +32,17 @@ export default function Sidebar({ items, active, onSelect, user }) {
         onMouseLeave={() => setHover(false)}
         onFocus={() => setHover(true)}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setHover(false); }}
-        className={`absolute inset-y-0 left-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden transition-[width,box-shadow] duration-150 ${
+        className={`absolute inset-y-0 left-0 bg-kb-bg border-r border-kb-line flex flex-col overflow-hidden transition-[width,box-shadow] duration-150 ${
           open ? 'w-60' : 'w-14'} ${open && !pinned ? 'shadow-xl' : ''}`}
       >
-        <div className="h-12 shrink-0 flex items-center gap-1 px-2.5 border-b border-slate-100">
+        <div className="h-12 shrink-0 flex items-center gap-1 px-2.5 border-b border-kb-line">
           <button type="button" onClick={() => setTapped(t => !t)} aria-expanded={open} aria-label={open ? 'Collapse navigation' : 'Expand navigation'}
-            className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-[#475569] hover:bg-slate-100 cursor-pointer">
+            className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-kb-muted hover:bg-kb-ice/60 cursor-pointer">
             <Menu size={17} />
           </button>
           {open && (
             <button type="button" onClick={pin} aria-pressed={pinned} title={pinned ? 'Unpin the sidebar' : 'Pin the sidebar open'}
-              className="ml-auto h-8 px-2 rounded-lg flex items-center gap-1.5 text-[12px] text-[#64748B] hover:bg-slate-100 cursor-pointer whitespace-nowrap">
+              className="ml-auto h-8 px-2 rounded-lg flex items-center gap-1.5 text-[12px] text-kb-muted hover:bg-kb-ice/60 cursor-pointer whitespace-nowrap">
               {pinned ? <PinOff size={13} /> : <Pin size={13} />} {pinned ? 'Unpin' : 'Pin'}
             </button>
           )}
@@ -56,12 +56,12 @@ export default function Sidebar({ items, active, onSelect, user }) {
                 <button type="button" onClick={() => { onSelect(id); setTapped(false); }} aria-current={on ? 'page' : undefined}
                   title={open ? undefined : label}
                   className={`relative w-full h-10 rounded-lg flex items-center gap-3 px-2.5 text-[13.5px] whitespace-nowrap cursor-pointer transition-colors ${
-                    on ? 'bg-sky-50 text-[#0369A1] font-semibold' : 'text-[#334155] hover:bg-slate-100'}`}>
-                  <Icon size={18} className={`shrink-0 ${on ? 'text-[#0284C7]' : 'text-[#64748B]'}`} aria-hidden="true" />
+                    on ? 'bg-kb-ice text-kb-cobalt-ink font-semibold' : 'text-kb-navy hover:bg-kb-ice/60'}`}>
+                  <Icon size={18} className={`shrink-0 ${on ? 'text-kb-cobalt-ink' : 'text-kb-muted'}`} aria-hidden="true" />
                   <span className={open ? '' : 'sr-only'}>{label}</span>
                   {badge > 0 && (
                     <span aria-label={`${badge} waiting`}
-                      className={`min-w-5 h-5 px-1 rounded-full bg-[#0284C7] text-white text-[11px] font-bold flex items-center justify-center ${
+                      className={`min-w-5 h-5 px-1 rounded-full bg-kb-navy text-white text-[11px] font-bold flex items-center justify-center ${
                         open ? 'ml-auto' : 'absolute top-0.5 right-0.5 min-w-4 h-4 text-[10px]'}`}>
                       {badge > 99 ? '99+' : badge}
                     </span>
@@ -73,14 +73,14 @@ export default function Sidebar({ items, active, onSelect, user }) {
         </ul>
 
         {user && (
-          <div className="shrink-0 border-t border-slate-100 p-2.5 flex items-center gap-2.5" title={`${user.name} · ${user.role}`}>
-            <span className="h-9 w-9 shrink-0 rounded-full bg-sky-100 text-[#0369A1] font-semibold text-[13px] flex items-center justify-center">
+          <div className="shrink-0 border-t border-kb-line p-2.5 flex items-center gap-2.5" title={`${user.name} · ${user.role}`}>
+            <span className="h-9 w-9 shrink-0 rounded-full bg-kb-ice text-kb-cobalt-ink font-semibold text-[13px] flex items-center justify-center">
               {(user.name || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()}
             </span>
             {open && (
               <div className="min-w-0 leading-tight">
-                <div className="text-[13px] font-semibold text-[#0F172A] truncate">{user.name}</div>
-                <div className="text-[11.5px] text-[#64748B] truncate capitalize">{user.role}</div>
+                <div className="text-[13px] font-semibold text-kb-navy truncate">{user.name}</div>
+                <div className="text-[11.5px] text-kb-muted truncate capitalize">{user.role}</div>
               </div>
             )}
           </div>

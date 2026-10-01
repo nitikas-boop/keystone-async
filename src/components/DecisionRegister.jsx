@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, FilePlus2, RefreshCw, Table2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, FilePlus2, Lock, RefreshCw, Table2 } from 'lucide-react';
 import { fetchDecisions, fetchFlags, fetchGraphView } from '../api';
 import { useApp } from '../context';
 import IdChip from './IdChip';
@@ -86,9 +86,9 @@ export default function DecisionRegister({ refreshKey = 0, focus, proposals = []
   return (
     <div className="flex h-full gap-4 min-h-0">
       <div className="flex-1 min-w-0 paper-sheet flex flex-col overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-2">
-          <Table2 size={15} className="text-[#4F46E5]" aria-hidden="true" />
-          <h2 className="font-heading font-semibold text-sm text-[#0F172A] mr-2">Decision register</h2>
+        <div className="px-4 py-3 border-b border-kb-line flex flex-wrap items-center gap-2">
+          <Table2 size={15} className="text-kb-cobalt-ink" aria-hidden="true" />
+          <h2 className="font-heading font-semibold text-sm text-kb-navy mr-2">Decision register</h2>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search ID, title or reason" aria-label="Search decisions"
             className="field w-56" />
           <select value={owner} onChange={e => setOwner(e.target.value)} className="field" aria-label="Filter by owner">
@@ -105,21 +105,21 @@ export default function DecisionRegister({ refreshKey = 0, focus, proposals = []
             <option value="superseded">Superseded</option>
             <option value="stale">Stale</option>
           </select>
-          <label className="flex items-center gap-1.5 text-[13px] text-[#334155] cursor-pointer">
+          <label className="flex items-center gap-1.5 text-[13px] text-kb-navy cursor-pointer">
             <input type="checkbox" checked={flaggedOnly} onChange={e => setFlaggedOnly(e.target.checked)} /> Flagged only
           </label>
-          <span className="flex items-center gap-1.5 text-[12.5px] text-[#64748B]">As of <DateField value={asOf} onChange={v => v && setAsOf(v)} label="Registry as of" /></span>
-          <span className="ml-auto text-[12.5px] text-[#64748B]">{shown.length} of {rows.length} decisions</span>
+          <span className="flex items-center gap-1.5 text-[12.5px] text-kb-muted">As of <DateField value={asOf} onChange={v => v && setAsOf(v)} label="Registry as of" /></span>
+          <span className="ml-auto text-[12.5px] text-kb-muted">{shown.length} of {rows.length} decisions</span>
           <button onClick={load} className="icon-btn" aria-label="Refresh decisions" title="Refresh"><RefreshCw size={13} /></button>
           {onRecord && <button onClick={onRecord} className="btn-secondary"><FilePlus2 size={13} /> {recordLabel}</button>}
         </div>
         <div className="flex-1 overflow-auto">
           <table className="w-full text-left border-collapse text-[13px]">
-            <thead className="sticky top-0 bg-slate-50 z-10">
-              <tr className="border-b border-slate-200">
+            <thead className="sticky top-0 bg-kb-bg-soft z-10">
+              <tr className="border-b border-kb-line">
                 {COLS.map(c => (
-                  <th key={c.key} className="py-2 px-3 font-medium text-[#475569]">
-                    <button className="inline-flex items-center gap-1 cursor-pointer hover:text-[#0F172A]"
+                  <th key={c.key} className="py-2 px-3 font-medium text-kb-muted">
+                    <button className="inline-flex items-center gap-1 cursor-pointer hover:text-kb-navy"
                       onClick={() => setSort(s => ({ key: c.key, dir: s.key === c.key ? -s.dir : 1 }))}
                       aria-label={`Sort by ${c.label}`}>
                       {c.label}
@@ -129,18 +129,18 @@ export default function DecisionRegister({ refreshKey = 0, focus, proposals = []
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {error && <tr><td colSpan={COLS.length} className="p-6 text-center text-rose-700">Could not load decisions: {error}</td></tr>}
-              {!error && !decisions && <tr><td colSpan={COLS.length} className="p-6 text-center text-[#64748B]">Loading…</td></tr>}
-              {decisions && shown.length === 0 && <tr><td colSpan={COLS.length} className="p-6 text-center text-[#64748B]">No decisions match these filters.</td></tr>}
+            <tbody className="divide-y divide-kb-line">
+              {error && <tr><td colSpan={COLS.length} className="p-6 text-center text-kb-alert">Could not load decisions: {error}</td></tr>}
+              {!error && !decisions && <tr><td colSpan={COLS.length} className="p-6 text-center text-kb-muted">Loading…</td></tr>}
+              {decisions && shown.length === 0 && <tr><td colSpan={COLS.length} className="p-6 text-center text-kb-muted">No decisions match these filters.</td></tr>}
               {shown.map(r => (
                 <tr key={r.id} onClick={() => setOpenId(r.id)} tabIndex={0}
                   onKeyDown={e => e.key === 'Enter' && setOpenId(r.id)}
-                  className={`cursor-pointer hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-sky-600 ${openId === r.id ? 'bg-sky-50/60' : ''}`}>
-                  <td className="py-2 px-3 text-[#0F172A]">
+                  className={`cursor-pointer hover:bg-kb-bg-soft focus-visible:outline-2 focus-visible:outline-kb-cobalt ${openId === r.id ? 'bg-kb-ice/60' : ''}`}>
+                  <td className="py-2 px-3 text-kb-navy">
                     <span className="font-medium">{r.title}</span>
-                    <span className="block font-mono text-[11.5px] text-[#64748B]">{r.id}</span>
-                    {r.restricted && <span className="ml-1.5 text-[11.5px] px-1 rounded badge-note-slate">restricted</span>}
+                    <span className="block font-mono text-[11.5px] text-kb-muted">{r.id}</span>
+                    {r.restricted && <span className="ml-1.5 text-[11.5px] px-1 rounded badge-restricted"><Lock size={10} aria-hidden="true" />restricted</span>}
                     {r.extracted && <span className="ml-1.5 text-[11.5px] px-1 rounded badge-note-slate">extracted from a meeting note</span>}
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap">{r.ownerName}</td>
@@ -150,7 +150,7 @@ export default function DecisionRegister({ refreshKey = 0, focus, proposals = []
                   <td className="py-2 px-3 whitespace-nowrap"><span className={`text-[12px] px-1.5 py-0.5 rounded capitalize ${STATE_CLS[r.state]}`}>{r.state}</span></td>
                   <td className="py-2 px-3">
                     <div className="flex flex-wrap gap-1">
-                      {r.flags.length === 0 && <span className="text-[#64748B]">None</span>}
+                      {r.flags.length === 0 && <span className="text-kb-muted">None</span>}
                       {r.flags.map(f => (
                         <span key={f.id} className={`text-[12px] px-1.5 py-0.5 rounded ${IMPACT[f.impact_type]?.cls || 'badge-note-slate'}`}>
                           {IMPACT[f.impact_type]?.label || f.impact_type} · {f.clause_id}@{f.new_version}

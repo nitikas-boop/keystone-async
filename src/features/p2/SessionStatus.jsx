@@ -30,7 +30,7 @@ export default function SessionStatus() {
       </span>
       <label className="sr-only" htmlFor="kst-lang">{t('lang')}</label>
       <select id="kst-lang" value={i18n.language} onChange={e => setLanguage(e.target.value)}
-              className="h-8 text-[12px] border border-slate-300 rounded-md bg-white px-1" title={t('lang')}>
+              className="h-8 text-[12px] border border-kb-line-strong rounded-md bg-kb-bg px-1" title={t('lang')}>
         <option value="en">English</option>
         <option value="hi">हिंदी</option>
       </select>

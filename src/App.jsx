@@ -7,7 +7,7 @@ import * as P2 from './features/p2';
 // its views. Each edits only its own features/pN/index.jsx; this file does not change again.
 export default function App() {
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans antialiased selection:bg-[#E0F2FE] selection:text-[#0369A1]">
+    <div className="min-h-screen bg-kb-bg-soft text-kb-navy font-sans antialiased selection:bg-kb-ice selection:text-kb-navy">
       <P1.AuthGate>
         {({ user, signOut }) => (
           <Dashboard

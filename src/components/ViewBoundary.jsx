@@ -22,11 +22,11 @@ export default class ViewBoundary extends React.Component {
     if (!error) return this.props.children;
     return (
       <div role="alert" className={`paper-sheet p-5 m-4 flex flex-col gap-3 max-w-2xl ${this.props.full ? 'mx-auto mt-16' : ''}`}>
-        <div className="flex items-center gap-2 font-heading font-semibold text-[14px] text-rose-800">
+        <div className="flex items-center gap-2 font-heading font-semibold text-[14px] text-kb-alert">
           <AlertTriangle size={16} aria-hidden="true" /> {this.props.title || 'This view hit an error'}
         </div>
-        <p className="text-[13px] text-[#334155]">Nothing was changed. The error was:</p>
-        <pre className="text-[12px] bg-slate-50 border border-slate-200 rounded-lg p-2 whitespace-pre-wrap text-[#0F172A]">{String(error.message || error)}</pre>
+        <p className="text-[13px] text-kb-navy">Nothing was changed. The error was:</p>
+        <pre className="text-[12px] bg-kb-bg-soft border border-kb-line rounded-lg p-2 whitespace-pre-wrap text-kb-navy">{String(error.message || error)}</pre>
         <div className="flex gap-2">
           <button type="button" className="btn-secondary" onClick={() => this.setState({ error: null })}>Try again</button>
           <button type="button" className="btn-secondary" onClick={() => window.location.reload()}><RefreshCw size={13} /> Reload</button>

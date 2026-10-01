@@ -6,8 +6,8 @@ export function Section({ title, hint, actions, children }) {
     <section className="paper-sheet p-4 flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h3 className="font-heading font-semibold text-[14px] text-[#0F172A]">{title}</h3>
-          {hint && <p className="text-[12.5px] text-[#64748B] mt-0.5">{hint}</p>}
+          <h3 className="font-heading font-semibold text-[14px] text-kb-navy">{title}</h3>
+          {hint && <p className="text-[12.5px] text-kb-muted mt-0.5">{hint}</p>}
         </div>
         {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
       </div>
@@ -18,14 +18,14 @@ export function Section({ title, hint, actions, children }) {
 
 export function Field({ label, children }) {
   return (
-    <label className="flex flex-col gap-1 text-[12.5px] text-[#334155]">
+    <label className="flex flex-col gap-1 text-[12.5px] text-kb-navy">
       <span className="font-medium">{label}</span>
       {children}
     </label>
   );
 }
 
-export const inputCls = 'h-9 px-2.5 rounded-lg border border-slate-300 bg-white text-[13px] text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-400';
+export const inputCls = 'h-9 px-2.5 rounded-lg border border-kb-line-strong bg-kb-bg text-[13px] text-kb-navy focus:outline-none focus:ring-2 focus:ring-kb-cobalt/50 focus:border-kb-cobalt';
 
 export function Input(props) {
   return <input {...props} className={`${inputCls} ${props.className || ''}`} />;
@@ -61,15 +61,15 @@ export function Table({ head, rows, empty = 'Nothing here.' }) {
     <div className="overflow-x-auto">
       <table className="w-full text-[13px]">
         <thead>
-          <tr className="text-left text-[#64748B] border-b border-slate-200">
+          <tr className="text-left text-kb-muted border-b border-kb-line">
             {head.map(h => <th key={h} className="py-1.5 pr-3 font-medium">{h}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0
-            ? <tr><td colSpan={head.length} className="py-3 text-[#64748B]">{empty}</td></tr>
+            ? <tr><td colSpan={head.length} className="py-3 text-kb-muted">{empty}</td></tr>
             : rows.map((cells, i) => (
-              <tr key={i} className="border-b border-slate-100 align-top">
+              <tr key={i} className="border-b border-kb-line align-top">
                 {cells.map((c, j) => <td key={j} className="py-1.5 pr-3">{c}</td>)}
               </tr>
             ))}

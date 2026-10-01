@@ -67,7 +67,7 @@ export default function Audio({ onChanged }) {
       {current && (
         <Section title={`Transcript #${current.id}: map speakers`} actions={<button className="btn-secondary" disabled={busy} onClick={ingest}>Send to Ingestion Review</button>}>
           <Table head={['Time', 'Speaker', 'Text']} rows={current.segments.map((s, i) => ({ key: i, cells: [
-            <button key="t" className="text-[#0369A1] underline" onClick={() => play(current.id, s.start)}>{stamp(s.start)}</button>,
+            <button key="t" className="text-kb-cobalt-ink underline" onClick={() => play(current.id, s.start)}>{stamp(s.start)}</button>,
             <select key="s" className={inputCls} value={speakers[i] || 'Speaker 1'} onChange={e => setSpeakers({ ...speakers, [i]: e.target.value })}>
               {names.map(n => <option key={n}>{n}</option>)}
             </select>, s.text] }))} />

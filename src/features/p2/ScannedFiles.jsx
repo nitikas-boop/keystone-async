@@ -23,14 +23,14 @@ export default function ScannedFiles({ onChanged, onNotify }) {
   const set = (f, k, v) => setForm(s => ({ ...s, [f.id]: { ...s[f.id], [k]: v } }));
 
   return (
-    <section className="rounded-xl border border-sky-200 bg-sky-50/40 p-3 space-y-2" data-testid="scanned-files">
+    <section className="rounded-xl border border-kb-cobalt/50 bg-kb-ice/40 p-3 space-y-2" data-testid="scanned-files">
       <h3 className="font-semibold text-[13px]">Files from the sign-in directory scan ({files.length} waiting)</h3>
-      <p className="text-[12px] text-[#475569]">The folder decides the access level. Markdown with front-matter keeps its own dates;
+      <p className="text-[12px] text-kb-muted">The folder decides the access level. Markdown with front-matter keeps its own dates;
         other files need the date confirmed. Audio goes to transcription and needs recorded consent.</p>
       {files.map(f => (
-        <div key={f.id} className="flex flex-wrap items-end gap-2 text-[12.5px] bg-white border border-slate-200 rounded-md p-2">
+        <div key={f.id} className="flex flex-wrap items-end gap-2 text-[12.5px] bg-kb-bg border border-kb-line rounded-md p-2">
           <div className="min-w-[16rem]"><span className="font-mono">{f.path}</span> · {f.change} · scope {f.scope}
-            {f.error && <div className="text-rose-700">{f.error}</div>}</div>
+            {f.error && <div className="text-kb-alert">{f.error}</div>}</div>
           <label className="flex flex-col">Date<input type="date" className={inputCls} value={val(f, 'meeting_date', f.modified)}
             onChange={e => set(f, 'meeting_date', e.target.value)} /></label>
           {!f.is_audio && <label className="flex flex-col">Doc ID (no front-matter only)<input className={inputCls} placeholder="suggested from file name"
@@ -67,5 +67,5 @@ export function AudioStamp({ docId, raw, span }) {
       playing.addEventListener('loadedmetadata', () => { playing.currentTime = at; playing.play(); }, { once: true });
     } catch (e) { window.alert(errText(e)); }
   };
-  return <button className="text-[12px] text-[#0369A1] underline mt-1" onClick={play} title="Play the recording from this moment">▶ {m[1]}:{m[2]}</button>;
+  return <button className="text-[12px] text-kb-cobalt-ink underline mt-1" onClick={play} title="Play the recording from this moment">▶ {m[1]}:{m[2]}</button>;
 }

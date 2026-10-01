@@ -60,11 +60,11 @@ export default function DecisionPage({ row, decisions, flags, proposals, auditLo
 
   return (
     <div className="h-full paper-sheet flex flex-col overflow-hidden" aria-label={`Decision ${row.id}`}>
-      <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3 flex-wrap">
+      <div className="px-5 py-3 border-b border-kb-line flex items-center gap-3 flex-wrap">
         <button onClick={onBack} className="btn-secondary"><ArrowLeft size={13} /> All decisions</button>
         <div className="min-w-0">
-          <h2 className="font-heading font-semibold text-[16px] text-[#0F172A] leading-snug">{row.title}</h2>
-          <div className="text-[12.5px] text-[#475569] flex items-center gap-1.5 flex-wrap">
+          <h2 className="font-heading font-semibold text-[16px] text-kb-navy leading-snug">{row.title}</h2>
+          <div className="text-[12.5px] text-kb-muted flex items-center gap-1.5 flex-wrap">
             <span className="font-mono">{row.id}</span>
             <span>{[displayName(row.owner, team), day(row.decidedOn), row.project, row.status.charAt(0).toUpperCase() + row.status.slice(1),
               row.effect && (row.effect === 'ongoing' ? 'ongoing practice' : 'one-off')].filter(Boolean).map(x => ` · ${x}`).join('')}</span>
@@ -77,34 +77,34 @@ export default function DecisionPage({ row, decisions, flags, proposals, auditLo
       <div className="flex-1 overflow-y-auto p-5 grid lg:grid-cols-[1fr_22rem] gap-6 text-[13px]">
         <div className="space-y-5 min-w-0">
           <section>
-            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[#64748B] mb-1.5">Why</h3>
-            <p className="leading-relaxed text-[#1E293B]">{row.reasons || '—'}</p>
-            <p className="text-[12px] text-[#64748B] mt-1">Recorded in <span className="font-mono">{row.provenance?.source_doc || '—'}</span>
+            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-kb-muted mb-1.5">Why</h3>
+            <p className="leading-relaxed text-kb-navy">{row.reasons || '—'}</p>
+            <p className="text-[12px] text-kb-muted mt-1">Recorded in <span className="font-mono">{row.provenance?.source_doc || '—'}</span>
               {row.extracted ? ', extracted from a meeting note and accepted by a reviewer' : ''}.</p>
           </section>
 
           <section>
-            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[#64748B] mb-1.5">Compliance, then vs now</h3>
-            {compliance.loading && <p className="flex items-center gap-2 text-[#475569]"><Loader2 size={14} className="animate-spin" /> Running the deterministic check and asking the local model to word it…</p>}
-            {compliance.error && <p className="text-rose-700">Check failed: {compliance.error} <button className="underline cursor-pointer" onClick={load}>Retry</button></p>}
+            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-kb-muted mb-1.5">Compliance, then vs now</h3>
+            {compliance.loading && <p className="flex items-center gap-2 text-kb-muted"><Loader2 size={14} className="animate-spin" /> Running the deterministic check and asking the local model to word it…</p>}
+            {compliance.error && <p className="text-kb-alert">Check failed: {compliance.error} <button className="underline cursor-pointer" onClick={load}>Retry</button></p>}
             {compliance.data && <ThenNow c={compliance.data} />}
           </section>
 
           <section>
-            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[#64748B] mb-1.5">Rules it relied on</h3>
-            {doc === null && <p className="text-[#64748B]">Loading…</p>}
-            {doc !== null && relied.length === 0 && <p className="text-[#475569]">No policy clause is recorded for this decision, so it has nothing to be checked against.</p>}
+            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-kb-muted mb-1.5">Rules it relied on</h3>
+            {doc === null && <p className="text-kb-muted">Loading…</p>}
+            {doc !== null && relied.length === 0 && <p className="text-kb-muted">No policy clause is recorded for this decision, so it has nothing to be checked against.</p>}
             <ul className="space-y-2">
               {relied.map(r => (
-                <li key={r.cid} className="rounded-lg border border-slate-200 p-3">
+                <li key={r.cid} className="rounded-lg border border-kb-line p-3">
                   <div className="flex items-center gap-2 flex-wrap">
                     {r.then ? <IdChip id={`${r.cid}@${r.then.version}`} type="clause" /> : <span className="font-mono">{r.cid}</span>}
-                    <span className="text-[#475569]">in force when decided</span>
-                    <button className="ml-auto text-[12.5px] underline text-[#0369A1] cursor-pointer" onClick={() => openEntity(r.cid, 'clause', { view: 'POLICIES' })}>Compare versions</button>
+                    <span className="text-kb-muted">in force when decided</span>
+                    <button className="ml-auto text-[12.5px] underline text-kb-cobalt-ink cursor-pointer" onClick={() => openEntity(r.cid, 'clause', { view: 'POLICIES' })}>Compare versions</button>
                   </div>
-                  {r.then && <p className="mt-1 text-[#334155]">{polish(r.then.text)}</p>}
+                  {r.then && <p className="mt-1 text-kb-navy">{polish(r.then.text)}</p>}
                   {r.later.map(v => (
-                    <p key={v.version} className="mt-1.5 pl-2 border-l-2 border-amber-300 text-[#334155]">
+                    <p key={v.version} className="mt-1.5 pl-2 border-l-2 border-kb-line-strong text-kb-navy">
                       <span className="font-semibold">Since {day(v.validFrom)} ({v.version}):</span> {polish(v.text)}
                     </p>
                   ))}
@@ -115,12 +115,12 @@ export default function DecisionPage({ row, decisions, flags, proposals, auditLo
 
           {myFlags.length > 0 && (
             <section>
-              <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[#64748B] mb-1.5">Policy impact</h3>
+              <h3 className="text-[12px] font-semibold uppercase tracking-wide text-kb-muted mb-1.5">Policy impact</h3>
               <ul className="space-y-2">
                 {myFlags.map(f => (
-                  <li key={f.id} className="rounded-lg border border-slate-200 p-2.5">
+                  <li key={f.id} className="rounded-lg border border-kb-line p-2.5">
                     <span className={`text-[12px] px-1.5 py-0.5 rounded ${IMPACT[f.impact_type]?.cls || 'badge-note-slate'}`}>{IMPACT[f.impact_type]?.label || f.impact_type}</span>
-                    <p className="mt-1 text-[#334155] leading-relaxed">{polish(f.explanation)}</p>
+                    <p className="mt-1 text-kb-navy leading-relaxed">{polish(f.explanation)}</p>
                   </li>
                 ))}
               </ul>
@@ -130,42 +130,42 @@ export default function DecisionPage({ row, decisions, flags, proposals, auditLo
 
           {doc && (
             <details className="group">
-              <summary className="cursor-pointer text-[#0369A1] flex items-center gap-1 select-none">
+              <summary className="cursor-pointer text-kb-cobalt-ink flex items-center gap-1 select-none">
                 <ChevronDown size={13} className="group-open:rotate-180 transition-transform" aria-hidden="true" /> Source document
               </summary>
-              <pre className="mt-2 p-3 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[12px] whitespace-pre-wrap">{doc.body}</pre>
+              <pre className="mt-2 p-3 rounded-lg bg-kb-bg-soft border border-kb-line font-mono text-[12px] whitespace-pre-wrap">{doc.body}</pre>
             </details>
           )}
         </div>
 
         <aside className="space-y-5">
           <section>
-            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[#64748B] mb-2">What happened</h3>
-            <ol className="relative border-l border-slate-200 ml-1.5 space-y-3" aria-label="Timeline">
+            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-kb-muted mb-2">What happened</h3>
+            <ol className="relative border-l border-kb-line ml-1.5 space-y-3" aria-label="Timeline">
               {events.map((e, i) => (
                 <li key={i} className="pl-4 relative">
-                  <span className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-[#4F46E5]" aria-hidden="true" />
-                  <div className="text-[12px] text-[#64748B]">{day(e.date)}</div>
-                  <div className="flex items-center gap-1.5 flex-wrap text-[#1E293B]">{e.text}</div>
+                  <span className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-kb-cobalt" aria-hidden="true" />
+                  <div className="text-[12px] text-kb-muted">{day(e.date)}</div>
+                  <div className="flex items-center gap-1.5 flex-wrap text-kb-navy">{e.text}</div>
                 </li>
               ))}
             </ol>
           </section>
           <section>
-            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[#64748B] mb-2">Audit entries naming it ({myAudit.length})</h3>
-            {myAudit.length === 0 && <p className="text-[#475569]">None yet.</p>}
+            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-kb-muted mb-2">Audit entries naming it ({myAudit.length})</h3>
+            {myAudit.length === 0 && <p className="text-kb-muted">None yet.</p>}
             <ul className="space-y-1">
               {myAudit.slice(0, 12).map(r => (
                 <li key={r.id}>
-                  <button className="text-left w-full rounded-md px-2 py-1 hover:bg-slate-50 cursor-pointer" onClick={() => openEntity(`block:${r.id}`, 'audit')}>
-                    <span className="font-mono text-[12px] text-[#0369A1]">Block {r.id}</span>{' '}
-                    <span className="text-[#1E293B]">{ACTIONS[r.action] || r.action}</span>
-                    <span className="block text-[12px] text-[#64748B]">{displayName(r.actor, team)} · {ts(r.ts).ist}</span>
+                  <button className="text-left w-full rounded-md px-2 py-1 hover:bg-kb-bg-soft cursor-pointer" onClick={() => openEntity(`block:${r.id}`, 'audit')}>
+                    <span className="font-mono text-[12px] text-kb-cobalt-ink">Block {r.id}</span>{' '}
+                    <span className="text-kb-navy">{ACTIONS[r.action] || r.action}</span>
+                    <span className="block text-[12px] text-kb-muted">{displayName(r.actor, team)} · {ts(r.ts).ist}</span>
                   </button>
                 </li>
               ))}
             </ul>
-            {myAudit.length > 12 && <button className="text-[12.5px] underline text-[#0369A1] cursor-pointer" onClick={() => openEntity(`block:${myAudit[0].id}`, 'audit')}>See all in the Audit Trail</button>}
+            {myAudit.length > 12 && <button className="text-[12.5px] underline text-kb-cobalt-ink cursor-pointer" onClick={() => openEntity(`block:${myAudit[0].id}`, 'audit')}>See all in the Audit Trail</button>}
           </section>
         </aside>
       </div>

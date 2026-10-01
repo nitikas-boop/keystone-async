@@ -38,7 +38,7 @@ export function AuthGate({ children }) {
   useEffect(() => { p1.me().then(signedIn, () => setMe(null)); }, [signedIn]);
   const signOut = useCallback(() => p1.logout().finally(() => { setMe(null); setScreen('landing'); setDesktop(false); }), []);
 
-  if (me === undefined) return <div className="min-h-dvh flex items-center justify-center text-[13px] text-[#64748B]">Checking your session…</div>;
+  if (me === undefined) return <div className="min-h-dvh flex items-center justify-center text-[13px] text-kb-muted">Checking your session…</div>;
   if (pair && me?.via !== 'device') return <PairClaim token={pair} onDone={signedIn} onCancel={() => { window.history.replaceState(null, '', window.location.pathname); setMe(m => m); setScreen('login'); }} />;
   if (!me) {
     if (screen === 'pair') return <PairClaim onDone={signedIn} onCancel={() => setScreen('login')} />;

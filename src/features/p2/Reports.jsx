@@ -49,7 +49,7 @@ export default function Reports({ initialKind = 'compliance', initialAsOf }) {
         <button className="btn-secondary" onClick={() => download('pdf')}>Download PDF</button>
       </div>
       <Msg msg={msg} />
-      {md && <pre className="text-[12px] whitespace-pre-wrap bg-white border border-slate-200 rounded-md p-3 max-h-[60vh] overflow-auto" data-testid="report-preview">{md}</pre>}
+      {md && <pre className="text-[12px] whitespace-pre-wrap bg-kb-bg border border-kb-line rounded-md p-3 max-h-[60vh] overflow-auto" data-testid="report-preview">{md}</pre>}
     </Section>
   );
 }

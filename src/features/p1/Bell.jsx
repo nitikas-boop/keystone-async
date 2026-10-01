@@ -14,22 +14,22 @@ export default function Bell() {
   return (
     <div className="relative">
       <button onClick={() => { setOpen(o => !o); if (!open) load(); }} aria-label={`Notifications, ${data.unread} unread`}
-        className="relative h-8 w-8 rounded-lg flex items-center justify-center text-[#64748B] hover:bg-slate-100 cursor-pointer" title="Notifications">
+        className="relative h-8 w-8 rounded-lg flex items-center justify-center text-kb-muted hover:bg-kb-ice/60 cursor-pointer" title="Notifications">
         <BellIcon size={15} />
-        {data.unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] leading-none font-bold flex items-center justify-center">{data.unread}</span>}
+        {data.unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-kb-alert text-white text-[10px] leading-none font-bold flex items-center justify-center">{data.unread}</span>}
       </button>
       {open && (
         <div className="absolute right-0 top-10 w-80 max-h-96 overflow-y-auto paper-sheet-elevated p-2 z-50 text-[13px]" role="dialog" aria-label="Notifications">
-          <div className="flex items-center justify-between px-1 pb-1.5 border-b border-slate-100">
+          <div className="flex items-center justify-between px-1 pb-1.5 border-b border-kb-line">
             <b>Notifications</b>
-            <button className="text-[12px] text-[#0284C7] cursor-pointer" onClick={readAll}>Mark all read</button>
+            <button className="text-[12px] text-kb-cobalt-ink cursor-pointer" onClick={readAll}>Mark all read</button>
           </div>
-          {data.items.length === 0 && <p className="p-2 text-[#64748B]">Nothing yet.</p>}
+          {data.items.length === 0 && <p className="p-2 text-kb-muted">Nothing yet.</p>}
           {data.items.map(n => (
             <button key={n.id} onClick={() => !n.read && p1.readNotification(n.id).then(load)}
-              className={`w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer ${n.read ? 'text-[#64748B]' : 'font-medium'}`}>
+              className={`w-full text-left px-2 py-1.5 rounded-lg hover:bg-kb-bg-soft cursor-pointer ${n.read ? 'text-kb-muted' : 'font-medium'}`}>
               <div>{n.text}</div>
-              <div className="text-[11.5px] text-[#94A3B8] flex items-center gap-1">
+              <div className="text-[11.5px] text-kb-muted/70 flex items-center gap-1">
                 {n.restricted ? <><Lock size={10} /> Restricted item</> : n.ref_id && <span className="font-mono">{n.ref_id}</span>}
                 <span>· {new Date(n.created_at).toLocaleString()}</span>
               </div>

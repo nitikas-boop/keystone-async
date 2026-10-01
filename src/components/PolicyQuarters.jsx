@@ -54,27 +54,27 @@ export default function PolicyQuarters({ policies, asOfDate, onDateChange, today
   const daysIn = (m) => new Date(Number(open.slice(0, 4)), firstMonth + m + 1, 0).getDate();
 
   return (
-    <div className="flex flex-col gap-1.5 pt-1 border-t border-slate-100" data-testid="policy-quarters">
+    <div className="flex flex-col gap-1.5 pt-1 border-t border-kb-line" data-testid="policy-quarters">
       <div className="flex items-center gap-1 flex-wrap text-[12px]">
-        <span className="text-[#475569] mr-1">Policy changes by quarter:</span>
+        <span className="text-kb-muted mr-1">Policy changes by quarter:</span>
         {quarters.map(q => {
           const n = changes.filter(c => quarterOf(c.date) === q).length;
           return (
             <button key={q} onClick={() => { setOpen(open === q ? null : q); setMonth(null); }} aria-pressed={open === q}
               title={n ? `${n} policy change(s) in ${label(q)}` : `No policy change in ${label(q)}`}
-              className={`h-6 px-2 rounded-md border cursor-pointer ${open === q ? 'bg-[#0284C7] border-[#0284C7] text-white'
-                : n ? 'bg-white border-slate-300 text-[#0F172A] hover:border-sky-400' : 'bg-slate-50 border-slate-200 text-[#94A3B8]'}`}>
-              {label(q)}{n > 0 && <span className={`ml-1 font-semibold ${open === q ? '' : 'text-[#B45309]'}`}>{n}</span>}
+              className={`h-6 px-2 rounded-md border cursor-pointer ${open === q ? 'bg-kb-navy border-kb-cobalt text-white'
+                : n ? 'bg-kb-bg border-kb-line-strong text-kb-navy hover:border-kb-cobalt' : 'bg-kb-bg-soft border-kb-line text-kb-muted/70'}`}>
+              {label(q)}{n > 0 && <span className={`ml-1 font-semibold ${open === q ? '' : 'text-kb-cobalt-ink'}`}>{n}</span>}
             </button>
           );
         })}
       </div>
 
       {open && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 flex flex-col gap-2">
-          <div className="text-[12.5px] text-[#0F172A]">
+        <div className="rounded-lg border border-kb-line bg-kb-bg-soft/60 p-2.5 flex flex-col gap-2">
+          <div className="text-[12.5px] text-kb-navy">
             <b>{label(open)}</b>: {inQ.length === 0 ? 'no policy changed this quarter.' : `${inQ.length} policy change(s).`}
-            {month != null && <button className="ml-2 text-[#0369A1] underline cursor-pointer" onClick={() => setMonth(null)}>Show the whole quarter</button>}
+            {month != null && <button className="ml-2 text-kb-cobalt-ink underline cursor-pointer" onClick={() => setMonth(null)}>Show the whole quarter</button>}
           </div>
           {/* Month by month: one segment per month, each change a dot at its day. Click a month to filter the list. */}
           <div className="grid grid-cols-3 gap-1.5" role="group" aria-label={`Months of ${label(open)}`}>
@@ -82,16 +82,16 @@ export default function PolicyQuarters({ policies, asOfDate, onDateChange, today
               const here = inQ.filter(c => monthOf(c) === m);
               return (
                 <button key={m} onClick={() => setMonth(month === m ? null : m)} aria-pressed={month === m}
-                  className={`text-left rounded-md border px-2 pt-1 pb-2 cursor-pointer ${month === m ? 'border-[#0284C7] bg-white ring-1 ring-sky-200' : 'border-slate-200 bg-white hover:border-sky-300'}`}>
+                  className={`text-left rounded-md border px-2 pt-1 pb-2 cursor-pointer ${month === m ? 'border-kb-cobalt bg-kb-bg ring-1 ring-kb-cobalt/50' : 'border-kb-line bg-kb-bg hover:border-kb-cobalt/50'}`}>
                   <div className="flex justify-between text-[12px]">
                     <span className="font-semibold">{MONTHS[firstMonth + m]} {open.slice(0, 4)}</span>
-                    <span className={here.length ? 'text-[#B45309]' : 'text-[#94A3B8]'}>{here.length ? `${here.length} change(s)` : 'no change'}</span>
+                    <span className={here.length ? 'text-kb-cobalt-ink' : 'text-kb-muted/70'}>{here.length ? `${here.length} change(s)` : 'no change'}</span>
                   </div>
                   <div className="relative h-3 mt-1.5">
-                    <div className="absolute inset-x-0 top-1/2 h-px bg-slate-300" />
+                    <div className="absolute inset-x-0 top-1/2 h-px bg-kb-line-strong" />
                     {here.map(c => (
                       <span key={c.policy + c.version} title={`${day(c.date)} · ${c.ref}`}
-                        className={`absolute top-0 w-3 h-3 rounded-full border-2 border-white -translate-x-1/2 ${c.date === asOfDate ? 'bg-[#0284C7] ring-2 ring-sky-300' : 'bg-[#D97706]'}`}
+                        className={`absolute top-0 w-3 h-3 rounded-full border-2 border-kb-bg -translate-x-1/2 ${c.date === asOfDate ? 'bg-kb-navy ring-2 ring-kb-cobalt/50' : 'bg-kb-cobalt'}`}
                         style={{ left: `${((Number(c.date.slice(8, 10)) - 0.5) / daysIn(m)) * 100}%` }} />
                     ))}
                   </div>
@@ -104,11 +104,11 @@ export default function PolicyQuarters({ policies, asOfDate, onDateChange, today
               {shown.map(c => (
                 <li key={c.policy + c.version}>
                   <button onClick={() => onDateChange(c.date)} title="Set the as-of date to the day this version took effect"
-                    className={`w-full text-left rounded-md px-2 py-1 text-[12.5px] cursor-pointer border ${c.date === asOfDate ? 'border-sky-300 bg-sky-50' : 'border-transparent hover:bg-white hover:border-slate-200'}`}>
-                    <span className="font-mono text-[#475569]">{day(c.date)}</span>{' · '}
+                    className={`w-full text-left rounded-md px-2 py-1 text-[12.5px] cursor-pointer border ${c.date === asOfDate ? 'border-kb-cobalt/50 bg-kb-ice' : 'border-transparent hover:bg-kb-bg hover:border-kb-line'}`}>
+                    <span className="font-mono text-kb-muted">{day(c.date)}</span>{' · '}
                     <b>{c.policy} {c.version}</b>{c.first ? ' (first version)' : ''}{c.future ? ' · takes effect later' : ''}
                     {c.clauses.map(k => (
-                      <span key={k.id} className="block pl-4 text-[#334155]">
+                      <span key={k.id} className="block pl-4 text-kb-navy">
                         <span className="font-mono">{k.id}</span> {k.title}: {k.before ? <>{k.before} → <b>{k.after}</b></> : <b>{k.after}</b>}
                       </span>
                     ))}

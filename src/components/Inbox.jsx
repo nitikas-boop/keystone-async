@@ -19,19 +19,19 @@ function DecisionContext({ id, decisions }) {
   const { team, openEntity } = useApp();
   const d = decisions?.find(x => x.id === id);
   if (!id) return null;
-  if (!d) return <p className="text-[12.5px] text-[#64748B]">{decisions ? `${id} is not a decision you can see today.` : 'Loading decision…'}</p>;
+  if (!d) return <p className="text-[12.5px] text-kb-muted">{decisions ? `${id} is not a decision you can see today.` : 'Loading decision…'}</p>;
   const a = d.attributes || {};
   return (
     <div className="flex flex-col gap-2 text-[13px]">
-      <div className="text-[11.5px] uppercase tracking-wide text-[#64748B] font-semibold">Decision context</div>
-      <div className="font-semibold text-[#0F172A]">{polish(d.label)} <span className="font-mono text-[12px] text-[#64748B]">{d.id}</span></div>
+      <div className="text-[11.5px] uppercase tracking-wide text-kb-muted font-semibold">Decision context</div>
+      <div className="font-semibold text-kb-navy">{polish(d.label)} <span className="font-mono text-[12px] text-kb-muted">{d.id}</span></div>
       <dl className="grid grid-cols-[88px_1fr] gap-x-2 gap-y-1 text-[12.5px]">
-        <dt className="text-[#64748B]">Owner</dt><dd>{a.owner ? displayName(a.owner, team) : '—'}</dd>
-        <dt className="text-[#64748B]">Decided on</dt><dd>{day(a.decided_on || d.valid_from)}</dd>
-        <dt className="text-[#64748B]">Project</dt><dd>{a.project || '—'}</dd>
-        <dt className="text-[#64748B]">Status</dt><dd className="capitalize">{a.status || 'active'} · {a.effect || '—'}</dd>
+        <dt className="text-kb-muted">Owner</dt><dd>{a.owner ? displayName(a.owner, team) : '—'}</dd>
+        <dt className="text-kb-muted">Decided on</dt><dd>{day(a.decided_on || d.valid_from)}</dd>
+        <dt className="text-kb-muted">Project</dt><dd>{a.project || '—'}</dd>
+        <dt className="text-kb-muted">Status</dt><dd className="capitalize">{a.status || 'active'} · {a.effect || '—'}</dd>
       </dl>
-      {a.reasons && <p className="text-[12.5px] text-[#334155] leading-relaxed">{polish(a.reasons)}</p>}
+      {a.reasons && <p className="text-[12.5px] text-kb-navy leading-relaxed">{polish(a.reasons)}</p>}
       <div className="flex gap-2 flex-wrap">
         <button type="button" className="btn-secondary" onClick={() => openEntity(d.id, 'decision', { view: 'GRAPH' })}><GitBranch size={13} /> Open in graph</button>
         <button type="button" className="btn-secondary" onClick={() => openEntity(d.id, 'decision', { view: 'REGISTRY' })}><Table2 size={13} /> Open in registry</button>
@@ -110,39 +110,39 @@ function MyInbox({ onOpen, onChanged }) {
   return (
     <div className="flex h-full gap-4 min-h-0">
       <div className="flex-1 min-w-0 paper-sheet flex flex-col overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-2">
-          <div className="flex gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200" role="tablist" aria-label="Filter inbox">
+        <div className="px-4 py-3 border-b border-kb-line flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 p-1 rounded-xl bg-kb-ice/60 border border-kb-line" role="tablist" aria-label="Filter inbox">
             {FILTERS.map(([id, label]) => (
               <button key={id} role="tab" aria-selected={filter === id} onClick={() => setFilter(id)}
-                className={`h-7 px-2.5 rounded-lg text-[12.5px] flex items-center gap-1.5 cursor-pointer ${filter === id ? 'bg-white font-semibold shadow-xs' : 'text-[#475569] hover:text-[#0F172A]'}`}>
-                {label}{id !== 'all' && <span className={`min-w-4 h-4 px-1 rounded-full text-[10.5px] font-bold flex items-center justify-center ${n(id) ? 'bg-[#0284C7] text-white' : 'bg-slate-200 text-[#475569]'}`}>{n(id)}</span>}
+                className={`h-7 px-2.5 rounded-lg text-[12.5px] flex items-center gap-1.5 cursor-pointer ${filter === id ? 'bg-kb-bg font-semibold shadow-xs' : 'text-kb-muted hover:text-kb-navy'}`}>
+                {label}{id !== 'all' && <span className={`min-w-4 h-4 px-1 rounded-full text-[10.5px] font-bold flex items-center justify-center ${n(id) ? 'bg-kb-navy text-white' : 'bg-kb-ice text-kb-muted'}`}>{n(id)}</span>}
               </button>
             ))}
           </div>
-          {data && <span className="text-[12.5px] text-[#64748B]">{data.counts.pending} pending · {data.counts.unread} unread</span>}
+          {data && <span className="text-[12.5px] text-kb-muted">{data.counts.pending} pending · {data.counts.unread} unread</span>}
           <button type="button" className="ml-auto btn-secondary" onClick={() => p1.inboxReadAll().then(load)}><CheckCheck size={13} /> Mark all read</button>
           <button type="button" className="icon-btn" onClick={load} aria-label="Refresh inbox" title="Refresh"><RefreshCw size={13} /></button>
         </div>
         {error && <div role="alert" className="m-3 badge-note-rose text-[12.5px] px-3 py-2 rounded-lg">{error.status === 403 ? "You don't have permission: " : ''}{error.message}</div>}
-        <ul className="flex-1 overflow-y-auto divide-y divide-slate-100">
-          {!data && !error && <li className="p-6 text-center text-[13px] text-[#64748B]">Loading…</li>}
-          {data && items.length === 0 && <li className="p-6 text-center text-[13px] text-[#64748B]">Nothing here. You&apos;re all caught up.</li>}
+        <ul className="flex-1 overflow-y-auto divide-y divide-kb-line">
+          {!data && !error && <li className="p-6 text-center text-[13px] text-kb-muted">Loading…</li>}
+          {data && items.length === 0 && <li className="p-6 text-center text-[13px] text-kb-muted">Nothing here. You&apos;re all caught up.</li>}
           {items.map(i => {
             const I = ICON[i.type] || Bell;
             const unread = i.category === 'unread' || (i.category === 'notification' && !i.read);
             return (
               <li key={i.key}>
                 <button type="button" onClick={() => open(i)}
-                  className={`w-full text-left px-4 py-2.5 flex items-start gap-3 cursor-pointer hover:bg-slate-50 ${sel === i.key ? 'bg-sky-50/70' : ''}`}>
-                  <I size={15} className={`mt-0.5 shrink-0 ${i.urgent ? 'text-amber-600' : 'text-[#0284C7]'}`} aria-hidden="true" />
+                  className={`w-full text-left px-4 py-2.5 flex items-start gap-3 cursor-pointer hover:bg-kb-bg-soft ${sel === i.key ? 'bg-kb-ice/70' : ''}`}>
+                  <I size={15} className={`mt-0.5 shrink-0 ${i.urgent ? 'text-kb-alert' : 'text-kb-cobalt-ink'}`} aria-hidden="true" />
                   <span className="min-w-0 flex-1">
-                    <span className={`block text-[13px] truncate ${unread || i.category === 'action' ? 'font-semibold text-[#0F172A]' : 'text-[#475569]'}`}>{i.title}</span>
-                    <span className="block text-[12px] text-[#64748B] truncate">
+                    <span className={`block text-[13px] truncate ${unread || i.category === 'action' ? 'font-semibold text-kb-navy' : 'text-kb-muted'}`}>{i.title}</span>
+                    <span className="block text-[12px] text-kb-muted truncate">
                       {TYPE[i.type] || (i.category === 'notification' ? 'Notification' : i.type)}{i.detail ? ` · ${i.detail}` : ''}
                     </span>
                   </span>
-                  <span className="shrink-0 text-[11.5px] text-[#94A3B8]">{i.created_at ? new Date(i.created_at).toLocaleDateString() : ''}</span>
-                  {unread && <span className="mt-1.5 w-2 h-2 rounded-full bg-[#0284C7] shrink-0" aria-label="unread" />}
+                  <span className="shrink-0 text-[11.5px] text-kb-muted/70">{i.created_at ? new Date(i.created_at).toLocaleDateString() : ''}</span>
+                  {unread && <span className="mt-1.5 w-2 h-2 rounded-full bg-kb-navy shrink-0" aria-label="unread" />}
                 </button>
               </li>
             );
@@ -151,18 +151,18 @@ function MyInbox({ onOpen, onChanged }) {
       </div>
 
       <aside className="w-[380px] shrink-0 paper-sheet p-4 flex flex-col gap-3 overflow-y-auto" aria-label="Selected item">
-        {!selected && <p className="text-[13px] text-[#64748B]">Select an item to act on it. Approvals show the decision they concern next to the buttons.</p>}
+        {!selected && <p className="text-[13px] text-kb-muted">Select an item to act on it. Approvals show the decision they concern next to the buttons.</p>}
         {selected && <>
           <div>
-            <div className="text-[11.5px] uppercase tracking-wide text-[#64748B] font-semibold">{TYPE[selected.type] || 'Notification'}</div>
-            <div className="font-semibold text-[14px] text-[#0F172A] mt-0.5">{selected.title}</div>
-            {selected.detail && <p className="text-[12.5px] text-[#475569] mt-1 whitespace-pre-wrap">{selected.detail}</p>}
+            <div className="text-[11.5px] uppercase tracking-wide text-kb-muted font-semibold">{TYPE[selected.type] || 'Notification'}</div>
+            <div className="font-semibold text-[14px] text-kb-navy mt-0.5">{selected.title}</div>
+            {selected.detail && <p className="text-[12.5px] text-kb-muted mt-1 whitespace-pre-wrap">{selected.detail}</p>}
           </div>
           <Actions item={selected} run={run} />
-          <button type="button" className="self-start text-[12.5px] text-[#0284C7] hover:underline flex items-center gap-1 cursor-pointer" onClick={() => onOpen(selected)}>
+          <button type="button" className="self-start text-[12.5px] text-kb-cobalt-ink hover:underline flex items-center gap-1 cursor-pointer" onClick={() => onOpen(selected)}>
             Open source <ChevronRight size={12} />
           </button>
-          {selected.ref?.decision_id && <div className="pt-3 border-t border-slate-100"><DecisionContext id={selected.ref.decision_id} decisions={decisions} /></div>}
+          {selected.ref?.decision_id && <div className="pt-3 border-t border-kb-line"><DecisionContext id={selected.ref.decision_id} decisions={decisions} /></div>}
         </>}
       </aside>
     </div>
@@ -174,11 +174,11 @@ export default function Inbox({ segment, onSegment, registry, onOpen, onChanged 
   return (
     <div className="h-full flex flex-col gap-3 min-h-0">
       <div className="flex items-center gap-3">
-        <div className="flex gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200" role="tablist" aria-label="Inbox">
+        <div className="flex gap-1 p-1 rounded-xl bg-kb-ice/60 border border-kb-line" role="tablist" aria-label="Inbox">
           {SEGMENTS.map(([id, label, I]) => (
             <button key={id} role="tab" aria-selected={segment === id} onClick={() => onSegment(id)}
-              className={`h-8 px-3 rounded-lg flex items-center gap-1.5 text-[13px] cursor-pointer ${segment === id ? 'bg-white font-semibold shadow-xs' : 'text-[#475569] hover:text-[#0F172A]'}`}>
-              <I size={14} className={segment === id ? 'text-[#0284C7]' : ''} aria-hidden="true" /> {label}
+              className={`h-8 px-3 rounded-lg flex items-center gap-1.5 text-[13px] cursor-pointer ${segment === id ? 'bg-kb-bg font-semibold shadow-xs' : 'text-kb-muted hover:text-kb-navy'}`}>
+              <I size={14} className={segment === id ? 'text-kb-cobalt-ink' : ''} aria-hidden="true" /> {label}
             </button>
           ))}
         </div>

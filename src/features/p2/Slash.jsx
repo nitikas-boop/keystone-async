@@ -54,8 +54,8 @@ export async function runSlash({ cmd, arg }, text, asOf, { onAsOf }) {
   }
 }
 
-const Card = ({ children, tone = 'bg-white border-slate-200' }) => (
-  <div className={`max-w-[92%] rounded-xl p-3.5 border text-[13px] text-[#1E293B] leading-relaxed space-y-2 ${tone}`}>{children}</div>
+const Card = ({ children, tone = 'bg-kb-bg border-kb-line' }) => (
+  <div className={`max-w-[92%] rounded-xl p-3.5 border text-[13px] text-kb-navy leading-relaxed space-y-2 ${tone}`}>{children}</div>
 );
 const Chips = ({ ids, onCitationClick }) => ids.map(id => (
   <IdChip key={id} id={id} className="ml-0.5 kst-citation" onClick={() => onCitationClick?.(id)} />
@@ -72,8 +72,8 @@ function WhatIf({ d, onCitationClick }) {
   const [promoted, setPromoted] = useState(null);
   const h = d.hypothetical;
   return (
-    <Card tone="bg-amber-50 border-amber-300">
-      <div className="font-bold tracking-wide text-amber-900" data-testid="hypothetical-label">{t('hypothetical')}</div>
+    <Card tone="bg-kb-butter border-kb-line-strong">
+      <div className="font-bold tracking-wide text-kb-navy" data-testid="hypothetical-label">{t('hypothetical')}</div>
       {h.kind === 'policy_change' ? <>
         <div className="font-semibold">What-if: {h.clause_id} {h.field}{h.role ? `[${h.role}]` : ''} = {h.new_value}
           {h.effective_from && ` from ${day(h.effective_from)}`}</div>
@@ -102,7 +102,7 @@ function WhatIf({ d, onCitationClick }) {
           {t('promote')}</button>
       )}
       {promoted && <div className="text-[12.5px]">{promoted.error || `Draft ${promoted.ref} created (${promoted.clause_id}, effective ${promoted.effective_from}); submit it under Knowledge → Proposals.`}</div>}
-      <div className="text-[11.5px] text-[#64748B]">Simulation #{d.simulation_id}: logged, never written to the graph.</div>
+      <div className="text-[11.5px] text-kb-muted">Simulation #{d.simulation_id}: logged, never written to the graph.</div>
     </Card>
   );
 }

@@ -31,17 +31,17 @@ export default function AuthScreen({ onSignedIn, onBack }) {
   };
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-[#F8FAFC] p-4">
+    <div className="min-h-dvh flex items-center justify-center bg-kb-bg-soft p-4">
       <div className="w-full max-w-md paper-sheet-elevated p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <Logo size={26} subtitle="" />
-          {onBack && <button className="text-[12.5px] text-[#64748B] hover:text-[#0F172A] cursor-pointer" onClick={onBack}>← Back</button>}
+          {onBack && <button className="text-[12.5px] text-kb-muted hover:text-kb-navy cursor-pointer" onClick={onBack}>← Back</button>}
         </div>
 
         {done?.kind === 'pending' && (
           <div className="flex flex-col gap-3 text-[13px]">
             <h2 className="font-heading font-semibold text-base">Request sent to {done.org}</h2>
-            <p className="text-[#475569]">Your join request is pending. The Owner or a Team lead has to approve it before you can sign in.</p>
+            <p className="text-kb-muted">Your join request is pending. The Owner or a Team lead has to approve it before you can sign in.</p>
             <Btn onClick={() => { setDone(null); setTab('login'); }}>Back to sign in</Btn>
           </div>
         )}
@@ -49,18 +49,18 @@ export default function AuthScreen({ onSignedIn, onBack }) {
         {done?.kind === 'registered' && (
           <div className="flex flex-col gap-3 text-[13px]">
             <h2 className="font-heading font-semibold text-base">{done.me.org_name} is ready</h2>
-            <p className="text-[#475569]">Share this join code with your team. It is shown once; Keystone stores only its hash. You can rotate it later.</p>
-            <div className="font-mono text-2xl tracking-widest text-center py-3 rounded-lg bg-slate-50 border border-slate-200" data-testid="join-code">{done.code}</div>
+            <p className="text-kb-muted">Share this join code with your team. It is shown once; Keystone stores only its hash. You can rotate it later.</p>
+            <div className="font-mono text-2xl tracking-widest text-center py-3 rounded-lg bg-kb-bg-soft border border-kb-line" data-testid="join-code">{done.code}</div>
             <Btn kind="primary" onClick={() => onSignedIn(done.me)}>Continue to the workspace</Btn>
           </div>
         )}
 
         {!done && (
           <>
-            <div className="flex gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200" role="tablist">
+            <div className="flex gap-1 p-1 rounded-xl bg-kb-ice/60 border border-kb-line" role="tablist">
               {TABS.map(([id, label]) => (
                 <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-                  className={`flex-1 h-8 rounded-lg text-[12.5px] cursor-pointer ${tab === id ? 'bg-white font-semibold shadow-xs' : 'text-[#475569]'}`}>
+                  className={`flex-1 h-8 rounded-lg text-[12.5px] cursor-pointer ${tab === id ? 'bg-kb-bg font-semibold shadow-xs' : 'text-kb-muted'}`}>
                   {label}
                 </button>
               ))}
@@ -73,7 +73,7 @@ export default function AuthScreen({ onSignedIn, onBack }) {
               {tab !== 'login' && (
                 <>
                   <Field label="Your name"><Input required value={form.display_name || ''} onChange={set('display_name')} /></Field>
-                  <p className="text-[12px] text-[#64748B]">{tab === 'register'
+                  <p className="text-[12px] text-kb-muted">{tab === 'register'
                     ? 'You become the owner of the organisation, with the designation CEO.'
                     : 'Your designation, role and team are set by the owner when your request is approved.'}</p>
                 </>
@@ -84,15 +84,15 @@ export default function AuthScreen({ onSignedIn, onBack }) {
               </Btn>
             </form>
             {tab === 'login' && demo.length > 0 && (
-              <div className="flex flex-col gap-1.5 pt-3 border-t border-slate-100">
-                <span className="text-[12px] text-[#64748B]">Demo workspace <b>Nimbus Ledger</b>: sign in with one click as</span>
+              <div className="flex flex-col gap-1.5 pt-3 border-t border-kb-line">
+                <span className="text-[12px] text-kb-muted">Demo workspace <b>Nimbus Ledger</b>: sign in with one click as</span>
                 <div className="grid grid-cols-2 gap-1.5">
                   {demo.map(d => (
                     <button key={d.employee_id} type="button" disabled={busy}
                       onClick={() => run(async () => onSignedIn(await p1.demoLogin(d.employee_id)))}
-                      className="text-left px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-sky-50 hover:border-sky-200 cursor-pointer disabled:opacity-50">
-                      <div className="text-[12.5px] font-semibold text-[#0F172A]">{d.display_name}</div>
-                      <div className="text-[11.5px] text-[#64748B]">{d.designation} · {d.role}</div>
+                      className="text-left px-2.5 py-1.5 rounded-lg border border-kb-line bg-kb-bg hover:bg-kb-ice hover:border-kb-cobalt/50 cursor-pointer disabled:opacity-50">
+                      <div className="text-[12.5px] font-semibold text-kb-navy">{d.display_name}</div>
+                      <div className="text-[11.5px] text-kb-muted">{d.designation} · {d.role}</div>
                     </button>
                   ))}
                 </div>

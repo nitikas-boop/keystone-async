@@ -85,16 +85,16 @@ export default function TemporalSlider({ asOfDate, onDateChange, refreshKey = 0,
     <div className="w-full paper-sheet px-3.5 py-2 flex flex-col gap-1">
       <div className="flex flex-wrap items-center justify-between gap-2 text-[13px]">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[#475569]">As of</span>
+          <span className="text-kb-muted">As of</span>
           <DateField value={asOfDate} min={start} max={end} label="As-of date" onChange={d => d && onDateChange(d)} />
           {asOfDate !== today && (
-            <button className="text-[12.5px] text-[#0369A1] underline cursor-pointer" onClick={() => onDateChange(today)}>Back to today</button>
+            <button className="text-[12.5px] text-kb-cobalt-ink underline cursor-pointer" onClick={() => onDateChange(today)}>Back to today</button>
           )}
-          <span className="text-[#475569]">In force:</span>
-          {error && <span className="text-rose-700">policies unavailable: {error}</span>}
-          {!error && active.length === 0 && <span className="text-[#475569]">no policy version</span>}
+          <span className="text-kb-muted">In force:</span>
+          {error && <span className="text-kb-alert">policies unavailable: {error}</span>}
+          {!error && active.length === 0 && <span className="text-kb-muted">no policy version</span>}
           {active.map(a => (
-            <span key={a.id} className="px-2 py-0.5 rounded-md border border-[#B4530940] bg-[#FEF3C7] text-[#92400E] font-mono text-[12px]">{a.label}</span>
+            <span key={a.id} className="px-2 py-0.5 rounded-md border border-[#B4530940] bg-kb-butter text-kb-navy font-mono text-[12px]">{a.label}</span>
           ))}
           {stale && (
             <span className="flex items-center gap-1 text-[12px] px-2 py-0.5 rounded-md badge-note-rose">
@@ -141,11 +141,11 @@ export default function TemporalSlider({ asOfDate, onDateChange, refreshKey = 0,
                 className="absolute top-0 cursor-pointer group"
                 style={{ left: at(m.date), transform: m.align === 'left' ? 'translateX(-5px)' : m.align === 'right' ? 'translateX(calc(-100% + 5px))' : 'translateX(-50%)' }}
               >
-                <span className={`block w-2.5 h-2.5 rounded-full border-2 ${m.align === 'left' ? '' : m.align === 'right' ? 'ml-auto' : 'mx-auto'} ${sel ? 'bg-[#0284C7] border-white ring-2 ring-sky-300' : m.date <= asOfDate ? 'bg-slate-500 border-white' : 'bg-slate-200 border-slate-400'}`}
+                <span className={`block w-2.5 h-2.5 rounded-full border-2 ${m.align === 'left' ? '' : m.align === 'right' ? 'ml-auto' : 'mx-auto'} ${sel ? 'bg-kb-navy border-kb-bg ring-2 ring-kb-cobalt' : m.date <= asOfDate ? 'bg-kb-navy/35 border-kb-bg' : 'bg-kb-ice/60 border-kb-line-strong'}`}
                       aria-hidden="true" />
-                <span className={`block whitespace-nowrap text-[12px] leading-tight ${sel ? 'text-[#0284C7] font-semibold' : 'text-[#334155] group-hover:text-[#0F172A]'}`}
+                <span className={`block whitespace-nowrap text-[12px] leading-tight ${sel ? 'text-kb-cobalt-ink font-semibold' : 'text-kb-navy group-hover:text-kb-navy'}`}
                       style={{ marginTop: m.row ? 16 : 2 }}>
-                  {m.today ? 'Today' : month(m.date)}{m.refs.length ? <span className="font-mono text-[11.5px] text-[#475569]"> · {m.refs.join(', ')}</span> : null}
+                  {m.today ? 'Today' : month(m.date)}{m.refs.length ? <span className="font-mono text-[11.5px] text-kb-muted"> · {m.refs.join(', ')}</span> : null}
                 </span>
               </button>
             );

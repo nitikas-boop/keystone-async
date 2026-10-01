@@ -40,12 +40,18 @@ const q = (params) => {
 export const me = () => call('GET', '/auth/me');
 // The one permission map (tier, domains, capabilities): the UI hides what a role cannot use; the API enforces it.
 export const permissions = () => call('GET', '/me/permissions');
-export const login = (employee_id, password) => call('POST', '/auth/login', { employee_id, password });
+// A call that starts or ends a session forgets the tab's last view, so the next account opens on the Dashboard;
+// a plain reload keeps the session and therefore the view (Dashboard reads kst.view from sessionStorage).
+const session = (method, path, body) => {
+  try { sessionStorage.removeItem('kst.view'); sessionStorage.removeItem('kst.inbox'); } catch { /* storage unavailable */ }
+  return call(method, path, body);
+};
+export const login = (employee_id, password) => session('POST', '/auth/login', { employee_id, password });
 export const demoAccounts = () => call('GET', '/auth/demo');
-export const demoLogin = (employee_id) => call('POST', '/auth/demo', { employee_id });
-export const logout = () => call('POST', '/auth/logout');
-export const register = (body) => call('POST', '/auth/register', body);
-export const join = (body) => call('POST', '/auth/join', body);
+export const demoLogin = (employee_id) => session('POST', '/auth/demo', { employee_id });
+export const logout = () => session('POST', '/auth/logout');
+export const register = (body) => session('POST', '/auth/register', body);
+export const join = (body) => session('POST', '/auth/join', body);
 
 // ---- A/B: org admin ----
 export const org = () => call('GET', '/org');
@@ -105,7 +111,7 @@ export const pluginResults = (id) => call('GET', `/plugins/${encodeURIComponent(
 // ---- H: devices ----
 export const startPairing = () => call('POST', '/devices/pair');
 export const pairingStatus = (token) => call('GET', `/devices/pair/status${q({ token })}`);
-export const claimPairing = (token, label) => call('POST', '/devices/claim', { token, label });
+export const claimPairing = (token, label) => session('POST', '/devices/claim', { token, label });
 export const devices = () => call('GET', '/devices');
 export const revokeDevice = (id) => call('DELETE', `/devices/${id}`);
 

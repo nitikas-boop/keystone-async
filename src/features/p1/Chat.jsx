@@ -16,10 +16,10 @@ function Formatted({ text, me }) {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|_[^_\s][^_]*_|@[a-z0-9_.-]+)/g);
   return parts.map((p, i) => {
     if (/^\*\*[^*]+\*\*$/.test(p)) return <strong key={i}>{p.slice(2, -2)}</strong>;
-    if (/^`[^`]+`$/.test(p)) return <code key={i} className="px-1 rounded bg-slate-100 text-[12px]">{p.slice(1, -1)}</code>;
+    if (/^`[^`]+`$/.test(p)) return <code key={i} className="px-1 rounded bg-kb-ice/60 text-[12px]">{p.slice(1, -1)}</code>;
     if (/^_[^_\s][^_]*_$/.test(p)) return <em key={i}>{p.slice(1, -1)}</em>;
     if (/^@[a-z0-9_.-]+$/.test(p)) {
-      return <span key={i} className={`px-0.5 rounded font-medium ${p.slice(1) === me ? 'bg-amber-100 text-amber-900' : 'text-[#0369A1]'}`}>{p}</span>;
+      return <span key={i} className={`px-0.5 rounded font-medium ${p.slice(1) === me ? 'bg-kb-butter text-kb-navy' : 'text-kb-cobalt-ink'}`}>{p}</span>;
     }
     return <React.Fragment key={i}>{p}</React.Fragment>;
   });
@@ -27,16 +27,16 @@ function Formatted({ text, me }) {
 
 function Count({ n, strong }) {
   if (!n) return null;
-  return <span className={`ml-auto min-w-5 h-5 px-1 rounded-full text-[11px] font-bold flex items-center justify-center ${strong ? 'bg-rose-600 text-white' : 'bg-[#0284C7] text-white'}`}>{n}</span>;
+  return <span className={`ml-auto min-w-5 h-5 px-1 rounded-full text-[11px] font-bold flex items-center justify-center ${strong ? 'bg-kb-alert text-white' : 'bg-kb-navy text-white'}`}>{n}</span>;
 }
 
 function Row({ active, onClick, Icon, label, sub, unread, mentions, locked }) {
   return (
     <button type="button" onClick={onClick}
-      className={`w-full text-left min-h-8 px-2 py-1 rounded-lg text-[13px] flex items-center gap-1.5 cursor-pointer ${active ? 'bg-sky-50 text-[#0369A1] font-semibold' : unread ? 'font-semibold text-[#0F172A] hover:bg-slate-100' : 'text-[#334155] hover:bg-slate-100'}`}>
+      className={`w-full text-left min-h-8 px-2 py-1 rounded-lg text-[13px] flex items-center gap-1.5 cursor-pointer ${active ? 'bg-kb-ice text-kb-cobalt-ink font-semibold' : unread ? 'font-semibold text-kb-navy hover:bg-kb-ice/60' : 'text-kb-navy hover:bg-kb-ice/60'}`}>
       <Icon size={13} className="shrink-0" />
-      <span className="truncate">{label}{sub && <span className="block text-[11.5px] font-normal text-[#64748B] truncate">{sub}</span>}</span>
-      {locked && <Lock size={11} className="shrink-0 text-[#94A3B8]" aria-label="private" />}
+      <span className="truncate">{label}{sub && <span className="block text-[11.5px] font-normal text-kb-muted truncate">{sub}</span>}</span>
+      {locked && <Lock size={11} className="shrink-0 text-kb-muted/70" aria-label="private" />}
       <Count n={mentions || unread} strong={!!mentions} />
     </button>
   );
@@ -44,8 +44,8 @@ function Row({ active, onClick, Icon, label, sub, unread, mentions, locked }) {
 
 function Modal({ title, onClose, children }) {
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/30 flex items-center justify-center p-4" role="dialog" aria-label={title}>
-      <div className="paper-sheet-elevated bg-white rounded-2xl w-full max-w-md p-4 flex flex-col gap-3">
+    <div className="fixed inset-0 z-50 bg-kb-navy/25 flex items-center justify-center p-4" role="dialog" aria-label={title}>
+      <div className="paper-sheet-elevated bg-kb-bg rounded-2xl w-full max-w-md p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h3 className="font-heading font-semibold text-[14px]">{title}</h3>
           <button type="button" onClick={onClose} className="icon-btn" aria-label="Close"><X size={14} /></button>
@@ -62,12 +62,12 @@ function PeoplePicker({ people, value, onChange, exclude = [] }) {
   return (
     <div className="flex flex-col gap-1.5">
       <Input placeholder="Search people" value={q} onChange={e => setQ(e.target.value)} />
-      <div className="max-h-40 overflow-y-auto flex flex-col border border-slate-200 rounded-lg p-1">
+      <div className="max-h-40 overflow-y-auto flex flex-col border border-kb-line rounded-lg p-1">
         {shown.map(p => (
-          <label key={p.user_id} className="flex items-center gap-2 text-[13px] px-1.5 py-1 rounded hover:bg-slate-50 cursor-pointer">
+          <label key={p.user_id} className="flex items-center gap-2 text-[13px] px-1.5 py-1 rounded hover:bg-kb-bg-soft cursor-pointer">
             <input type="checkbox" checked={value.includes(p.user_id)}
               onChange={e => onChange(e.target.checked ? [...value, p.user_id] : value.filter(x => x !== p.user_id))} />
-            {p.name} <span className="text-[#64748B] text-[12px]">{p.designation}</span>
+            {p.name} <span className="text-kb-muted text-[12px]">{p.designation}</span>
           </label>
         ))}
       </div>
@@ -93,7 +93,7 @@ function NewChannel({ onClose, onCreated, people, team }) {
             <label className="flex items-center gap-1.5"><input type="radio" checked={f.is_private} onChange={() => setF({ ...f, is_private: true })} /> Private</label>
           </fieldset>
         )}
-        {team && <p className="text-[12.5px] text-[#64748B]">Every member of {team.name} can read and post here.</p>}
+        {team && <p className="text-[12.5px] text-kb-muted">Every member of {team.name} can read and post here.</p>}
         {!team && f.is_private && <Field label="Members"><PeoplePicker people={people} value={f.members} onChange={m => setF({ ...f, members: m })} /></Field>}
         <ErrorNote error={error} />
         <div className="flex justify-end gap-2"><Btn onClick={onClose}>Cancel</Btn><Btn kind="primary" type="submit" disabled={busy}>Create channel</Btn></div>
@@ -210,12 +210,12 @@ export default function Chat({ me, notify, can = () => false, focus = null }) {
   return (
     <div className="h-full flex gap-3 p-4 min-h-0">
       <aside className="w-64 shrink-0 paper-sheet p-3 flex flex-col gap-2 min-h-0" aria-label="Conversations">
-        <div className="flex p-0.5 rounded-lg bg-slate-100 border border-slate-200" role="tablist" aria-label="Chat scope">
+        <div className="flex p-0.5 rounded-lg bg-kb-ice/60 border border-kb-line" role="tablist" aria-label="Chat scope">
           {SCOPES.map(([id, label, I]) => (
             <button key={id} type="button" role="tab" aria-selected={scope === id} onClick={() => { setScope(id); setQ(''); }}
-              className={`flex-1 h-8 rounded-md text-[12.5px] flex items-center justify-center gap-1 cursor-pointer ${scope === id ? 'bg-white font-semibold shadow-xs text-[#0369A1]' : 'text-[#475569] hover:text-[#0F172A]'}`}>
+              className={`flex-1 h-8 rounded-md text-[12.5px] flex items-center justify-center gap-1 cursor-pointer ${scope === id ? 'bg-kb-bg font-semibold shadow-xs text-kb-cobalt-ink' : 'text-kb-muted hover:text-kb-navy'}`}>
               <I size={12} /> {label}
-              {scopeUnread(id) > 0 && <span className="w-1.5 h-1.5 rounded-full bg-[#0284C7]" aria-label="unread" />}
+              {scopeUnread(id) > 0 && <span className="w-1.5 h-1.5 rounded-full bg-kb-navy" aria-label="unread" />}
             </button>
           ))}
         </div>
@@ -231,11 +231,11 @@ export default function Chat({ me, notify, can = () => false, focus = null }) {
           {scope === 'team' && <>
             {can('team.create') && <Btn className="mb-1 flex items-center gap-1.5 justify-center" onClick={() => setDialog({ kind: 'team' })}><Plus size={13} /> Team</Btn>}
             {teams.data && myTeams.length === 0 && (
-              <div className="text-[13px] text-[#64748B] p-2 text-center">You&apos;re not in any team yet.</div>
+              <div className="text-[13px] text-kb-muted p-2 text-center">You&apos;re not in any team yet.</div>
             )}
             {myTeams.map(t => (
               <div key={t.id} className="flex flex-col gap-0.5 mb-2">
-                <div className="flex items-center gap-1 px-1 text-[11.5px] uppercase tracking-wide text-[#64748B] font-semibold">
+                <div className="flex items-center gap-1 px-1 text-[11.5px] uppercase tracking-wide text-kb-muted font-semibold">
                   <span className="truncate" title={t.description || ''}>{t.name}</span>
                   <span className="font-normal normal-case">· {t.members.length}</span>
                   {t.can_manage && <>
@@ -251,13 +251,13 @@ export default function Chat({ me, notify, can = () => false, focus = null }) {
 
           {scope === 'dm' && <>
             <div className="relative mb-1">
-              <Search size={13} className="absolute left-2.5 top-2.5 text-[#94A3B8]" />
+              <Search size={13} className="absolute left-2.5 top-2.5 text-kb-muted/70" />
               <Input className="w-full pl-7" placeholder="Search everyone" value={q} onChange={e => setQ(e.target.value)} aria-label="Search people to message" />
             </div>
             {dms.filter(d => match(d.name)).map(d => <Row key={d.id} active={d.id === cid} onClick={() => open(d.id)} Icon={MessageCircle}
               label={d.name} unread={d.unread} />)}
             {people.filter(p => !inDm.has(p.user_id) && match(`${p.name} ${p.designation || ''}`)).length > 0 && (
-              <div className="px-1 pt-2 text-[11.5px] uppercase tracking-wide text-[#64748B] font-semibold">Start a conversation</div>
+              <div className="px-1 pt-2 text-[11.5px] uppercase tracking-wide text-kb-muted font-semibold">Start a conversation</div>
             )}
             {people.filter(p => !inDm.has(p.user_id) && match(`${p.name} ${p.designation || ''}`)).map(p => (
               <Row key={p.user_id} onClick={() => dmWith(p.user_id)} Icon={MessageCircle} label={p.name} sub={p.designation} />
@@ -267,34 +267,34 @@ export default function Chat({ me, notify, can = () => false, focus = null }) {
       </aside>
 
       <section className="flex-1 min-w-0 paper-sheet p-3 flex flex-col min-h-0" aria-label="Messages">
-        <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
+        <div className="flex items-center justify-between gap-2 pb-2 border-b border-kb-line">
           <div className="min-w-0">
             <div className="font-heading font-semibold text-[14px] truncate">
               {current ? (current.scope === 'dm' ? current.name : `#${current.name}`) : 'No conversation'}
-              {current && <span className="ml-2 text-[12px] font-normal text-[#64748B]">
+              {current && <span className="ml-2 text-[12px] font-normal text-kb-muted">
                 {current.scope === 'dm' ? 'private: only the two of you' : current.scope === 'team' ? `${current.team_name} · ${current.members} member(s)` : current.is_private ? `private · ${current.members} member(s)` : 'everyone in the organization'}
               </span>}
             </div>
-            {current?.topic && <div className="text-[12px] text-[#64748B] truncate">{current.topic}</div>}
+            {current?.topic && <div className="text-[12px] text-kb-muted truncate">{current.topic}</div>}
           </div>
           <Btn disabled={!cid || busy || msgs.length === 0} onClick={save} className="flex items-center gap-1.5 shrink-0" title="Send this thread to Ingestion Review as a meeting note">
             <FileText size={13} /> Save as meeting note
           </Btn>
         </div>
         <div className="flex-1 overflow-y-auto py-2 flex flex-col gap-2.5 min-h-0">
-          {msgs.length === 0 && <p className="text-[13px] text-[#64748B]">No messages yet. Use **bold**, _italic_, `code`, @user_id to mention, or @keystone to ask the decision memory.</p>}
+          {msgs.length === 0 && <p className="text-[13px] text-kb-muted">No messages yet. Use **bold**, _italic_, `code`, @user_id to mention, or @keystone to ask the decision memory.</p>}
           {msgs.map(m => (
             <div key={m.id} className="group text-[13px] relative pr-8">
               <div className="flex items-center gap-2">
                 <button className="font-semibold hover:underline cursor-pointer flex items-center gap-1" onClick={() => showCard(m.sender_id)}>
-                  {m.sender_id === 'keystone' && <Bot size={13} className="text-[#0284C7]" />}{m.sender}
+                  {m.sender_id === 'keystone' && <Bot size={13} className="text-kb-cobalt-ink" />}{m.sender}
                 </button>
-                <span className="text-[11.5px] text-[#94A3B8]">{new Date(m.created_at).toLocaleString()}</span>
+                <span className="text-[11.5px] text-kb-muted/70">{new Date(m.created_at).toLocaleString()}</span>
                 {m.is_agent_drafted && <Badge tone="lavender">agent-drafted · approved by {m.approved_by}</Badge>}
               </div>
-              <div className="whitespace-pre-wrap text-[#334155]"><Formatted text={m.body} me={me.user_id} /></div>
+              <div className="whitespace-pre-wrap text-kb-navy"><Formatted text={m.body} me={me.user_id} /></div>
               {m.ref && (
-                <div className="mt-1 inline-flex items-center gap-2 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[12.5px]">
+                <div className="mt-1 inline-flex items-center gap-2 px-2 py-1 rounded-lg border border-kb-line bg-kb-bg-soft text-[12.5px]">
                   {m.ref.restricted ? <><Lock size={12} /> Restricted item</>
                     : <><span className="font-mono">{m.ref.id}</span> {m.ref.label !== m.ref.id && m.ref.label} {m.ref.type && <Badge>{m.ref.type}</Badge>}</>}
                 </div>
@@ -309,9 +309,9 @@ export default function Chat({ me, notify, can = () => false, focus = null }) {
         </div>
         <ErrorNote error={error} />
         {current && !current.can_post ? (
-          <p className="pt-2 border-t border-slate-100 text-[12.5px] text-[#64748B] flex items-center gap-1.5"><Lock size={12} /> {current.name === 'announcements' ? 'Only executives post in #announcements. You can read it.' : 'You have read-only access.'}</p>
+          <p className="pt-2 border-t border-kb-line text-[12.5px] text-kb-muted flex items-center gap-1.5"><Lock size={12} /> {current.name === 'announcements' ? 'Only executives post in #announcements. You can read it.' : 'You have read-only access.'}</p>
         ) : (
-          <form onSubmit={send} className="flex gap-2 pt-2 border-t border-slate-100">
+          <form onSubmit={send} className="flex gap-2 pt-2 border-t border-kb-line">
             <Input className="flex-1" placeholder={current ? `Message ${current.scope === 'dm' ? current.name : `#${current.name}`}` : 'Pick a conversation'} value={text} onChange={e => setText(e.target.value)} disabled={!cid} />
             <Input className="w-32 font-mono" placeholder="Share item ID" value={ref} onChange={e => setRef(e.target.value)} disabled={!cid} title="A decision or clause ID (e.g. DEC-007) to attach as a card" />
             <Btn kind="primary" type="submit" disabled={!cid || busy} className="flex items-center gap-1.5"><Send size={13} /> Send</Btn>
@@ -322,13 +322,13 @@ export default function Chat({ me, notify, can = () => false, focus = null }) {
       {card && (
         <aside className="w-64 shrink-0 paper-sheet p-3 flex flex-col gap-2 text-[13px]">
           <div className="flex justify-between items-start">
-            <div><div className="font-semibold">{card.name}</div><div className="text-[12px] text-[#64748B]">{card.designation}</div></div>
-            <button className="text-[#64748B] cursor-pointer" onClick={() => setCard(null)} aria-label="Close">✕</button>
+            <div><div className="font-semibold">{card.name}</div><div className="text-[12px] text-kb-muted">{card.designation}</div></div>
+            <button className="text-kb-muted cursor-pointer" onClick={() => setCard(null)} aria-label="Close">✕</button>
           </div>
           <div className="text-[12.5px]">Role: <b>{card.role}</b>{card.team && <> · Team: <b>{card.team}</b></>}</div>
           {card.user_id !== me.user_id && <Btn onClick={() => dmWith(card.user_id)}>Message {card.name.split(' ')[0]}</Btn>}
-          <div className="text-[12px] text-[#64748B]">Decisions they own that you can see</div>
-          {card.decisions.length === 0 ? <div className="text-[12.5px] text-[#64748B]">None visible to you.</div>
+          <div className="text-[12px] text-kb-muted">Decisions they own that you can see</div>
+          {card.decisions.length === 0 ? <div className="text-[12.5px] text-kb-muted">None visible to you.</div>
             : card.decisions.map(d => <div key={d.id} className="text-[12.5px]"><span className="font-mono">{d.id}</span> {d.label}</div>)}
         </aside>
       )}

@@ -34,10 +34,10 @@ export default function PairClaim({ token: initial, onDone, onCancel }) {
   });
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-[#F8FAFC] p-4">
+    <div className="min-h-dvh flex items-center justify-center bg-kb-bg-soft p-4">
       <div className="w-full max-w-sm paper-sheet-elevated p-5 flex flex-col gap-3 text-[13px]">
         <h2 className="font-heading font-semibold text-base flex items-center gap-2"><Smartphone size={16} /> Link this phone</h2>
-        <p className="text-[#475569]">This phone will get its own Keystone session for approvals. You can revoke it from the laptop at any time.</p>
+        <p className="text-kb-muted">This phone will get its own Keystone session for approvals. You can revoke it from the laptop at any time.</p>
         <Field label="Pairing code"><Input value={token} onChange={e => setToken(e.target.value)} className="font-mono" /></Field>
         <Field label="Name for this device"><Input value={label} onChange={e => setLabel(e.target.value)} /></Field>
         {scan && <div id="pair-scanner" />}

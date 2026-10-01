@@ -38,7 +38,7 @@ export function ThenNow({ c, compact = false }) {
         {nowClause.map(id => <IdChip key={`n${id}`} id={id} type="clause" />)}
       </div>
       {!compact && [...(c.checks || []), ...(c.current || [])].map((k, i) => k.explanation && (
-        <p key={i} className="text-[12.5px] text-[#334155] leading-relaxed">{polish(k.explanation)}</p>
+        <p key={i} className="text-[12.5px] text-kb-navy leading-relaxed">{polish(k.explanation)}</p>
       ))}
     </div>
   );

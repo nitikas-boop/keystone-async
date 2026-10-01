@@ -19,7 +19,7 @@ function Hub(props) {
       <nav className="flex gap-1" aria-label={t('navLong')}>
         {TABS.map(k => (
           <button key={k} onClick={() => setTab(k)} aria-current={tab === k ? 'page' : undefined}
-                  className={`h-8 px-3 rounded-md text-[13px] border ${tab === k ? 'bg-white border-slate-300 font-semibold' : 'border-transparent text-[#475569]'}`}>
+                  className={`h-8 px-3 rounded-md text-[13px] border ${tab === k ? 'bg-kb-bg border-kb-line-strong font-semibold' : 'border-transparent text-kb-muted'}`}>
             {t(`tabs.${k}`)}
           </button>
         ))}
