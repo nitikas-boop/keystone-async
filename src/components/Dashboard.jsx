@@ -606,6 +606,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
         onPolicyUploaded={handlePolicyUploaded}
         onProceedToQueue={(view) => { setInboxTab(view === 'EXTRACTIONS' ? 'facts' : 'proposals'); setActiveView('INBOX'); }}
         onAuthor={(mode) => { setIsIngestModalOpen(false); setAuthorMode(mode); }}
+        onAudioIngested={() => { loadPendingFacts(); loadAudit(); loadInbox(); }}
       />
 
       <AuthorModal

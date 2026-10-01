@@ -4,13 +4,12 @@ import React, { useState } from 'react';
 import { Scale } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import './i18n';
-import Audio from './Audio';
 import Proposals from './Proposals';
 import Reports from './Reports';
 import ScanReport from './ScanReport';
 import SessionStatus from './SessionStatus';
 
-const TABS = ['proposals', 'scan', 'reports', 'audio'];
+const TABS = ['proposals', 'scan', 'reports'];  // meeting audio lives in Ingest Document
 
 function Hub(props) {
   const { t } = useTranslation();
@@ -28,7 +27,6 @@ function Hub(props) {
       {tab === 'proposals' && <Proposals {...props} />}
       {tab === 'scan' && <ScanReport onChanged={props.onChanged} />}
       {tab === 'reports' && <Reports initialAsOf={props.asOfDate} />}
-      {tab === 'audio' && <Audio onChanged={props.onChanged} />}
     </div>
   );
 }

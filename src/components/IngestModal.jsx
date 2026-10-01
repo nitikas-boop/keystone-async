@@ -9,7 +9,8 @@ import {
   ArrowRight,
   Square
 } from 'lucide-react';
-import { fetchDecisions, fetchPolicies, transcribe, uploadDocument } from '../api';
+import { fetchDecisions, fetchPolicies, uploadDocument } from '../api';
+import Audio from '../features/p2/Audio';
 import IdChip from './IdChip';
 import { impactLabel } from '../utils/entities';
 import { day, plural } from '../utils/format';
@@ -52,7 +53,9 @@ function explain(err, stage) {
   return { title: `Upload failed (HTTP ${err.status})`, text: d };
 }
 
-export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProceedToQueue, onAuthor }) {
+// onAudioIngested: a recording's transcript went to Ingestion Review (refresh pending counts).
+export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProceedToQueue, onAuthor, onAudioIngested }) {
+  const [source, setSource] = useState('document');  // document | audio
   const [selectedPreset, setSelectedPreset] = useState('RET-v3');
   const [customFile, setCustomFile] = useState(null);
   const [customText, setCustomText] = useState(null);
@@ -139,7 +142,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
     const files = [...(list || [])];
     if (files.length > 1) {
       const audio = files.filter(f => f.type.startsWith('audio/') || /\.(wav|mp3|m4a|webm|ogg)$/i.test(f.name));
-      if (audio.length) { setFailure({ title: 'Audio goes one file at a time', text: 'Drop a single recording to transcribe it; several files must all be Markdown.' }); return; }
+      if (audio.length) { setSource('audio'); return; }  // recordings go through the Meeting audio tab
       startBatch(files);
       return;
     }
@@ -161,24 +164,8 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
       setCustomText(await file.text());
       return;
     }
-    // Meeting audio: transcribe locally, then upload the transcript as an ordinary meeting_note document.
-    // Meeting date comes from the filename (meeting-YYYY-MM-DD.wav), else today.
-    const meetingDate = file.name.match(/\d{4}-\d{2}-\d{2}/)?.[0] || new Date().toISOString().slice(0, 10);
-    const ctl = new AbortController();
-    abortRef.current = ctl;
-    setCustomFile(null);
-    setStages([{ key: 'transcribe', label: `Transcribe ${file.name} locally (Whisper)`, state: 'running', startedAt: Date.now() }]);
-    try {
-      const { markdown } = await transcribe(file, file.name, meetingDate, `Meeting ${meetingDate} (audio)`, ctl.signal);
-      setTranscript(markdown);
-      setCustomFile(new File([markdown], `MTG-${meetingDate}-AUDIO.md`, { type: 'text/markdown' }));
-      setCustomText(markdown);
-      setStage('transcribe', { state: 'done', endedAt: Date.now(), note: 'Transcript ready below. Read it, then upload.' });
-    } catch (err) {
-      if (err.name === 'AbortError') { setStage('transcribe', { state: 'failed', endedAt: Date.now(), note: 'Cancelled.' }); return; }
-      setStage('transcribe', { state: 'failed', endedAt: Date.now() });
-      setFailure(explain(err, 'transcribe'));
-    }
+    // Meeting audio has its own tab: recorded consent, speaker mapping, then Ingestion Review.
+    setSource('audio');
   };
 
   const handleUpload = async () => {
@@ -221,7 +208,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" role="dialog" aria-modal="true" aria-labelledby="ingest-title">
-      <div className="w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto paper-sheet-elevated p-5 relative text-[13px]">
+      <div className={`w-full ${source === 'audio' ? 'max-w-4xl' : 'max-w-2xl'} max-h-[calc(100dvh-2rem)] overflow-y-auto paper-sheet-elevated p-5 relative text-[13px]`}>
         <button onClick={handleResetAndClose} className="absolute top-4 right-4 icon-btn" aria-label="Close" title="Close">
           <X size={16} />
         </button>
@@ -236,7 +223,17 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
           </div>
         </div>
 
-        {batch ? (
+        <div className="flex gap-1 p-1 mb-3 rounded-xl bg-slate-100 border border-slate-200 w-fit" role="tablist" aria-label="What to ingest">
+          {[['document', 'Document (Markdown)'], ['audio', 'Meeting audio']].map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={source === id} disabled={running} onClick={() => setSource(id)}
+              className={`h-8 px-3 rounded-lg text-[13px] cursor-pointer ${source === id ? 'bg-white font-semibold shadow-xs' : 'text-[#475569] hover:text-[#0F172A]'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+
+        {source === 'audio' ? <Audio onChanged={onAudioIngested} /> : batch ? (
           <BatchList batch={shownBatch} setBatch={setBatch} onRun={runBatch} onClear={clearAll} onClose={handleResetAndClose}
             onInbox={(view) => { handleResetAndClose(); onProceedToQueue(view); }} />
         ) : !result ? (
@@ -276,12 +273,12 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
 
             <div>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple
-                     accept=".md,.txt,.wav,.mp3,.m4a,.webm,.ogg,audio/*" data-testid="ingest-file" />
+                     accept=".md,.txt" data-testid="ingest-file" />
               <button type="button" disabled={running} onClick={() => fileInputRef.current?.click()}
                 onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
                 onDrop={e => { e.preventDefault(); setDragOver(false); if (!running) takeFiles(e.dataTransfer.files); }}
                 className={`w-full p-2.5 rounded-lg border border-dashed text-center transition-colors cursor-pointer ${dragOver ? 'border-sky-500 bg-sky-50' : customFile ? 'border-sky-400 bg-sky-50/50 text-[#0369A1]' : 'border-slate-300 hover:border-slate-400 text-[#475569]'}`}>
-                {customFile ? `Selected: ${customFile.name}` : '+ Choose or drop Markdown documents (several at once), or one meeting recording (transcribed locally)…'}
+                {customFile ? `Selected: ${customFile.name}` : '+ Choose or drop Markdown documents (several at once)…'}
               </button>
             </div>
 
