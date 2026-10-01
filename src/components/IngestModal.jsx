@@ -12,6 +12,7 @@ import {
 import { fetchDecisions, fetchPolicies, uploadDocument } from '../api';
 import Audio from '../features/p2/Audio';
 import IdChip from './IdChip';
+import DateField from './DateField';
 import { impactLabel } from '../utils/entities';
 import { day, plural } from '../utils/format';
 import retV3 from '../../data/demo-upload/POL-RET-v3.md?raw';
@@ -43,13 +44,21 @@ function docIdOf(fm) {
   return null;
 }
 
+// What the engine reads (backend ingest.SUPPORTED); anything else is refused before it is uploaded.
+const READABLE = /\.(md|txt|pdf|docx)$/i;
+const BINARY = /\.(pdf|docx)$/i;  // text is extracted on the server
+const AUDIO = /\.(wav|mp3|m4a|webm|ogg)$/i;
+const isAudio = (f) => f.type.startsWith('audio/') || AUDIO.test(f.name);
+const unsupported = (f) => ({ title: 'Not a supported file type',
+  text: `${f.name}: upload Markdown, plain text, PDF or Word (.md, .txt, .pdf, .docx). Excel, PowerPoint, HTML and images are not read.` });
+
 // The server answers 0 (unreachable), 422 (the document itself is wrong) or 503 (local model down).
 function explain(err, stage) {
   const d = typeof err.detail === 'string' ? err.detail : err.message;
   if (err.status === 0) return { title: 'Backend unreachable', text: `${d}. Is the Docker stack running?` };
   if (err.status === 503) return { title: 'Local model unreachable (Ollama)', text: d };
   if (stage === 'transcribe') return { title: 'Transcription failed (local Whisper)', text: d };
-  if (err.status === 422) return { title: 'The document was rejected: check its front-matter', text: d };
+  if (err.status === 422) return { title: 'The document was rejected', text: d };
   return { title: `Upload failed (HTTP ${err.status})`, text: d };
 }
 
@@ -68,6 +77,8 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
   const [confirmDup, setConfirmDup] = useState(false);
   const [batch, setBatch] = useState(null);   // several Markdown files: [{file, text, fm, id, state, res, error}]
   const [dragOver, setDragOver] = useState(false);
+  const [docDate, setDocDate] = useState('');  // for a file without front-matter: the date it was written or agreed
+  const [docTitle, setDocTitle] = useState('');
   const [, tick] = useState(0);
   const abortRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -93,6 +104,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
   const fm = frontMatter(content);
   const docId = docIdOf(fm);
   const existingVersion = fm?.doc_type === 'policy_version' && known.policies.find(v => v.document_id === docId);
+  const plain = !!customFile && !fm;  // no front-matter: stored as a plain document, dated by the uploader
   const duplicate = !!(existingVersion || (fm?.doc_type === 'decision' && known.decisions.includes(docId)));
 
   const presetInfo = (key) => {
@@ -111,9 +123,11 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
   const ORDER = { policy_version: 0, decision: 1, meeting_note: 2 };
   const startBatch = async (files) => {
     const items = await Promise.all(files.map(async (file) => {
-      const text = await file.text();
+      if (!READABLE.test(file.name)) return { file, state: 'invalid', reason: unsupported(file).text };
+      const text = BINARY.test(file.name) ? '' : await file.text();
       const fm = frontMatter(text);
-      return { file, text, fm, id: docIdOf(fm), state: fm ? 'waiting' : 'invalid' };
+      return { file, text, fm, id: docIdOf(fm), state: fm ? 'waiting' : 'invalid',
+               reason: fm ? null : 'No YAML front-matter: upload it on its own to give it a date. Skipped.' };
     }));
     items.sort((a, b) => (ORDER[a.fm?.doc_type] ?? 3) - (ORDER[b.fm?.doc_type] ?? 3));
     reset(); setCustomFile(null); setCustomText(null); setTranscript(null);
@@ -141,7 +155,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
   const takeFiles = (list) => {
     const files = [...(list || [])];
     if (files.length > 1) {
-      const audio = files.filter(f => f.type.startsWith('audio/') || /\.(wav|mp3|m4a|webm|ogg)$/i.test(f.name));
+      const audio = files.filter(isAudio);
       if (audio.length) { setSource('audio'); return; }  // recordings go through the Meeting audio tab
       startBatch(files);
       return;
@@ -159,9 +173,11 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
     setBatch(null);
     reset();
     setTranscript(null);
-    if (!file.type.startsWith('audio/') && !/\.(wav|mp3|m4a|webm|ogg)$/i.test(file.name)) {
+    if (!isAudio(file)) {
+      if (!READABLE.test(file.name)) { setCustomFile(null); setCustomText(null); setFailure(unsupported(file)); return; }
       setCustomFile(file);
-      setCustomText(await file.text());
+      setCustomText(BINARY.test(file.name) ? null : await file.text());
+      setDocTitle(file.name.replace(/\.[^.]+$/, ''));
       return;
     }
     // Meeting audio has its own tab: recorded consent, speaker mapping, then Ingestion Review.
@@ -180,7 +196,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
     setStages([...keep, { key: 'server', label: `Upload ${file.name}: the server parses, stores, extracts and scans in one request`,
                           state: 'running', startedAt: Date.now() }]);
     try {
-      const res = await uploadDocument(file, ctl.signal);
+      const res = await uploadDocument(file, ctl.signal, plain ? { docDate, title: docTitle } : {});
       setStage('server', { state: 'done', endedAt: Date.now() });
       setResult(res);
       if (onPolicyUploaded) onPolicyUploaded(res);
@@ -195,7 +211,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
     }
   };
 
-  const clearAll = () => { reset(); setCustomFile(null); setCustomText(null); setTranscript(null); setBatch(null); };
+  const clearAll = () => { reset(); setCustomFile(null); setCustomText(null); setTranscript(null); setBatch(null); setDocDate(''); setDocTitle(''); };
   const handleResetAndClose = () => {
     if (running) abortRef.current?.abort();
     clearAll();
@@ -218,13 +234,14 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
           <div>
             <h3 id="ingest-title" className="font-heading font-bold text-[15px] text-kb-navy">Ingest a document</h3>
             <p className="text-[12.5px] text-kb-muted">
-              A policy version, decision or meeting note in Markdown with YAML front-matter, or meeting audio (transcribed on this machine).
+              A policy version, decision or meeting note in Markdown with YAML front-matter; any other Markdown, text, PDF or
+              Word document, dated by you; or meeting audio (transcribed on this machine).
             </p>
           </div>
         </div>
 
         <div className="flex gap-1 p-1 mb-3 rounded-xl bg-kb-ice/60 border border-kb-line w-fit" role="tablist" aria-label="What to ingest">
-          {[['document', 'Document (Markdown)'], ['audio', 'Meeting audio']].map(([id, label]) => (
+          {[['document', 'Document'], ['audio', 'Meeting audio']].map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={source === id} disabled={running} onClick={() => setSource(id)}
               className={`h-8 px-3 rounded-lg text-[13px] cursor-pointer ${source === id ? 'bg-kb-bg font-semibold shadow-xs' : 'text-kb-muted hover:text-kb-navy'}`}>
               {label}
@@ -273,12 +290,12 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
 
             <div>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple
-                     accept=".md,.txt" data-testid="ingest-file" />
+                     accept=".md,.txt,.pdf,.docx" data-testid="ingest-file" />
               <button type="button" disabled={running} onClick={() => fileInputRef.current?.click()}
                 onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
                 onDrop={e => { e.preventDefault(); setDragOver(false); if (!running) takeFiles(e.dataTransfer.files); }}
                 className={`w-full p-2.5 rounded-lg border border-dashed text-center transition-colors cursor-pointer ${dragOver ? 'border-kb-cobalt bg-kb-ice' : customFile ? 'border-kb-cobalt bg-kb-ice/50 text-kb-cobalt-ink' : 'border-kb-line-strong hover:border-kb-line-strong text-kb-muted'}`}>
-                {customFile ? `Selected: ${customFile.name}` : '+ Choose or drop Markdown documents (several at once)…'}
+                {customFile ? `Selected: ${customFile.name}` : '+ Choose or drop a document: .md, .txt, .pdf or .docx (several Markdown files at once)…'}
               </button>
             </div>
 
@@ -288,10 +305,29 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
                 {docId && <span className="font-mono">creates or updates {docId}</span>}
               </div>
               <pre className="font-mono text-[12px] text-kb-navy whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">
-                {(content || '').trim() || '(waiting for the transcript)'}
+                {customFile && BINARY.test(customFile.name) ? `(${customFile.name}: the text is extracted on the server)`
+                  : (content || '').trim() || '(waiting for the transcript)'}
               </pre>
-              {customFile && !fm && <p className="mt-1 text-kb-navy">No YAML front-matter found: the server will reject this file.</p>}
             </div>
+
+            {plain && (
+              <div className="p-3 rounded-lg bg-kb-ice/60 border border-kb-cobalt/50 space-y-2">
+                <p className="text-kb-navy">
+                  No YAML front-matter: this is stored as a plain document. Its facts are extracted and wait in the Inbox
+                  for review. It gets cited answers, not compliance verdicts.
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-kb-muted">Dated</span>
+                  <DateField value={docDate} onChange={setDocDate} max={new Date().toISOString().slice(0, 10)}
+                    label="Date the document was written or agreed" placeholder="Pick its date (required)" />
+                  <input value={docTitle} onChange={e => setDocTitle(e.target.value)} aria-label="Title" placeholder="Title"
+                    className="h-[1.875rem] px-2 rounded-lg border border-kb-line-strong bg-kb-bg text-[13px] flex-1 min-w-40" />
+                </div>
+                <p className="text-[12px] text-kb-muted">
+                  Use the date it was written or agreed, not today: an answer as of a date only sees documents dated on or before it.
+                </p>
+              </div>
+            )}
 
             {duplicate && (
               <div className="p-3 rounded-lg badge-note-amber flex items-start gap-2">
@@ -341,7 +377,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
               ) : (
                 <>
                   <button type="button" onClick={handleResetAndClose} className="btn-secondary">Close</button>
-                  <button type="button" onClick={handleUpload} disabled={(duplicate && !confirmDup) || (!!customFile && !fm) || !content}
+                  <button type="button" onClick={handleUpload} disabled={(duplicate && !confirmDup) || (plain && !docDate) || (!content && !customFile)}
                     className="px-4 py-2 rounded-lg btn-sky-gradient text-white font-medium flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed">
                     <Upload size={14} />
                     <span>Upload & Run Scanner</span>
@@ -356,7 +392,7 @@ export default function IngestModal({ isOpen, onClose, onPolicyUploaded, onProce
             <Stages stages={stages} />
             <ul className="rounded-lg border border-kb-line divide-y divide-kb-line">
               <li className="p-2.5 flex items-center gap-2 flex-wrap"><CheckCircle2 size={15} className="text-kb-cobalt-ink" aria-hidden="true" />
-                Stored <IdChip id={result.document_id} /> ({result.doc_type.replace('_', ' ')}), dated {day(result.ref_time)} from its front-matter.</li>
+                Stored <IdChip id={result.document_id} /> ({plain ? 'plain document' : result.doc_type.replace('_', ' ')}), dated {day(result.ref_time)}{plain ? ' as you entered it' : ' from its front-matter'}.</li>
               {isMeeting && (
                 <li className="p-2.5 flex items-start gap-2">
                   {result.extraction_error
@@ -436,7 +472,7 @@ function BatchList({ batch, setBatch, onRun, onClear, onClose, onInbox }) {
             <div className="min-w-0">
               <div><span className="font-mono">{x.file.name}</span>
                 {x.fm && <span className="text-kb-muted"> · {TYPE_LABEL[x.fm.doc_type] || x.fm.doc_type} {x.id}</span>}</div>
-              {x.state === 'invalid' && <div className="text-kb-alert text-[12.5px]">No YAML front-matter: skipped.</div>}
+              {x.state === 'invalid' && <div className="text-kb-alert text-[12.5px]">{x.reason}</div>}
               {(x.state === 'exists' || x.confirmed) && !started && (
                 <label className="flex items-center gap-1.5 text-[12.5px] text-kb-navy cursor-pointer">
                   <input type="checkbox" checked={!!x.confirmed}

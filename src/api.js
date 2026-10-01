@@ -123,9 +123,12 @@ export async function fetchAudit(afterId = 0, limit = 100) {
 
 // ---- Documents (Upload / Ingest) ----
 
-export async function uploadDocument(file, signal = undefined) {
+// docDate/title: for a file without front-matter, stored as a plain document dated by the uploader.
+export async function uploadDocument(file, signal = undefined, { docDate, title } = {}) {
   const formData = new FormData();
   formData.append('file', file);
+  if (docDate) formData.append('doc_date', docDate);
+  if (title) formData.append('title', title);
   // no Content-Type: the browser sets the multipart boundary
   return send(`${API}/documents`, { method: 'POST', headers: headers(), body: formData, signal });
 }
