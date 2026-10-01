@@ -108,7 +108,7 @@ run locally through Ollama. Nothing leaves the machine.
 It implements the full private-AI pipeline: **Data → Knowledge → Memory → Reasoning → Action**.
 
 ```mermaid
-flowchart LR
+flowchart TB
   A["1 · DATA<br/>dated Markdown, text, PDF, DOCX,<br/>meeting audio, folder scan"] --> B["2 · KNOWLEDGE<br/>local model extracts facts<br/>with source quote + confidence;<br/><b>human reviews</b>"]
   B --> C["3 · MEMORY<br/>valid-time graph (Neo4j + Graphiti)<br/>+ records in PostgreSQL"]
   C --> D["4 · REASONING<br/>as-of retrieval, deterministic<br/>compliance check, cited answer<br/>or exact refusal"]
