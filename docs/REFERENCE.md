@@ -353,7 +353,7 @@ Autonomous action without human approval.
 | Everywhere | Ctrl/Cmd+K search; every ID chip opens its record; one colour and icon per entity type |
 
 Target: 1920×1080 at 125% scaling (1536×~730 CSS px), also checked at 1366×768, 1920×1080 and 1024×700. No page-level
-scrolling on app screens. Screenshots: `docs/screenshots/`. Logo swap: replace `public/keystone-mark.png` (also
+scrolling on app screens. Screenshots: `docs/screenshots/readme/`. Logo swap: replace `public/keystone-mark.png` (also
 the favicon).
 
 ---
