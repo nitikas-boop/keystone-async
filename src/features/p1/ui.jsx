@@ -69,7 +69,7 @@ export function Table({ head, rows, empty = 'Nothing here.' }) {
           {rows.length === 0
             ? <tr><td colSpan={head.length} className="py-3 text-kb-muted">{empty}</td></tr>
             : rows.map((cells, i) => (
-              <tr key={i} className="border-b border-kb-line align-top">
+              <tr key={i} className="border-b border-kb-line align-middle">
                 {cells.map((c, j) => <td key={j} className="py-1.5 pr-3">{c}</td>)}
               </tr>
             ))}

@@ -393,7 +393,7 @@ export default function Dashboard({ currentUser, onSignOut, onHome, extraViews =
 
         {/* Right Action Icons & User Profile */}
         <div className="flex items-center gap-3 shrink-0">
-          <button onClick={() => setPaletteOpen(true)} className="btn-secondary" title="Search records (Ctrl+K)" aria-label="Search records">
+          <button onClick={() => setPaletteOpen(true)} className="btn-secondary h-8" title="Search records (Ctrl+K)" aria-label="Search records">
             <Search size={14} /> <kbd className="hidden min-[1500px]:inline font-mono text-[11px] text-kb-muted">Ctrl K</kbd>
           </button>
           <button

@@ -34,7 +34,7 @@ export default function EmployeeDashboard({ me }) {
   const head = data?.people.find(p => p.role === 'lead' && p.team_id === me.team_id);
 
   return (
-    <div className="max-w-6xl mx-auto flex flex-col gap-4" data-testid="employee-dashboard">
+    <div className="flex flex-col gap-4" data-testid="employee-dashboard">
       <section className="notebook rounded-2xl p-5 flex flex-col gap-3">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>

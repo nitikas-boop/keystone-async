@@ -16,10 +16,10 @@ function Hub(props) {
   const [tab, setTab] = useState('proposals');
   return (
     <div className="h-full overflow-y-auto space-y-3 pr-1">
-      <nav className="flex gap-1" aria-label={t('navLong')}>
+      <nav className="flex gap-1 p-1 w-fit rounded-xl bg-kb-ice/60 border border-kb-line" aria-label={t('navLong')}>
         {TABS.map(k => (
           <button key={k} onClick={() => setTab(k)} aria-current={tab === k ? 'page' : undefined}
-                  className={`h-8 px-3 rounded-md text-[13px] border ${tab === k ? 'bg-kb-bg border-kb-line-strong font-semibold' : 'border-transparent text-kb-muted'}`}>
+                  className={`h-8 px-3 rounded-lg text-[13px] cursor-pointer ${tab === k ? 'bg-kb-bg font-semibold shadow-xs text-kb-navy' : 'text-kb-muted hover:text-kb-navy'}`}>
             {t(`tabs.${k}`)}
           </button>
         ))}

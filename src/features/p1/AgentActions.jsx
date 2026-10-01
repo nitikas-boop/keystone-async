@@ -49,7 +49,7 @@ export default function AgentActions({ me }) {
   });
 
   return (
-    <div className="p-4 flex flex-col gap-3 max-w-6xl">
+    <div className="flex flex-col gap-3">
       <Section title={<span className="flex items-center gap-2"><Bot size={15} className="text-kb-cobalt-ink" /> Agent actions</span>}
         hint={me.role === 'owner' ? 'Every agent action in the organisation.' : 'Actions an agent drafted for you. Nothing is sent until you approve it.'}
         actions={<Select value={status} onChange={e => setStatus(e.target.value)}

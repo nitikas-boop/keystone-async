@@ -86,32 +86,36 @@ export default function DecisionRegister({ refreshKey = 0, focus, proposals = []
   return (
     <div className="flex h-full gap-4 min-h-0">
       <div className="flex-1 min-w-0 paper-sheet flex flex-col overflow-hidden">
-        <div className="px-4 py-3 border-b border-kb-line flex flex-wrap items-center gap-2">
-          <Table2 size={15} className="text-kb-cobalt-ink" aria-hidden="true" />
-          <h2 className="font-heading font-semibold text-sm text-kb-navy mr-2">Decision register</h2>
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search ID, title or reason" aria-label="Search decisions"
-            className="field w-56" />
-          <select value={owner} onChange={e => setOwner(e.target.value)} className="field" aria-label="Filter by owner">
-            <option value="">All owners</option>
-            {owners.map(o => <option key={o}>{o}</option>)}
-          </select>
-          <select value={project} onChange={e => setProject(e.target.value)} className="field" aria-label="Filter by project">
-            <option value="">All projects</option>
-            {projects.map(p => <option key={p}>{p}</option>)}
-          </select>
-          <select value={state} onChange={e => setState(e.target.value)} className="field" aria-label="Filter by status">
-            <option value="">Any status</option>
-            <option value="active">Active</option>
-            <option value="superseded">Superseded</option>
-            <option value="stale">Stale</option>
-          </select>
-          <label className="flex items-center gap-1.5 text-[13px] text-kb-navy cursor-pointer">
-            <input type="checkbox" checked={flaggedOnly} onChange={e => setFlaggedOnly(e.target.checked)} /> Flagged only
-          </label>
-          <span className="flex items-center gap-1.5 text-[12.5px] text-kb-muted">As of <DateField value={asOf} onChange={v => v && setAsOf(v)} label="Registry as of" /></span>
-          <span className="ml-auto text-[12.5px] text-kb-muted">{shown.length} of {rows.length} decisions</span>
-          <button onClick={load} className="icon-btn" aria-label="Refresh decisions" title="Refresh"><RefreshCw size={13} /></button>
-          {onRecord && <button onClick={onRecord} className="btn-secondary"><FilePlus2 size={13} /> {recordLabel}</button>}
+        <div className="px-4 py-3 border-b border-kb-line flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Table2 size={15} className="text-kb-cobalt-ink" aria-hidden="true" />
+            <h2 className="font-heading font-semibold text-sm text-kb-navy">Decision register</h2>
+            <span className="ml-auto text-[12.5px] text-kb-muted">{shown.length} of {rows.length} decisions</span>
+            <button onClick={load} className="icon-btn" aria-label="Refresh decisions" title="Refresh"><RefreshCw size={13} /></button>
+            {onRecord && <button onClick={onRecord} className="btn-secondary"><FilePlus2 size={13} /> {recordLabel}</button>}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search ID, title or reason" aria-label="Search decisions"
+              className="field w-56" />
+            <select value={owner} onChange={e => setOwner(e.target.value)} className="field" aria-label="Filter by owner">
+              <option value="">All owners</option>
+              {owners.map(o => <option key={o}>{o}</option>)}
+            </select>
+            <select value={project} onChange={e => setProject(e.target.value)} className="field" aria-label="Filter by project">
+              <option value="">All projects</option>
+              {projects.map(p => <option key={p}>{p}</option>)}
+            </select>
+            <select value={state} onChange={e => setState(e.target.value)} className="field" aria-label="Filter by status">
+              <option value="">Any status</option>
+              <option value="active">Active</option>
+              <option value="superseded">Superseded</option>
+              <option value="stale">Stale</option>
+            </select>
+            <label className="flex items-center gap-1.5 text-[13px] text-kb-navy cursor-pointer">
+              <input type="checkbox" checked={flaggedOnly} onChange={e => setFlaggedOnly(e.target.checked)} /> Flagged only
+            </label>
+            <span className="flex items-center gap-1.5 text-[12.5px] text-kb-muted">As of <DateField value={asOf} onChange={v => v && setAsOf(v)} label="Registry as of" /></span>
+          </div>
         </div>
         <div className="flex-1 overflow-auto">
           <table className="w-full text-left border-collapse text-[13px]">

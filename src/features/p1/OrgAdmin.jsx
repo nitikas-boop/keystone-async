@@ -15,7 +15,7 @@ export default function OrgAdmin({ me, notify }) {
   const [tab, setTab] = useState(tabs[0][0]);
   const orgInfo = useLoad(p1.org);
   return (
-    <div className="p-4 flex flex-col gap-3 max-w-6xl">
+    <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3 flex-wrap">
         <h2 className="font-heading font-semibold text-[15px]">{orgInfo.data?.name || me.org_name}</h2>
         <Badge tone="sky">you: {me.role}</Badge>

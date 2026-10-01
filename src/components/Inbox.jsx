@@ -151,7 +151,12 @@ function MyInbox({ onOpen, onChanged }) {
       </div>
 
       <aside className="w-[380px] shrink-0 paper-sheet p-4 flex flex-col gap-3 overflow-y-auto" aria-label="Selected item">
-        {!selected && <p className="text-[13px] text-kb-muted">Select an item to act on it. Approvals show the decision they concern next to the buttons.</p>}
+        {!selected && (
+          <div className="m-auto max-w-[260px] flex flex-col items-center gap-2 text-center">
+            <span className="h-10 w-10 rounded-full bg-kb-ice flex items-center justify-center"><InboxIcon size={18} className="text-kb-cobalt-ink" aria-hidden="true" /></span>
+            <p className="text-[13px] text-kb-muted">Select an item to act on it. Approvals show the decision they concern next to the buttons.</p>
+          </div>
+        )}
         {selected && <>
           <div>
             <div className="text-[11.5px] uppercase tracking-wide text-kb-muted font-semibold">{TYPE[selected.type] || 'Notification'}</div>

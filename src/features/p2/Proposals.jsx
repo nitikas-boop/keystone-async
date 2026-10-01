@@ -75,7 +75,7 @@ export default function Proposals({ currentUser, onChanged }) {
           ))}
           <Field label="new_value"><input type="number" className={inputCls} value={form.new_value} onChange={e => setForm({ ...form, new_value: e.target.value })} /></Field>
           <Field label="effective_from"><input type="date" className={inputCls} value={form.effective_from} onChange={e => setForm({ ...form, effective_from: e.target.value })} /></Field>
-          <Field label="rationale"><input className={inputCls} value={form.rationale} onChange={e => setForm({ ...form, rationale: e.target.value })} /></Field>
+          <Field label="rationale" className="lg:col-span-2"><input className={inputCls} value={form.rationale} onChange={e => setForm({ ...form, rationale: e.target.value })} /></Field>
         </div>
         <Field label="clause_text"><textarea rows={2} className={inputCls} value={form.clause_text} onChange={e => setForm({ ...form, clause_text: e.target.value })} /></Field>
         <button className="btn-secondary" onClick={create}>Create draft (claims the clause)</button>

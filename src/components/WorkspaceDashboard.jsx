@@ -106,7 +106,7 @@ export default function WorkspaceDashboard({ onOpenInbox, onOpenItem, onNavigate
   );
 
   return (
-    <div className="flex flex-col gap-4 max-w-[1400px]">
+    <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
         <h2 className="font-heading font-semibold text-[15px] text-kb-navy">Dashboard</h2>
         <span className="text-[12.5px] px-2 py-0.5 rounded-md badge-note-sky">{SCOPE[d.scope]}</span>
@@ -131,7 +131,8 @@ export default function WorkspaceDashboard({ onOpenInbox, onOpenItem, onNavigate
           hint="last 12 months" onClick={() => onNavigate('POLICIES')} />}
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      {/* Masonry columns: cards keep their own height, so a short card never leaves a hole beside a tall one. */}
+      <div className="lg:columns-2 gap-3 [&>*]:mb-3 [&>*]:break-inside-avoid">
         {pendingList}
         {d.scope === 'org' && (
           <Card title="Ingestion status" Icon={FileSearch} count={1}>

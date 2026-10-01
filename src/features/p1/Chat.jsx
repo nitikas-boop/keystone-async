@@ -208,12 +208,12 @@ export default function Chat({ me, notify, can = () => false, focus = null }) {
   const scopeUnread = (sc) => list.filter(c => c.scope === sc).reduce((n, c) => n + (c.unread || 0), 0);
 
   return (
-    <div className="h-full flex gap-3 p-4 min-h-0">
-      <aside className="w-64 shrink-0 paper-sheet p-3 flex flex-col gap-2 min-h-0" aria-label="Conversations">
+    <div className="h-full flex gap-3 min-h-0">
+      <aside className="w-72 shrink-0 paper-sheet p-3 flex flex-col gap-2 min-h-0" aria-label="Conversations">
         <div className="flex p-0.5 rounded-lg bg-kb-ice/60 border border-kb-line" role="tablist" aria-label="Chat scope">
           {SCOPES.map(([id, label, I]) => (
             <button key={id} type="button" role="tab" aria-selected={scope === id} onClick={() => { setScope(id); setQ(''); }}
-              className={`flex-1 h-8 rounded-md text-[12.5px] flex items-center justify-center gap-1 cursor-pointer ${scope === id ? 'bg-kb-bg font-semibold shadow-xs text-kb-cobalt-ink' : 'text-kb-muted hover:text-kb-navy'}`}>
+              className={`flex-1 min-w-0 h-8 px-1.5 rounded-md text-[12.5px] flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${scope === id ? 'bg-kb-bg font-semibold shadow-xs text-kb-cobalt-ink' : 'text-kb-muted hover:text-kb-navy'}`}>
               <I size={12} /> {label}
               {scopeUnread(id) > 0 && <span className="w-1.5 h-1.5 rounded-full bg-kb-navy" aria-label="unread" />}
             </button>

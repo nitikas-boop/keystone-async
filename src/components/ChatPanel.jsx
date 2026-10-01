@@ -193,9 +193,9 @@ export default function ChatPanel({ asOfDate, health, viewer, onCitationClick, o
       </div>
 
       {/* Feed */}
-      <div ref={feedRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 bg-kb-bg-soft" aria-live="polite">
+      <div ref={feedRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 bg-kb-bg-soft flex flex-col" aria-live="polite">
         {messages.length === 0 && (
-          <div className="rounded-xl border border-kb-line bg-kb-bg p-4 text-[13px] text-kb-navy leading-relaxed">
+          <div className="my-auto rounded-xl border border-kb-line bg-kb-bg p-4 text-[13px] text-kb-navy leading-relaxed">
             <h3 className="font-heading font-semibold text-[14px] text-kb-navy mb-1">Ask about Nimbus Ledger's decisions</h3>
             <p>Answers come from the organization's own decision graph, as of the date on the timeline. Every sentence cites
               the record it came from. With no recorded evidence the answer is exactly “{REFUSAL}”.</p>

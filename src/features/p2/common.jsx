@@ -35,9 +35,9 @@ export function Table({ head, rows, empty = 'Nothing here.' }) {
   );
 }
 
-export function Field({ label, children }) {
+export function Field({ label, children, className = '' }) {
   return (
-    <label className="flex flex-col gap-1 text-[12px] text-kb-navy">
+    <label className={`flex flex-col gap-1 text-[12px] text-kb-navy ${className}`}>
       <span>{label}</span>
       {children}
     </label>

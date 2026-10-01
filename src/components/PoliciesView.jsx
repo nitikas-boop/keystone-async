@@ -64,6 +64,7 @@ export default function PoliciesView({ focus, refreshKey = 0, asOfDate, onAdd })
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
           {error && <p className="text-[13px] text-kb-alert">Could not load policies: {error}</p>}
           {!error && !policies && <p className="text-[13px] text-kb-muted">Loading…</p>}
+          {policies && policies.length === 0 && <p className="text-[13px] text-kb-muted">No policies are visible to you.</p>}
           {(policies || []).map(p => (
             <section key={p.policy_id}>
               <h3 className="text-[12px] font-semibold uppercase tracking-wide text-kb-muted mb-1.5">{p.policy_id}</h3>
@@ -74,7 +75,7 @@ export default function PoliciesView({ focus, refreshKey = 0, asOfDate, onAdd })
                     <li key={v.version} className="rounded-lg border border-kb-line p-2">
                       <div className="flex items-center justify-between gap-2">
                         <IdChip id={v.document_id} type="policy_version" />
-                        {current && <span className="text-[11.5px] px-1.5 py-0.5 rounded badge-note-green">In force on {day(asOfDate)}</span>}
+                        {current && <span className="text-[11.5px] px-1.5 py-0.5 rounded whitespace-nowrap badge-note-green" title={`In force on ${day(asOfDate)}`}>In force</span>}
                       </div>
                       <div className="text-[12px] text-kb-muted mt-1">
                         {day(v.valid_from)} → {v.valid_to ? day(v.valid_to) : 'no end date'}
@@ -103,6 +104,13 @@ export default function PoliciesView({ focus, refreshKey = 0, asOfDate, onAdd })
           </h2>
           <p className="text-[12.5px] text-kb-muted">Changed values are marked with the previous value. Dates are the effective dates from each version's front-matter.</p>
         </div>
+        {!sel && (
+          <div className="flex-1 flex items-center justify-center p-5">
+            <p className="max-w-[280px] text-center text-[13px] text-kb-muted">
+              {policies?.length ? 'Pick a clause on the left to compare its versions side by side.' : 'Nothing to compare yet.'}
+            </p>
+          </div>
+        )}
         {sel && (
           <div className="flex-1 overflow-auto p-5">
             <table className="w-full border-collapse text-[13px]">
